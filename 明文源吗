@@ -285,244 +285,242 @@ function parseAddressAndPort(input) {
 }
 
 export default {
-	async fetch(request, env, ctx) {
-		try {
-			// 初始化KV存储
-			await initKVStore(env);
-			
-			authToken = (env.u || env.U || authToken).toLowerCase();
-			const subPath = (env.d || env.D || authToken).toLowerCase();
-			
-			const customIP = getConfigValue('p', env.p || env.P);
-			let useCustomIP = false;
-			
-			// 检查是否手动指定了wk地区 (优先使用KV配置)
-			const manualRegion = getConfigValue('wk', env.wk || env.WK);
-			if (manualRegion && manualRegion.trim()) {
-				manualWorkerRegion = manualRegion.trim().toUpperCase();
-				currentWorkerRegion = manualWorkerRegion;
-			} else if (customIP && customIP.trim()) {
-				useCustomIP = true;
-				currentWorkerRegion = 'CUSTOM';
-			} else {
-				currentWorkerRegion = await detectWorkerRegion(request);
-			}
-			
-			const regionMatchingControl = env.rm || env.RM;
-			if (regionMatchingControl && regionMatchingControl.toLowerCase() === 'no') {
-				enableRegionMatching = false;
-			}
-			
-			const envFallback = getConfigValue('p', env.p || env.P);
-			if (envFallback) {
-				const fallbackValue = envFallback.toLowerCase();
-				if (fallbackValue.includes(']:')) {
-					const lastColonIndex = fallbackValue.lastIndexOf(':');
-					fallbackPort = fallbackValue.slice(lastColonIndex + 1);
-					fallbackAddress = fallbackValue.slice(0, lastColonIndex);
-				} else if (!fallbackValue.includes(']:') && !fallbackValue.includes(']')) {
-					[fallbackAddress, fallbackPort = '443'] = fallbackValue.split(':');
-				} else {
-					fallbackAddress = fallbackValue;
-					fallbackPort = '443';
-				}
-			}
+    async fetch(request, env, ctx) {
+        try {
+            // 初始化KV存储
+            await initKVStore(env);
+            
+            authToken = (env.u || env.U || authToken).toLowerCase();
+            const subPath = (env.d || env.D || authToken).toLowerCase();
+            
+            const customIP = getConfigValue('p', env.p || env.P);
+            let useCustomIP = false;
+            
+            // 检查是否手动指定了wk地区 (优先使用KV配置)
+            const manualRegion = getConfigValue('wk', env.wk || env.WK);
+            if (manualRegion && manualRegion.trim()) {
+                manualWorkerRegion = manualRegion.trim().toUpperCase();
+                currentWorkerRegion = manualWorkerRegion;
+            } else if (customIP && customIP.trim()) {
+                useCustomIP = true;
+                currentWorkerRegion = 'CUSTOM';
+            } else {
+                currentWorkerRegion = await detectWorkerRegion(request);
+            }
+            
+            const regionMatchingControl = env.rm || env.RM;
+            if (regionMatchingControl && regionMatchingControl.toLowerCase() === 'no') {
+                enableRegionMatching = false;
+            }
+            
+            const envFallback = getConfigValue('p', env.p || env.P);
+            if (envFallback) {
+                const fallbackValue = envFallback.toLowerCase();
+                if (fallbackValue.includes(']:')) {
+                    const lastColonIndex = fallbackValue.lastIndexOf(':');
+                    fallbackPort = fallbackValue.slice(lastColonIndex + 1);
+                    fallbackAddress = fallbackValue.slice(0, lastColonIndex);
+                } else if (!fallbackValue.includes(']:') && !fallbackValue.includes(']')) {
+                    [fallbackAddress, fallbackPort = '443'] = fallbackValue.split(':');
+                } else {
+                    fallbackAddress = fallbackValue;
+                    fallbackPort = '443';
+                }
+            }
 
-			socks5Config = getConfigValue('s', env.s || env.S) || socks5Config;
-			if (socks5Config) {
-				try {
-					parsedSocks5Config = parseSocksConfig(socks5Config);
-					isSocksEnabled = true;
-				} catch (err) {
-					isSocksEnabled = false;
-				}
-			}
+            socks5Config = getConfigValue('s', env.s || env.S) || socks5Config;
+            if (socks5Config) {
+                try {
+                    parsedSocks5Config = parseSocksConfig(socks5Config);
+                    isSocksEnabled = true;
+                } catch (err) {
+                    isSocksEnabled = false;
+                }
+            }
 
-			// 优先使用KV配置，然后使用环境变量
-			const customPreferred = getConfigValue('yx', env.yx || env.YX);
-			if (customPreferred) {
-				try {
-					const preferredList = customPreferred.split(',').map(item => item.trim()).filter(item => item);
-					customPreferredIPs = [];
-					customPreferredDomains = [];
-					
-					preferredList.forEach(item => {
-						// 检查是否包含节点名称 (#)
-						let nodeName = '';
-						let addressPart = item;
-						
-						if (item.includes('#')) {
-							const parts = item.split('#');
-							addressPart = parts[0].trim();
-							nodeName = parts[1].trim();
-						}
-						
-						const { address, port } = parseAddressAndPort(addressPart);
-						
-						// 如果没有设置节点名称，使用默认格式
-						if (!nodeName) {
-							nodeName = '自定义优选-' + address + (port ? ':' + port : '');
-						}
-						
-						if (isValidIP(address)) {
-							customPreferredIPs.push({ 
-								ip: address, 
-								port: port,
-								isp: nodeName
-							});
-						} else {
-							customPreferredDomains.push({ 
-								domain: address, 
-								port: port,
-								name: nodeName
-							});
-						}
-					});
-				} catch (err) {
-					customPreferredIPs = [];
-					customPreferredDomains = [];
-				}
-			}
+            // 优先使用KV配置，然后使用环境变量
+            const customPreferred = getConfigValue('yx', env.yx || env.YX);
+            if (customPreferred) {
+                try {
+                    const preferredList = customPreferred.split(',').map(item => item.trim()).filter(item => item);
+                    customPreferredIPs = [];
+                    customPreferredDomains = [];
+                    
+                    preferredList.forEach(item => {
+                        // 检查是否包含节点名称 (#)
+                        let nodeName = '';
+                        let addressPart = item;
+                        
+                        if (item.includes('#')) {
+                            const parts = item.split('#');
+                            addressPart = parts[0].trim();
+                            nodeName = parts[1].trim();
+                        }
+                        
+                        const { address, port } = parseAddressAndPort(addressPart);
+                        
+                        // 如果没有设置节点名称，使用默认格式
+                        if (!nodeName) {
+                            nodeName = '自定义优选-' + address + (port ? ':' + port : '');
+                        }
+                        
+                        if (isValidIP(address)) {
+                            customPreferredIPs.push({ 
+                                ip: address, 
+                                port: port,
+                                isp: nodeName
+                            });
+                        } else {
+                            customPreferredDomains.push({ 
+                                domain: address, 
+                                port: port,
+                                name: nodeName
+                            });
+                        }
+                    });
+                } catch (err) {
+                    customPreferredIPs = [];
+                    customPreferredDomains = [];
+                }
+            }
 
-			const downgradeControl = env.qj || env.QJ;
-			if (downgradeControl && downgradeControl.toLowerCase() === 'no') {
-				enableSocksDowngrade = true;
-			}
+            const downgradeControl = env.qj || env.QJ;
+            if (downgradeControl && downgradeControl.toLowerCase() === 'no') {
+                enableSocksDowngrade = true;
+            }
 
-			// 优先使用KV配置，然后使用环境变量
-			const dkbyControl = getConfigValue('dkby', env.dkby || env.DKBY);
-			if (dkbyControl && dkbyControl.toLowerCase() === 'yes') {
-				disableNonTLS = true;
-			}
+            // 优先使用KV配置，然后使用环境变量
+            const dkbyControl = getConfigValue('dkby', env.dkby || env.DKBY);
+            if (dkbyControl && dkbyControl.toLowerCase() === 'yes') {
+                disableNonTLS = true;
+            }
 
-			const yxbyControl = env.yxby || env.YXBY;
-			if (yxbyControl && yxbyControl.toLowerCase() === 'yes') {
-				disablePreferred = true;
-			}
+            const yxbyControl = env.yxby || env.YXBY;
+            if (yxbyControl && yxbyControl.toLowerCase() === 'yes') {
+                disablePreferred = true;
+            }
 
-			// 优先使用KV配置，然后使用环境变量，如果都没有则使用默认URL
-			preferredIPsURL = getConfigValue('yxURL', env.yxURL || env.YXURL) || 'https://raw.githubusercontent.com/qwer-search/bestip/refs/heads/main/kejilandbestip.txt';
-			
-			// 如果yxURL不是默认值，清空域名但保留backupIPs作为后备选项
-			const defaultURL = 'https://raw.githubusercontent.com/qwer-search/bestip/refs/heads/main/kejilandbestip.txt';
-			if (preferredIPsURL !== defaultURL) {
-				directDomains.length = 0;
-				customPreferredIPs = [];
-				customPreferredDomains = [];
-			}
+            // 优先使用KV配置，然后使用环境变量，如果都没有则使用默认URL
+            preferredIPsURL = getConfigValue('yxURL', env.yxURL || env.YXURL) || 'https://raw.githubusercontent.com/qwer-search/bestip/refs/heads/main/kejilandbestip.txt';
+            
+            // 如果yxURL不是默认值，清空域名但保留backupIPs作为后备选项
+            const defaultURL = 'https://raw.githubusercontent.com/qwer-search/bestip/refs/heads/main/kejilandbestip.txt';
+            if (preferredIPsURL !== defaultURL) {
+                directDomains.length = 0;
+            }
 
-			const url = new URL(request.url);
+            const url = new URL(request.url);
 
-			if (request.headers.get('Upgrade') === 'websocket') {
-				return await handleWsRequest(request);
-			}
-			
-			// 配置管理API路由（支持GET和POST）
-			if (url.pathname.includes('/api/config')) {
-				const pathParts = url.pathname.split('/').filter(p => p);
-				// 查找UUID - 应该在 api 之前
-				const apiIndex = pathParts.indexOf('api');
-				if (apiIndex > 0) {
-					const user = pathParts[apiIndex - 1];
-					if (isValidFormat(user) && user === authToken) {
-						return await handleConfigAPI(request);
-					} else if (isValidFormat(user)) {
-						return new Response(JSON.stringify({ error: 'UUID错误' }), { 
-							status: 403,
-							headers: { 'Content-Type': 'application/json' }
-						});
-					}
-				}
-				// 如果路径格式不正确，返回JSON错误
-				return new Response(JSON.stringify({ error: '无效的API路径' }), { 
-					status: 404,
-					headers: { 'Content-Type': 'application/json' }
-				});
-			}
-			
-			// 优选IP管理API路由
-			if (url.pathname.includes('/api/preferred-ips')) {
-				const pathParts = url.pathname.split('/').filter(p => p);
-				// 查找UUID - 应该在 api 之前
-				const apiIndex = pathParts.indexOf('api');
-				if (apiIndex > 0) {
-					const user = pathParts[apiIndex - 1];
-					if (isValidFormat(user) && user === authToken) {
-						return await handlePreferredIPsAPI(request);
-					} else if (isValidFormat(user)) {
-						return new Response(JSON.stringify({ error: 'UUID错误' }), { 
-							status: 403,
-							headers: { 'Content-Type': 'application/json' }
-						});
-					}
-				}
-				// 如果路径格式不正确，返回JSON错误
-				return new Response(JSON.stringify({ error: '无效的API路径' }), { 
-					status: 404,
-					headers: { 'Content-Type': 'application/json' }
-				});
-			}
-			
-			if (request.method === 'GET') {
-				if (url.pathname === '/region') {
-					// 优先使用KV配置，然后使用环境变量
-					const customIP = getConfigValue('p', env.p || env.P);
-					const manualRegion = getConfigValue('wk', env.wk || env.WK);
-					
-					if (manualRegion && manualRegion.trim()) {
-						return new Response(JSON.stringify({
-							region: manualRegion.trim().toUpperCase(),
-							detectionMethod: '手动指定地区',
-							manualRegion: manualRegion.trim().toUpperCase(),
-							timestamp: new Date().toISOString()
-						}), {
-							headers: { 'Content-Type': 'application/json' }
-						});
-					} else if (customIP && customIP.trim()) {
-						return new Response(JSON.stringify({
-							region: 'CUSTOM',
-							detectionMethod: '自定义ProxyIP模式',
-							customIP: customIP,
-							timestamp: new Date().toISOString()
-						}), {
-							headers: { 'Content-Type': 'application/json' }
-						});
-					} else {
-						const detectedRegion = await detectWorkerRegion(request);
-						return new Response(JSON.stringify({
-							region: detectedRegion,
-							detectionMethod: 'API检测',
-							timestamp: new Date().toISOString()
-						}), {
-							headers: { 'Content-Type': 'application/json' }
-						});
-					}
-				}
-				
-				if (url.pathname === '/test-api') {
-					try {
-						const testRegion = await detectWorkerRegion(request);
-						return new Response(JSON.stringify({
-							detectedRegion: testRegion,
-							message: 'API测试完成',
-							timestamp: new Date().toISOString()
-						}), {
-							headers: { 'Content-Type': 'application/json' }
-						});
-					} catch (error) {
-						return new Response(JSON.stringify({
-							error: error.message,
-							message: 'API测试失败'
-						}), {
-							status: 500,
-							headers: { 'Content-Type': 'application/json' }
-						});
-					}
-				}
-				
-				
-				if (url.pathname === '/') {
-					const terminalHtml = `<!DOCTYPE html>
+            if (request.headers.get('Upgrade') === 'websocket') {
+                return await handleWsRequest(request);
+            }
+            
+            // 配置管理API路由（支持GET和POST）
+            if (url.pathname.includes('/api/config')) {
+                const pathParts = url.pathname.split('/').filter(p => p);
+                // 查找UUID - 应该在 api 之前
+                const apiIndex = pathParts.indexOf('api');
+                if (apiIndex > 0) {
+                    const user = pathParts[apiIndex - 1];
+                    if (isValidFormat(user) && user === authToken) {
+                        return await handleConfigAPI(request);
+                    } else if (isValidFormat(user)) {
+                        return new Response(JSON.stringify({ error: 'UUID错误' }), { 
+                            status: 403,
+                            headers: { 'Content-Type': 'application/json' }
+                        });
+                    }
+                }
+                // 如果路径格式不正确，返回JSON错误
+                return new Response(JSON.stringify({ error: '无效的API路径' }), { 
+                    status: 404,
+                    headers: { 'Content-Type': 'application/json' }
+                });
+            }
+            
+            // 优选IP管理API路由
+            if (url.pathname.includes('/api/preferred-ips')) {
+                const pathParts = url.pathname.split('/').filter(p => p);
+                // 查找UUID - 应该在 api 之前
+                const apiIndex = pathParts.indexOf('api');
+                if (apiIndex > 0) {
+                    const user = pathParts[apiIndex - 1];
+                    if (isValidFormat(user) && user === authToken) {
+                        return await handlePreferredIPsAPI(request);
+                    } else if (isValidFormat(user)) {
+                        return new Response(JSON.stringify({ error: 'UUID错误' }), { 
+                            status: 403,
+                            headers: { 'Content-Type': 'application/json' }
+                        });
+                    }
+                }
+                // 如果路径格式不正确，返回JSON错误
+                return new Response(JSON.stringify({ error: '无效的API路径' }), { 
+                    status: 404,
+                    headers: { 'Content-Type': 'application/json' }
+                });
+            }
+            
+            if (request.method === 'GET') {
+                if (url.pathname === '/region') {
+                    // 优先使用KV配置，然后使用环境变量
+                    const customIP = getConfigValue('p', env.p || env.P);
+                    const manualRegion = getConfigValue('wk', env.wk || env.WK);
+                    
+                    if (manualRegion && manualRegion.trim()) {
+                        return new Response(JSON.stringify({
+                            region: manualRegion.trim().toUpperCase(),
+                            detectionMethod: '手动指定地区',
+                            manualRegion: manualRegion.trim().toUpperCase(),
+                            timestamp: new Date().toISOString()
+                        }), {
+                            headers: { 'Content-Type': 'application/json' }
+                        });
+                    } else if (customIP && customIP.trim()) {
+                        return new Response(JSON.stringify({
+                            region: 'CUSTOM',
+                            detectionMethod: '自定义ProxyIP模式',
+                            customIP: customIP,
+                            timestamp: new Date().toISOString()
+                        }), {
+                            headers: { 'Content-Type': 'application/json' }
+                        });
+                    } else {
+                        const detectedRegion = await detectWorkerRegion(request);
+                        return new Response(JSON.stringify({
+                            region: detectedRegion,
+                            detectionMethod: 'API检测',
+                            timestamp: new Date().toISOString()
+                        }), {
+                            headers: { 'Content-Type': 'application/json' }
+                        });
+                    }
+                }
+                
+                if (url.pathname === '/test-api') {
+                    try {
+                        const testRegion = await detectWorkerRegion(request);
+                        return new Response(JSON.stringify({
+                            detectedRegion: testRegion,
+                            message: 'API测试完成',
+                            timestamp: new Date().toISOString()
+                        }), {
+                            headers: { 'Content-Type': 'application/json' }
+                        });
+                    } catch (error) {
+                        return new Response(JSON.stringify({
+                            error: error.message,
+                            message: 'API测试失败'
+                        }), {
+                            status: 500,
+                            headers: { 'Content-Type': 'application/json' }
+                        });
+                    }
+                }
+                
+                
+                if (url.pathname === '/') {
+                    const terminalHtml = `<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
@@ -805,50 +803,111 @@ export default {
     </script>
 </body>
 </html>`;
-					return new Response(terminalHtml, { status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8' } });
-				}
-				if (url.pathname.length > 1 && url.pathname !== '/' && !url.pathname.includes('/sub')) {
-					const user = url.pathname.replace(/\/$/, '').substring(1);
-					if (isValidFormat(user)) {
-						if (user === authToken) {
-							return await handleSubscriptionPage(request, user);
-						} else {
-							return new Response(JSON.stringify({ error: 'UUID错误 请注意变量名称是u不是uuid' }), { 
-								status: 403,
-								headers: { 'Content-Type': 'application/json' }
-							});
-						}
-					}
-				}
-				if (url.pathname.includes('/sub')) {
-					const pathParts = url.pathname.split('/');
-					if (pathParts.length === 2 && pathParts[1] === 'sub') {
-						const user = pathParts[0].substring(1);
-						if (isValidFormat(user)) {
-							if (user === authToken) {
-								return await handleSubscriptionRequest(request, user, url);
-							} else {
-								return new Response(JSON.stringify({ error: 'UUID错误' }), { 
-									status: 403,
-									headers: { 'Content-Type': 'application/json' }
-								});
-							}
-						}
-					}
-				}
-				if (url.pathname.toLowerCase().includes(`/${subPath}`)) {
-					return await handleSubscriptionRequest(request, authToken);
-				}
-			}
-			return new Response(JSON.stringify({ error: 'Not Found' }), { 
-				status: 404,
-				headers: { 'Content-Type': 'application/json' }
-			});
-		} catch (err) {
-			return new Response(err.toString(), { status: 500 });
-		}
-	},
+                    return new Response(terminalHtml, { status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8' } });
+                }
+                if (url.pathname.length > 1 && url.pathname !== '/' && !url.pathname.includes('/sub')) {
+                    const user = url.pathname.replace(/\/$/, '').substring(1);
+                    if (isValidFormat(user)) {
+                        if (user === authToken) {
+                            return await handleSubscriptionPage(request, user);
+                        } else {
+                            return new Response(JSON.stringify({ error: 'UUID错误 请注意变量名称是u不是uuid' }), { 
+                                status: 403,
+                                headers: { 'Content-Type': 'application/json' }
+                            });
+                        }
+                    }
+                }
+                if (url.pathname.includes('/sub')) {
+                    const pathParts = url.pathname.split('/');
+                    if (pathParts.length === 2 && pathParts[1] === 'sub') {
+                        const user = pathParts[0].substring(1);
+                        if (isValidFormat(user)) {
+                            if (user === authToken) {
+                                return await handleSubscriptionRequest(request, user, url);
+                            } else {
+                                return new Response(JSON.stringify({ error: 'UUID错误' }), { 
+                                    status: 403,
+                                    headers: { 'Content-Type': 'application/json' }
+                                });
+                            }
+                        }
+                    }
+                }
+                if (url.pathname.toLowerCase().includes(`/${subPath}`)) {
+                    return await handleSubscriptionRequest(request, authToken);
+                }
+            }
+            return new Response(JSON.stringify({ error: 'Not Found' }), { 
+                status: 404,
+                headers: { 'Content-Type': 'application/json' }
+            });
+        } catch (err) {
+            return new Response(err.toString(), { status: 500 });
+        }
+    },
 };
+
+// 判断端口应生成 TLS/非TLS 节点
+function getPortsToGenerate(port, isDomain) {
+    const CF_HTTP_PORTS = [80, 8080, 8880, 2052, 2082, 2086, 2095];
+    const CF_HTTPS_PORTS = [443, 2053, 2083, 2087, 2096, 8443];
+
+    const result = [];
+
+    if (CF_HTTPS_PORTS.includes(port)) {
+        result.push({ port, tls: true });
+    } else if (CF_HTTP_PORTS.includes(port)) {
+        if (!disableNonTLS) result.push({ port, tls: false });
+    } else {
+        // 非标准端口：域名支持 TLS，IP 优先 TLS
+        result.push({ port, tls: true });
+        if (!disableNonTLS && !isDomain) {
+            result.push({ port, tls: false });
+        }
+    }
+
+    // 无指定端口时使用默认
+    if (!port) {
+        result.push({ port: 443, tls: true });
+        if (!disableNonTLS) result.push({ port: 80, tls: false });
+    }
+
+    return result;
+}
+
+// 从优化后的节点列表生成链接
+function generateLinksFromOptimizedList(list, user, workerDomain) {
+    const links = [];
+    const wsPath = encodeURIComponent('/?ed=2048');
+    const proto = atob('dmxlc3M=');
+
+    list.forEach(item => {
+        const { address, port, name, tls } = item;
+        const safeAddr = address.includes(':') ? `[${address}]` : address;
+        const nodeNameBase = name.replace(/\s/g, '_');
+        const nodeName = tls ? `${nodeNameBase}-${port}-WS-TLS` : `${nodeNameBase}-${port}-WS`;
+
+        const params = new URLSearchParams({
+            encryption: 'none',
+            type: 'ws',
+            host: workerDomain,
+            path: wsPath
+        });
+
+        if (tls) {
+            params.set('security', 'tls');
+            params.set('sni', workerDomain);
+            params.set('fp', 'chrome');
+        } else {
+            params.set('security', 'none');
+        }
+
+        links.push(`${proto}://${user}@${safeAddr}:${port}?${params.toString()}#${encodeURIComponent(nodeName)}`);
+    });
+
+    return links;
+}
 
 async function handleSubscriptionRequest(request, user, url = null) {
     if (!url) url = new URL(request.url);
@@ -882,66 +941,107 @@ async function handleSubscriptionRequest(request, user, url = null) {
         }
     }
 
+    // === 优化开始：统一节点收集 + 域名优先 + 去重合并 ===
     const hasCustomPreferred = customPreferredIPs.length > 0 || customPreferredDomains.length > 0;
     
     if (disablePreferred) {
-    } else if (hasCustomPreferred) {
-        // 使用yx配置的优选IP（包含API添加的）
-        if (customPreferredIPs.length > 0) {
-            finalLinks.push(...generateLinksFromSource(customPreferredIPs, user, workerDomain));
-        }
-        
-        if (customPreferredDomains.length > 0) {
-            const customDomainList = customPreferredDomains.map(d => ({ ip: d.domain, isp: d.name || d.domain }));
-            finalLinks.push(...generateLinksFromSource(customDomainList, user, workerDomain));
-        }
+        // 禁用优选时跳过
     } else {
-        const domainList = directDomains.map(d => ({ ip: d.domain, isp: d.name || d.domain }));
-        finalLinks.push(...generateLinksFromSource(domainList, user, workerDomain));
+        // 使用 Map 去重：key = `${address}:${port}:${tls?'tls':'http'}`
+        const uniqueNodeMap = new Map();
 
+        // 1. 添加自定义优选列表（yx）
+        if (hasCustomPreferred) {
+            [...customPreferredIPs, ...customPreferredDomains].forEach(item => {
+                const address = item.ip || item.domain;
+                const port = item.port || 443;
+                const name = item.isp || item.name || address;
+
+                // 标记是否为域名
+                const isDomain = !isValidIP(address);
+
+                // 按端口生成 TLS/非TLS 节点
+                const portsToGenerate = getPortsToGenerate(port, isDomain);
+                portsToGenerate.forEach(({ port, tls }) => {
+                    const key = `${address}:${port}:${tls ? 'tls' : 'http'}`;
+                    if (!uniqueNodeMap.has(key)) {
+                        uniqueNodeMap.set(key, { address, port, name, isDomain, tls });
+                    }
+                });
+            });
+        }
+
+        // 2. 添加从 yxURL 获取的节点（支持域名 + #节点名）
+        try {
+            const urlNodes = await fetchAndParseNewIPs();
+            urlNodes.forEach(item => {
+                const address = item.ip;
+                const port = item.port || 443;
+                const name = item.name || address;
+                const isDomain = !isValidIP(address);
+
+                const portsToGenerate = getPortsToGenerate(port, isDomain);
+                portsToGenerate.forEach(({ port, tls }) => {
+                    const key = `${address}:${port}:${tls ? 'tls' : 'http'}`;
+                    if (!uniqueNodeMap.has(key)) {
+                        uniqueNodeMap.set(key, { address, port, name, isDomain, tls });
+                    }
+                });
+            });
+        } catch (error) {}
+
+        // 3. 如果 yxURL 是默认地址，添加 directDomains 和动态IP
         const defaultURL = 'https://raw.githubusercontent.com/qwer-search/bestip/refs/heads/main/kejilandbestip.txt';
         if (preferredIPsURL === defaultURL) {
+            // 添加 directDomains（域名）
+            directDomains.forEach(d => {
+                const address = d.domain;
+                const name = d.name || d.domain;
+                const port = 443;
+                const isDomain = true;
+
+                const key = `${address}:${port}:tls`;
+                if (!uniqueNodeMap.has(key)) {
+                    uniqueNodeMap.set(key, { address, port, name, isDomain, tls: true });
+                }
+            });
+
+            // 添加动态IP（wetest.vip）
             try {
                 const dynamicIPList = await fetchDynamicIPs();
-                if (dynamicIPList.length > 0) {
-                    finalLinks.push(...generateLinksFromSource(dynamicIPList, user, workerDomain));
-                }
-            } catch (error) {
-                if (!currentWorkerRegion) {
-                    currentWorkerRegion = await detectWorkerRegion(request);
-                }
-                
-                const bestBackupIP = await getBestBackupIP(currentWorkerRegion);
-                if (bestBackupIP) {
-                    fallbackAddress = bestBackupIP.domain;
-                    fallbackPort = bestBackupIP.port.toString();
-                    
-                    const backupList = [{ ip: fallbackAddress, isp: 'ProxyIP-' + currentWorkerRegion }];
-                    finalLinks.push(...generateLinksFromSource(backupList, user, workerDomain));
-                }
-            }
+                dynamicIPList.forEach(item => {
+                    const address = item.ip;
+                    const name = item.isp || address;
+                    const port = 443;
+                    const isDomain = !isValidIP(address);
+
+                    const key = `${address}:${port}:tls`;
+                    if (!uniqueNodeMap.has(key)) {
+                        uniqueNodeMap.set(key, { address, port, name, isDomain, tls: true });
+                    }
+                });
+            } catch (error) {}
         }
 
-        try {
-            const newIPList = await fetchAndParseNewIPs();
-            if (newIPList.length > 0) {
-                finalLinks.push(...generateLinksFromNewIPs(newIPList, user, workerDomain));
+        // === 4. 按优先级排序：域名 > IP ===
+        const domainNodes = [];
+        const ipNodes = [];
+
+        uniqueNodeMap.forEach(node => {
+            if (node.isDomain) {
+                domainNodes.push(node);
+            } else {
+                ipNodes.push(node);
             }
-        } catch (error) {
-            if (!currentWorkerRegion) {
-                currentWorkerRegion = await detectWorkerRegion(request);
-            }
-            
-            const bestBackupIP = await getBestBackupIP(currentWorkerRegion);
-            if (bestBackupIP) {
-                fallbackAddress = bestBackupIP.domain;
-                fallbackPort = bestBackupIP.port.toString();
-                
-                const backupList = [{ ip: fallbackAddress, isp: 'ProxyIP-' + currentWorkerRegion }];
-                finalLinks.push(...generateLinksFromSource(backupList, user, workerDomain));
-            }
-        }
+        });
+
+        // === 5. 生成链接：域名优先 ===
+        finalLinks.push(
+            ...generateLinksFromOptimizedList(domainNodes, user, workerDomain),
+            ...generateLinksFromOptimizedList(ipNodes, user, workerDomain)
+        );
     }
+    // === 优化结束 ===
 
     if (finalLinks.length === 0) {
         const errorRemark = "所有节点获取失败";
@@ -998,7 +1098,7 @@ function generateLinksFromSource(list, user, workerDomain) {
     const defaultHttpsPorts = [443];
     const defaultHttpPorts = disableNonTLS ? [] : [80];
     const links = [];
-    const wsPath = encodeURIComponent('/');
+    const wsPath = encodeURIComponent('/?ed=2048');
     const proto = atob('dmxlc3M=');
 
     list.forEach(item => {
@@ -1229,129 +1329,129 @@ async function forwardTCP(addrType, host, portNum, rawData, ws, respHeader, remo
 }
 
 function parseWsPacketHeader(chunk, token) {
-	if (chunk.byteLength < 24) return { hasError: true, message: E_INVALID_DATA };
-	const version = new Uint8Array(chunk.slice(0, 1));
-	if (formatIdentifier(new Uint8Array(chunk.slice(1, 17))) !== token) return { hasError: true, message: E_INVALID_USER };
-	const optLen = new Uint8Array(chunk.slice(17, 18))[0];
-	const cmd = new Uint8Array(chunk.slice(18 + optLen, 19 + optLen))[0];
-	let isUDP = false;
-	if (cmd === 1) {} else if (cmd === 2) { isUDP = true; } else { return { hasError: true, message: E_UNSUPPORTED_CMD }; }
-	const portIdx = 19 + optLen;
-	const port = new DataView(chunk.slice(portIdx, portIdx + 2)).getUint16(0);
-	let addrIdx = portIdx + 2, addrLen = 0, addrValIdx = addrIdx + 1, hostname = '';
-	const addressType = new Uint8Array(chunk.slice(addrIdx, addrValIdx))[0];
-	switch (addressType) {
-		case ADDRESS_TYPE_IPV4: addrLen = 4; hostname = new Uint8Array(chunk.slice(addrValIdx, addrValIdx + addrLen)).join('.'); break;
-		case ADDRESS_TYPE_URL: addrLen = new Uint8Array(chunk.slice(addrValIdx, addrValIdx + 1))[0]; addrValIdx += 1; hostname = new TextDecoder().decode(chunk.slice(addrValIdx, addrValIdx + addrLen)); break;
-		case ADDRESS_TYPE_IPV6: addrLen = 16; const ipv6 = []; const ipv6View = new DataView(chunk.slice(addrValIdx, addrValIdx + addrLen)); for (let i = 0; i < 8; i++) ipv6.push(ipv6View.getUint16(i * 2).toString(16)); hostname = ipv6.join(':'); break;
-		default: return { hasError: true, message: `${E_INVALID_ADDR_TYPE}: ${addressType}` };
-	}
-	if (!hostname) return { hasError: true, message: `${E_EMPTY_ADDR}: ${addressType}` };
-	return { hasError: false, addressType, port, hostname, isUDP, rawIndex: addrValIdx + addrLen, version };
+    if (chunk.byteLength < 24) return { hasError: true, message: E_INVALID_DATA };
+    const version = new Uint8Array(chunk.slice(0, 1));
+    if (formatIdentifier(new Uint8Array(chunk.slice(1, 17))) !== token) return { hasError: true, message: E_INVALID_USER };
+    const optLen = new Uint8Array(chunk.slice(17, 18))[0];
+    const cmd = new Uint8Array(chunk.slice(18 + optLen, 19 + optLen))[0];
+    let isUDP = false;
+    if (cmd === 1) {} else if (cmd === 2) { isUDP = true; } else { return { hasError: true, message: E_UNSUPPORTED_CMD }; }
+    const portIdx = 19 + optLen;
+    const port = new DataView(chunk.slice(portIdx, portIdx + 2)).getUint16(0);
+    let addrIdx = portIdx + 2, addrLen = 0, addrValIdx = addrIdx + 1, hostname = '';
+    const addressType = new Uint8Array(chunk.slice(addrIdx, addrValIdx))[0];
+    switch (addressType) {
+        case ADDRESS_TYPE_IPV4: addrLen = 4; hostname = new Uint8Array(chunk.slice(addrValIdx, addrValIdx + addrLen)).join('.'); break;
+        case ADDRESS_TYPE_URL: addrLen = new Uint8Array(chunk.slice(addrValIdx, addrValIdx + 1))[0]; addrValIdx += 1; hostname = new TextDecoder().decode(chunk.slice(addrValIdx, addrValIdx + addrLen)); break;
+        case ADDRESS_TYPE_IPV6: addrLen = 16; const ipv6 = []; const ipv6View = new DataView(chunk.slice(addrValIdx, addrValIdx + addrLen)); for (let i = 0; i < 8; i++) ipv6.push(ipv6View.getUint16(i * 2).toString(16)); hostname = ipv6.join(':'); break;
+        default: return { hasError: true, message: `${E_INVALID_ADDR_TYPE}: ${addressType}` };
+    }
+    if (!hostname) return { hasError: true, message: `${E_EMPTY_ADDR}: ${addressType}` };
+    return { hasError: false, addressType, port, hostname, isUDP, rawIndex: addrValIdx + addrLen, version };
 }
 
 function makeReadableStream(socket, earlyDataHeader) {
-	let cancelled = false;
-	return new ReadableStream({
-		start(controller) {
-			socket.addEventListener('message', (event) => { if (!cancelled) controller.enqueue(event.data); });
-			socket.addEventListener('close', () => { if (!cancelled) { closeSocketQuietly(socket); controller.close(); } });
-			socket.addEventListener('error', (err) => controller.error(err));
-			const { earlyData, error } = base64ToArray(earlyDataHeader);
-			if (error) controller.error(error); else if (earlyData) controller.enqueue(earlyData);
-		},
-		cancel() { cancelled = true; closeSocketQuietly(socket); }
-	});
+    let cancelled = false;
+    return new ReadableStream({
+        start(controller) {
+            socket.addEventListener('message', (event) => { if (!cancelled) controller.enqueue(event.data); });
+            socket.addEventListener('close', () => { if (!cancelled) { closeSocketQuietly(socket); controller.close(); } });
+            socket.addEventListener('error', (err) => controller.error(err));
+            const { earlyData, error } = base64ToArray(earlyDataHeader);
+            if (error) controller.error(error); else if (earlyData) controller.enqueue(earlyData);
+        },
+        cancel() { cancelled = true; closeSocketQuietly(socket); }
+    });
 }
 
 async function connectStreams(remoteSocket, webSocket, headerData, retryFunc) {
-	let header = headerData, hasData = false;
-	await remoteSocket.readable.pipeTo(
-		new WritableStream({
-			async write(chunk, controller) {
-				hasData = true;
-				if (webSocket.readyState !== 1) controller.error(E_WS_NOT_OPEN);
-				if (header) { webSocket.send(await new Blob([header, chunk]).arrayBuffer()); header = null; } 
+    let header = headerData, hasData = false;
+    await remoteSocket.readable.pipeTo(
+        new WritableStream({
+            async write(chunk, controller) {
+                hasData = true;
+                if (webSocket.readyState !== 1) controller.error(E_WS_NOT_OPEN);
+                if (header) { webSocket.send(await new Blob([header, chunk]).arrayBuffer()); header = null; } 
                 else { webSocket.send(chunk); }
-			},
-			abort(reason) { console.error("Readable aborted:", reason); },
-		})
-	).catch((error) => { console.error("Stream connection error:", error); closeSocketQuietly(webSocket); });
-	if (!hasData && retryFunc) retryFunc();
+            },
+            abort(reason) { console.error("Readable aborted:", reason); },
+        })
+    ).catch((error) => { console.error("Stream connection error:", error); closeSocketQuietly(webSocket); });
+    if (!hasData && retryFunc) retryFunc();
 }
 
 async function forwardUDP(udpChunk, webSocket, respHeader) {
-	try {
-		const tcpSocket = connect({ hostname: '8.8.4.4', port: 53 });
-		let header = respHeader;
-		const writer = tcpSocket.writable.getWriter();
-		await writer.write(udpChunk);
-		writer.releaseLock();
-		await tcpSocket.readable.pipeTo(new WritableStream({
-			async write(chunk) {
-				if (webSocket.readyState === 1) {
-					if (header) { webSocket.send(await new Blob([header, chunk]).arrayBuffer()); header = null; } 
+    try {
+        const tcpSocket = connect({ hostname: '8.8.4.4', port: 53 });
+        let header = respHeader;
+        const writer = tcpSocket.writable.getWriter();
+        await writer.write(udpChunk);
+        writer.releaseLock();
+        await tcpSocket.readable.pipeTo(new WritableStream({
+            async write(chunk) {
+                if (webSocket.readyState === 1) {
+                    if (header) { webSocket.send(await new Blob([header, chunk]).arrayBuffer()); header = null; } 
                     else { webSocket.send(chunk); }
-				}
-			},
-		}));
-	} catch (error) { console.error(`DNS forward error: ${error.message}`); }
+                }
+            },
+        }));
+    } catch (error) { console.error(`DNS forward error: ${error.message}`); }
 }
 
 async function establishSocksConnection(addrType, address, port) {
-	const { username, password, hostname, socksPort } = parsedSocks5Config;
-	const socket = connect({ hostname, port: socksPort });
-	const writer = socket.writable.getWriter();
-	await writer.write(new Uint8Array(username ? [5, 2, 0, 2] : [5, 1, 0]));
-	const reader = socket.readable.getReader();
-	let res = (await reader.read()).value;
-	if (res[0] !== 5 || res[1] === 255) throw new Error(E_SOCKS_NO_METHOD);
-	if (res[1] === 2) {
-		if (!username || !password) throw new Error(E_SOCKS_AUTH_NEEDED);
-		const encoder = new TextEncoder();
-		const authRequest = new Uint8Array([1, username.length, ...encoder.encode(username), password.length, ...encoder.encode(password)]);
-		await writer.write(authRequest);
-		res = (await reader.read()).value;
-		if (res[0] !== 1 || res[1] !== 0) throw new Error(E_SOCKS_AUTH_FAIL);
-	}
-	const encoder = new TextEncoder(); let DSTADDR;
-	switch (addrType) {
-		case ADDRESS_TYPE_IPV4: DSTADDR = new Uint8Array([1, ...address.split('.').map(Number)]); break;
-		case ADDRESS_TYPE_URL: DSTADDR = new Uint8Array([3, address.length, ...encoder.encode(address)]); break;
-		case ADDRESS_TYPE_IPV6: DSTADDR = new Uint8Array([4, ...address.split(':').flatMap(x => [parseInt(x.slice(0, 2), 16), parseInt(x.slice(2), 16)])]); break;
-		default: throw new Error(E_INVALID_ADDR_TYPE);
-	}
-	await writer.write(new Uint8Array([5, 1, 0, ...DSTADDR, port >> 8, port & 255]));
-	res = (await reader.read()).value;
-	if (res[1] !== 0) throw new Error(E_SOCKS_CONN_FAIL);
-	writer.releaseLock(); reader.releaseLock();
-	return socket;
+    const { username, password, hostname, socksPort } = parsedSocks5Config;
+    const socket = connect({ hostname, port: socksPort });
+    const writer = socket.writable.getWriter();
+    await writer.write(new Uint8Array(username ? [5, 2, 0, 2] : [5, 1, 0]));
+    const reader = socket.readable.getReader();
+    let res = (await reader.read()).value;
+    if (res[0] !== 5 || res[1] === 255) throw new Error(E_SOCKS_NO_METHOD);
+    if (res[1] === 2) {
+        if (!username || !password) throw new Error(E_SOCKS_AUTH_NEEDED);
+        const encoder = new TextEncoder();
+        const authRequest = new Uint8Array([1, username.length, ...encoder.encode(username), password.length, ...encoder.encode(password)]);
+        await writer.write(authRequest);
+        res = (await reader.read()).value;
+        if (res[0] !== 1 || res[1] !== 0) throw new Error(E_SOCKS_AUTH_FAIL);
+    }
+    const encoder = new TextEncoder(); let DSTADDR;
+    switch (addrType) {
+        case ADDRESS_TYPE_IPV4: DSTADDR = new Uint8Array([1, ...address.split('.').map(Number)]); break;
+        case ADDRESS_TYPE_URL: DSTADDR = new Uint8Array([3, address.length, ...encoder.encode(address)]); break;
+        case ADDRESS_TYPE_IPV6: DSTADDR = new Uint8Array([4, ...address.split(':').flatMap(x => [parseInt(x.slice(0, 2), 16), parseInt(x.slice(2), 16)])]); break;
+        default: throw new Error(E_INVALID_ADDR_TYPE);
+    }
+    await writer.write(new Uint8Array([5, 1, 0, ...DSTADDR, port >> 8, port & 255]));
+    res = (await reader.read()).value;
+    if (res[1] !== 0) throw new Error(E_SOCKS_CONN_FAIL);
+    writer.releaseLock(); reader.releaseLock();
+    return socket;
 }
 
 function parseSocksConfig(address) {
-	let [latter, former] = address.split("@").reverse(); 
-	let username, password, hostname, socksPort;
-	
-	if (former) { 
-		const formers = former.split(":"); 
-		if (formers.length !== 2) throw new Error(E_INVALID_SOCKS_ADDR);
-		[username, password] = formers; 
-	}
-	
-	const latters = latter.split(":"); 
-	socksPort = Number(latters.pop()); 
-	if (isNaN(socksPort)) throw new Error(E_INVALID_SOCKS_ADDR);
-	
-	hostname = latters.join(":"); 
-	if (hostname.includes(":") && !/^\[.*\]$/.test(hostname)) throw new Error(E_INVALID_SOCKS_ADDR);
-	
-	return { username, password, hostname, socksPort };
+    let [latter, former] = address.split("@").reverse(); 
+    let username, password, hostname, socksPort;
+    
+    if (former) { 
+        const formers = former.split(":"); 
+        if (formers.length !== 2) throw new Error(E_INVALID_SOCKS_ADDR);
+        [username, password] = formers; 
+    }
+    
+    const latters = latter.split(":"); 
+    socksPort = Number(latters.pop()); 
+    if (isNaN(socksPort)) throw new Error(E_INVALID_SOCKS_ADDR);
+    
+    hostname = latters.join(":"); 
+    if (hostname.includes(":") && !/^\[.*\]$/.test(hostname)) throw new Error(E_INVALID_SOCKS_ADDR);
+    
+    return { username, password, hostname, socksPort };
 }
 
 async function handleSubscriptionPage(request, user = null) {
-	if (!user) user = authToken;
-	
-	const pageHtml = `<!DOCTYPE html>
+    if (!user) user = authToken;
+    
+    const pageHtml = `<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
@@ -2200,16 +2300,16 @@ async function handleSubscriptionPage(request, user = null) {
     </script>
 </body>
 </html>`;
-	
-	return new Response(pageHtml, { 
-		status: 200, 
-		headers: { 'Content-Type': 'text/html; charset=utf-8' } 
-	});
+    
+    return new Response(pageHtml, { 
+        status: 200, 
+        headers: { 'Content-Type': 'text/html; charset=utf-8' } 
+    });
 }
 
 function base64ToArray(b64Str) {
-	if (!b64Str) return { error: null };
-	try { b64Str = b64Str.replace(/-/g, '+').replace(/_/g, '/'); return { earlyData: Uint8Array.from(atob(b64Str), (c) => c.charCodeAt(0)).buffer, error: null }; } 
+    if (!b64Str) return { error: null };
+    try { b64Str = b64Str.replace(/-/g, '+').replace(/_/g, '/'); return { earlyData: Uint8Array.from(atob(b64Str), (c) => c.charCodeAt(0)).buffer, error: null }; } 
     catch (error) { return { error }; }
 }
 
@@ -2217,13 +2317,12 @@ function closeSocketQuietly(socket) { try { if (socket.readyState === 1 || socke
 
 const hexTable = Array.from({ length: 256 }, (v, i) => (i + 256).toString(16).slice(1));
 function formatIdentifier(arr, offset = 0) {
-	const id = (hexTable[arr[offset]]+hexTable[arr[offset+1]]+hexTable[arr[offset+2]]+hexTable[arr[offset+3]]+"-"+hexTable[arr[offset+4]]+hexTable[arr[offset+5]]+"-"+hexTable[arr[offset+6]]+hexTable[arr[offset+7]]+"-"+hexTable[arr[offset+8]]+hexTable[arr[offset+9]]+"-"+hexTable[arr[offset+10]]+hexTable[arr[offset+11]]+hexTable[arr[offset+12]]+hexTable[arr[offset+13]]+hexTable[arr[offset+14]]+hexTable[arr[offset+15]]).toLowerCase();
-	if (!isValidFormat(id)) throw new TypeError(E_INVALID_ID_STR);
-	return id;
+    const id = (hexTable[arr[offset]]+hexTable[arr[offset+1]]+hexTable[arr[offset+2]]+hexTable[arr[offset+3]]+"-"+hexTable[arr[offset+4]]+hexTable[arr[offset+5]]+"-"+hexTable[arr[offset+6]]+hexTable[arr[offset+7]]+"-"+hexTable[arr[offset+8]]+hexTable[arr[offset+9]]+"-"+hexTable[arr[offset+10]]+hexTable[arr[offset+11]]+hexTable[arr[offset+12]]+hexTable[arr[offset+13]]+hexTable[arr[offset+14]]+hexTable[arr[offset+15]]).toLowerCase();
+    if (!isValidFormat(id)) throw new TypeError(E_INVALID_ID_STR);
+    return id;
 }
 
 async function fetchAndParseNewIPs() {
-    // 使用配置的URL，如果没有配置则使用默认URL
     const url = preferredIPsURL || "https://raw.githubusercontent.com/qwer-search/bestip/refs/heads/main/kejilandbestip.txt";
     try {
         const response = await fetch(url);
@@ -2231,18 +2330,17 @@ async function fetchAndParseNewIPs() {
         const text = await response.text();
         const results = [];
         const lines = text.trim().replace(/\r/g, "").split('\n');
-        const regex = /^([^:]+):(\d+)#(.*)$/;
+        const regex = /^([^:#]+)(?::(\d+))?(?:#(.*))?$/;  // 支持 IP:port#name 或 IP#name 或 IP:port
 
         for (const line of lines) {
             const trimmedLine = line.trim();
-            if (!trimmedLine) continue;
+            if (!trimmedLine || trimmedLine.startsWith('#')) continue;
             const match = trimmedLine.match(regex);
             if (match) {
-                results.push({
-                    ip: match[1],
-                    port: parseInt(match[2], 10),
-                    name: match[3].trim() || match[1]
-                });
+                const ip = match[1].trim();
+                const port = match[2] ? parseInt(match[2], 10) : 443;
+                const name = (match[3] || '').trim() || ip;
+                results.push({ ip, port, name });
             }
         }
         return results;
@@ -2368,8 +2466,6 @@ async function handleConfigAPI(request) {
             const defaultURL = 'https://raw.githubusercontent.com/qwer-search/bestip/refs/heads/main/kejilandbestip.txt';
             if (newPreferredIPsURL !== defaultURL) {
                 directDomains.length = 0;
-                customPreferredIPs = [];
-                customPreferredDomains = [];
             } else {
                 backupIPs = [
                     { domain: 'ProxyIP.US.CMLiussss.net', region: 'US', regionCode: 'US', port: 443 },
