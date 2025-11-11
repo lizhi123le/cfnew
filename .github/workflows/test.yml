@@ -40,12 +40,31 @@ jobs:
           cp "明文源吗" "明文源码"
           cp "少年你相信光吗" "_worker.js"
           echo "成功将 '少年你相信光吗' 复制为 '_worker.js'"
+          echo "成功将 '明文源吗' 复制为 '明文源码'"
           echo "注意：文件不会提交到仓库，仅用于 Release"
       
       - name: Create zip file
         run: |
           zip Pages.zip _worker.js
           echo "成功将 '_worker.js' 压缩为 'Pages.zip'"
+      
+      - name: Verify generated files
+        run: |
+          if [ ! -f "_worker.js" ]; then
+            echo "错误：未找到 '_worker.js' 文件。"
+            exit 1
+          fi
+          echo "成功验证 '_worker.js' 文件存在"
+          if [ ! -f "Pages.zip" ]; then
+            echo "错误：未找到 'Pages.zip' 文件。"
+            exit 1
+          fi
+          echo "成功验证 'Pages.zip' 文件存在"
+          if [ ! -f "明文源码" ]; then
+            echo "错误：未找到 '明文源码' 文件。"
+            exit 1
+          fi
+          echo "成功验证 '明文源码' 文件存在"
       
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
@@ -56,17 +75,22 @@ jobs:
             ## 部署信息
             
             - **源文件**: 少年你相信光吗
+            - **明文源文件**: 明文源吗
             - **目标文件**: _worker.js
             - **压缩文件**: Pages.zip
+            - **明文发布文件**: 明文源码
             - **标签**: ${{ steps.get_tag.outputs.tag_name }}
             - **部署时间**: ${{ github.event.head_commit.timestamp }}
             
             ## 文件变更
             
             已从 `少年你相信光吗` 生成 `_worker.js` 文件，并压缩为 `Pages.zip`。
+            已从 `明文源吗` 复制为 `明文源码` 以供发布。
           draft: false
           prerelease: false
-          files: Pages.zip 明文源码
+          files: |
+            Pages.zip
+            明文源码
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       
@@ -74,7 +98,9 @@ jobs:
         run: |
           echo "## 部署完成" >> $GITHUB_STEP_SUMMARY
           echo "- 源文件: 少年你相信光吗" >> $GITHUB_STEP_SUMMARY
+          echo "- 明文源文件: 明文源吗" >> $GITHUB_STEP_SUMMARY
           echo "- 目标文件: _worker.js" >> $GITHUB_STEP_SUMMARY
           echo "- 压缩文件: Pages.zip" >> $GITHUB_STEP_SUMMARY
+          echo "- 明文发布文件: 明文源码" >> $GITHUB_STEP_SUMMARY
           echo "- 标签: ${{ steps.get_tag.outputs.tag_name }}" >> $GITHUB_STEP_SUMMARY
-          echo "- GitHub Release 已创建" >> $GITHUB_STEP_SUMMARY
+          echo "- GitHub Release 已创建（包含 Pages.zip 和 明文源码）" >> $GITHUB_STEP_SUMMARY
