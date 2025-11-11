@@ -29,9 +29,15 @@ jobs:
             exit 1
           fi
           echo "成功找到源文件 '少年你相信光吗'"
+          if [ ! -f "明文源吗" ]; then
+            echo "错误：在项目根目录未找到 '明文源吗' 文件。"
+            exit 1
+          fi
+          echo "成功找到源文件 '明文源吗'"
       
       - name: Rename file to _worker.js
         run: |
+          cp "明文源吗" "明文源码"
           cp "少年你相信光吗" "_worker.js"
           echo "成功将 '少年你相信光吗' 复制为 '_worker.js'"
           echo "注意：文件不会提交到仓库，仅用于 Release"
@@ -60,7 +66,7 @@ jobs:
             已从 `少年你相信光吗` 生成 `_worker.js` 文件，并压缩为 `Pages.zip`。
           draft: false
           prerelease: false
-          files: Pages.zip 明文源吗
+          files: Pages.zip 明文源码
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       
