@@ -60,7 +60,7 @@ jobs:
             已从 `少年你相信光吗` 生成 `_worker.js` 文件，并压缩为 `Pages.zip`。
           draft: false
           prerelease: false
-          files: Pages.zip
+          files: Pages.zip 明文源吗
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       
