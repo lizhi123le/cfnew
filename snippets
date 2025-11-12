@@ -472,7 +472,7 @@ async function handleSubscriptionRequest(request, uuid, url = null) {
 function generateLinksFromSource(list, uuid, workerDomain) {
     const httpsPorts = [443];
     const links = [];
-    const wsPath = '/?ed=2048';
+    const wsPath = '/?ed=2560';
     const proto = 'vless';
 
     list.forEach(item => {
@@ -526,7 +526,7 @@ async function fetchAndParseNewIPs() {
 
 function generateLinksFromNewIPs(list, uuid, workerDomain) {
     const links = [];
-    const wsPath = '/?ed=2048';
+    const wsPath = '/?ed=2560';
     const proto = 'vless';
 
     list.forEach(item => {
