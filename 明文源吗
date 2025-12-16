@@ -4810,32 +4810,71 @@
                     }
                 }
                 return results;
-            }
+            } else {
+                const response = await fetch(url);
+                if (!response.ok) return [];
+                const text = await response.text();
+                const results = [];
+                const lines = text.trim().replace(/\r/g, "").split('\n');
             
-            const response = await fetch(url);
-            if (!response.ok) return [];
-            const text = await response.text();
-            const results = [];
-            const lines = text.trim().replace(/\r/g, "").split('\n');
-            const simpleRegex = /^([^:]+):(\d+)#(.*)$/;
-
-            for (const line of lines) {
-                const trimmedLine = line.trim();
-                if (!trimmedLine) continue;
-                const match = trimmedLine.match(simpleRegex);
-                if (match) {
+                for (const line of lines) {
+                    let trimmed = line.trim();
+                    if (!trimmed) continue;
+            
+                    // 分离备注
+                    let name = trimmed;  // 默认name为整个line
+                    const hashPos = trimmed.indexOf('#');
+                    if (hashPos !== -1) {
+                        name = trimmed.substring(hashPos + 1).trim();
+                        trimmed = trimmed.substring(0, hashPos).trim();
+                    }
+            
+                    // 手动解析地址和端口
+                    let address = trimmed;
+                    let portStr = null;
+                    if (address.startsWith('[')) {
+                        const endBracket = address.indexOf(']', 1);
+                        if (endBracket !== -1) {
+                            address = address.substring(1, endBracket);  // 剥离[]
+                            if (address[endBracket + 1] === ':') {
+                                portStr = address.substring(endBracket + 2);
+                            }
+                        }
+                    } else {
+                        const lastColon = address.lastIndexOf(':');
+                        if (lastColon > 0) {
+                            const possiblePort = address.substring(lastColon + 1);
+                            if (/^\d+$/.test(possiblePort) && parseInt(possiblePort, 10) > 0 && parseInt(possiblePort, 10) <= 65535) {
+                                portStr = possiblePort;
+                                address = address.substring(0, lastColon);
+                            }
+                        }
+                    }
+            
+                    const port = parseInt(portStr || '443', 10);
+            
+                    // 如果是有效IPv6，统一包裹[]（无论原是否带[]）
+                    if (isValidIP(address) && address.includes(':')) {
+                        address = `[${address}]`;
+                    }
+            
+                    // 跳过无效地址（可选，如果想严格验证；否则移除此if）
+                    if (!address) continue;
+            
+                    // name如果无备注，则用address
+                    if (!name) name = address;
+            
                     results.push({
-                        ip: match[1],
-                        port: parseInt(match[2], 10),
-                        name: match[3].trim() || match[1]
+                        ip: address,
+                        port: port,
+                        name: name
                     });
                 }
-            }
-            return results;
-        } catch (error) {
-            return [];
-        }
-    }
+                return results;
+            } catch (error) {
+				return [];
+			}
+		}
 
     function generateLinksFromNewIPs(list, user, workerDomain) {
         
@@ -4853,7 +4892,7 @@
             if (CF_HTTPS_PORTS.includes(port)) {
                 
                 const wsNodeName = `${nodeName}-${port}-WS-TLS`;
-                const link = `${proto}://${user}@${item.ip}:${port}?encryption=none&security=tls&sni=${workerDomain}&fp=chrome&alpn=h3,h2&type=ws&host=${workerDomain}&path=${wsPath}#${encodeURIComponent(wsNodeName)}`;
+                const link = `${proto}://${user}@${item.ip}:${port}?encryption=none&security=tls&sni=${workerDomain}&fp=chrome&alpn=h3%2Ch2&type=ws&host=${workerDomain}&path=${wsPath}#${encodeURIComponent(wsNodeName)}`;
                 links.push(link);
             } else if (CF_HTTP_PORTS.includes(port)) {
                 
@@ -4865,7 +4904,7 @@
             } else {
                 
                 const wsNodeName = `${nodeName}-${port}-WS-TLS`;
-                const link = `${proto}://${user}@${item.ip}:${port}?encryption=none&security=tls&sni=${workerDomain}&fp=chrome&alpn=h3,h2&type=ws&host=${workerDomain}&path=${wsPath}#${encodeURIComponent(wsNodeName)}`;
+                const link = `${proto}://${user}@${item.ip}:${port}?encryption=none&security=tls&sni=${workerDomain}&fp=chrome&alpn=h3%2Ch2&type=ws&host=${workerDomain}&path=${wsPath}#${encodeURIComponent(wsNodeName)}`;
                 links.push(link);
             }
         });
@@ -4921,7 +4960,7 @@
             if (CF_HTTPS_PORTS.includes(port)) {
                 
                 const wsNodeName = `${nodeName}-${port}-${atob('VHJvamFu')}-WS-TLS`;
-                const link = `${atob('dHJvamFuOi8v')}${password}@${item.ip}:${port}?security=tls&sni=${workerDomain}&fp=chrome&alpn=h3,h2&type=ws&host=${workerDomain}&path=${wsPath}#${encodeURIComponent(wsNodeName)}`;
+                const link = `${atob('dHJvamFuOi8v')}${password}@${item.ip}:${port}?security=tls&sni=${workerDomain}&fp=chrome&alpn=h3%2Ch2&type=ws&host=${workerDomain}&path=${wsPath}#${encodeURIComponent(wsNodeName)}`;
                 links.push(link);
             } else if (CF_HTTP_PORTS.includes(port)) {
                 
@@ -4933,7 +4972,7 @@
             } else {
                 
                 const wsNodeName = `${nodeName}-${port}-${atob('VHJvamFu')}-WS-TLS`;
-                const link = `${atob('dHJvamFuOi8v')}${password}@${item.ip}:${port}?security=tls&sni=${workerDomain}&fp=chrome&alpn=h3,h2&type=ws&host=${workerDomain}&path=${wsPath}#${encodeURIComponent(wsNodeName)}`;
+                const link = `${atob('dHJvamFuOi8v')}${password}@${item.ip}:${port}?security=tls&sni=${workerDomain}&fp=chrome&alpn=h3%2Ch2&type=ws&host=${workerDomain}&path=${wsPath}#${encodeURIComponent(wsNodeName)}`;
                 links.push(link);
             }
         });
@@ -5532,17 +5571,50 @@
                 const IPV6_PATTERN = /^[^\[\]]*:[^\[\]]*:[^\[\]]/;
                 if (!isCSV) {
                     lines.forEach(line => {
-                        const hashIndex = line.indexOf('#');
-                        const [hostPart, remark] = hashIndex > -1 ? [line.substring(0, hashIndex), line.substring(hashIndex)] : [line, ''];
-                        let hasPort = false;
-                        if (hostPart.startsWith('[')) {
-                            hasPort = /\]:(\d+)$/.test(hostPart);
-                        } else {
-                            const colonIndex = hostPart.lastIndexOf(':');
-                            hasPort = colonIndex > -1 && /^\d+$/.test(hostPart.substring(colonIndex + 1));
+                        let trimmed = line.trim();
+                        if (!trimmed) return;
+                
+                        // 分离备注
+                        let remark = '';
+                        const hashPos = trimmed.indexOf('#');
+                        if (hashPos !== -1) {
+                            remark = trimmed.substring(hashPos);
+                            trimmed = trimmed.substring(0, hashPos);
                         }
-                        const port = new URL(url).searchParams.get('port') || defaultPort;
-                        results.add(hasPort ? line : `${hostPart}:${port}${remark}`);
+                
+                        // 手动解析地址和端口
+                        let address = trimmed;
+                        let portStr = null;
+                        if (address.startsWith('[')) {
+                            const endBracket = address.indexOf(']', 1);
+                            if (endBracket !== -1) {
+                                address = address.substring(1, endBracket);  // 剥离[]
+                                if (address[endBracket + 1] === ':') {
+                                    portStr = address.substring(endBracket + 2);
+                                }
+                            }
+                        } else {
+                            const lastColon = address.lastIndexOf(':');
+                            if (lastColon > 0) {
+                                const possiblePort = address.substring(lastColon + 1);
+                                if (/^\d+$/.test(possiblePort) && parseInt(possiblePort, 10) > 0 && parseInt(possiblePort, 10) <= 65535) {
+                                    portStr = possiblePort;
+                                    address = address.substring(0, lastColon);
+                                }
+                            }
+                        }
+                
+                        const port = portStr || new URL(url).searchParams.get('port') || defaultPort;
+                
+                        // 如果是有效IPv6，统一包裹[]（无论原是否带[]）
+                        if (isValidIP(address) && address.includes(':')) {
+                            address = `[${address}]`;
+                        }
+                
+                        // 跳过无效地址（可选，如果想严格验证；否则移除此if）
+                        if (!address) return;
+                
+                        results.add(`${address}:${port}${remark}`);
                     });
                 } else {
                     const headers = lines[0].split(',').map(h => h.trim());
