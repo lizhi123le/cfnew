@@ -4871,10 +4871,11 @@
                     });
                 }
                 return results;
-            } catch (error) {
-				return [];
 			}
+		} catch (error) {
+            return [];
 		}
+    }
 
     function generateLinksFromNewIPs(list, user, workerDomain) {
         
