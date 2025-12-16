@@ -4810,7 +4810,7 @@
                     }
                 }
                 return results;
-            } else {
+            }
                 const response = await fetch(url);
                 if (!response.ok) return [];
                 const text = await response.text();
@@ -4871,7 +4871,6 @@
                     });
                 }
                 return results;
-			}
 		} catch (error) {
             return [];
 		}
