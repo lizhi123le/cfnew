@@ -4885,8 +4885,7 @@
                 type: 'xhttp',
                 host: workerDomain,
                 path: `/${nodePath}`,
-                mode: 'stream-one',
-				alpn: 'h3'
+                mode: 'stream-one'
             });
             
             links.push(`vless://${user}@${safeIP}:${port}?${params.toString()}#${encodeURIComponent(wsNodeName)}`);
