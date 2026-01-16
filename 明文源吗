@@ -23,7 +23,7 @@
 
     let scu = 'https://url.v1.mk/sub';  
     // 远程配置URL（硬编码）
-    const remoteConfigUrl = 'https://raw.githubusercontent.com/byJoey/test/refs/heads/main/tist.ini';
+    const remoteConfigUrl = 'https://raw.githubusercontent.com/lizhi123le/ACL4SSR/master/Clash/config/ACL4SSR_Online_Full_MultiMode.ini';
 
     let epd = false;   // 优选域名默认关闭
     let epi = true;       
@@ -1543,7 +1543,7 @@
         const defaultHttpsPorts = [443];
         const defaultHttpPorts = disableNonTLS ? [] : [80];
         const links = [];
-        const wsPath = '/?ed=2048';
+        const wsPath = '/?ed=2560';
         const proto = atob('dmxlc3M=');
 
         list.forEach(item => {
@@ -1627,7 +1627,7 @@
         const defaultHttpsPorts = [443];
         const defaultHttpPorts = disableNonTLS ? [] : [80];
         const links = [];
-        const wsPath = '/?ed=2048';
+        const wsPath = '/?ed=2560';
         
         const password = tp || user;
 
@@ -5288,7 +5288,7 @@
         const CF_HTTPS_PORTS = [443, 2053, 2083, 2087, 2096, 8443];
         
         const links = [];
-        const wsPath = '/?ed=2048';
+        const wsPath = '/?ed=2560';
         const proto = atob('dmxlc3M=');
         
         list.forEach(item => {
@@ -5373,7 +5373,7 @@
         const CF_HTTPS_PORTS = [443, 2053, 2083, 2087, 2096, 8443];
         
         const links = [];
-        const wsPath = '/?ed=2048';
+        const wsPath = '/?ed=2560';
         
         const password = tp || user;
         
