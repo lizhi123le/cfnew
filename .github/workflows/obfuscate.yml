@@ -326,8 +326,8 @@ jobs:
           
           ## 文件变更
           
-          已从 `少年你相信光吗` 生成 `_worker.js` 文件，并压缩为 `Pages.zip`。
-          已从 `明文源吗` 复制为 `mingwenyuanma.js` 以供发布。
+          已从 \`少年你相信光吗\` 生成 \`_worker.js\` 文件，并压缩为 \`Pages.zip\`。
+          已从 \`明文源吗\` 复制为 \`mingwenyuanma.js\` 以供发布。
           EOF
           )
           # 创建Release
