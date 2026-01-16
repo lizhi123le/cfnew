@@ -329,7 +329,7 @@ jobs:
           )
           # 创建Release
           PAYLOAD=$(jq -n --arg v "$VERSION" --arg body "$RELEASE_BODY" \
-            '{tag_name: $v, name: $v, body: $body, draft: false, prerelease: false}')
+            '{tag_name: ("Pages " + $v), name: ("Pages " + $v), body: $body, draft: false, prerelease: false}')
           
           RESPONSE=$(curl -s -X POST \
             -H "Authorization: Bearer $GITHUB_TOKEN" \
