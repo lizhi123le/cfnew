@@ -1597,7 +1597,7 @@
                     
                     // 如果启用了ECH且有ECH配置，添加ech参数（ECH需要伪装成Chrome浏览器）
                     if (enableECH && echConfig) {
-                        wsParams.set('alpn', 'h3,h2,http/1.1');
+                        wsParams.set('alpn', 'h3');
                         wsParams.set('ech', echConfig);
                     }
                     
@@ -1676,7 +1676,7 @@
                     
                     // 如果启用了ECH且有ECH配置，添加ech参数（ECH需要伪装成Chrome浏览器）
                     if (enableECH && echConfig) {
-                        wsParams.set('alpn', 'h3,h2,http/1.1');
+                        wsParams.set('alpn', 'h3');
                         wsParams.set('ech', echConfig);
                     }
                     
@@ -5302,7 +5302,7 @@
                 
                 // 如果启用了ECH且有ECH配置，添加ech参数（ECH需要伪装成Chrome浏览器）
                 if (enableECH && echConfig) {
-                    link += `&alpn=h3%2Ch2%2Chttp%2F1.1&ech=${encodeURIComponent(echConfig)}`;
+                    link += `&alpn=h3&ech=${encodeURIComponent(echConfig)}`;
                 }
                 
                 link += `#${encodeURIComponent(wsNodeName)}`;
@@ -5321,7 +5321,7 @@
                 
                 // 如果启用了ECH且有ECH配置，添加ech参数（ECH需要伪装成Chrome浏览器）
                 if (enableECH && echConfig) {
-                    link += `&alpn=h3%2Ch2%2Chttp%2F1.1&ech=${encodeURIComponent(echConfig)}`;
+                    link += `&alpn=h3&ech=${encodeURIComponent(echConfig)}`;
                 }
                 
                 link += `#${encodeURIComponent(wsNodeName)}`;
@@ -5357,7 +5357,7 @@
             
             // 如果启用了ECH且有ECH配置，添加ech参数（ECH需要伪装成Chrome浏览器）
             if (enableECH && echConfig) {
-                params.set('alpn', 'h3,h2,http/1.1');
+                params.set('alpn', 'h3');
                 params.set('ech', echConfig);
             }
             
@@ -5388,7 +5388,7 @@
                 
                 // 如果启用了ECH且有ECH配置，添加ech参数（ECH需要伪装成Chrome浏览器）
                 if (enableECH && echConfig) {
-                    link += `&alpn=h3%2Ch2%2Chttp%2F1.1&ech=${encodeURIComponent(echConfig)}`;
+                    link += `&alpn=h3&ech=${encodeURIComponent(echConfig)}`;
                 }
                 
                 link += `#${encodeURIComponent(wsNodeName)}`;
@@ -5407,7 +5407,7 @@
                 
                 // 如果启用了ECH且有ECH配置，添加ech参数（ECH需要伪装成Chrome浏览器）
                 if (enableECH && echConfig) {
-                    link += `&alpn=h3%2Ch2%2Chttp%2F1.1&ech=${encodeURIComponent(echConfig)}`;
+                    link += `&alpn=h3&ech=${encodeURIComponent(echConfig)}`;
                 }
                 
                 link += `#${encodeURIComponent(wsNodeName)}`;
