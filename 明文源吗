@@ -1409,13 +1409,13 @@
         if (disablePreferred) {
         } else if (hasCustomPreferred) {
             
-            if (customPreferredIPs.length > 0 && epi) {
-                await addNodesFromList(customPreferredIPs);
-            }
-            
             if (customPreferredDomains.length > 0 && epd) {
                 const customDomainList = customPreferredDomains.map(d => ({ ip: d.domain, isp: d.name || d.domain }));
                 await addNodesFromList(customDomainList);
+            }
+            
+            if (customPreferredIPs.length > 0 && epi) {
+                await addNodesFromList(customPreferredIPs);
             }
         } else {
             
