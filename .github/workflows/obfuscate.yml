@@ -11,20 +11,134 @@ on:
 jobs:
   build-and-obfuscate:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: write
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          persist-credentials: true
 
+      # ==================== 合并上游更新 ====================
+      - name: 合并上游仓库更新
+        id: merge-upstream
+        run: |
+          set -euo pipefail
+          UPSTREAM_REPO="byJoey/cfnew"
+          SOURCE_FILE="明文源吗"
+          README_FILE="README.md"
+          
+          # 下载上游文件
+          echo "下载上游仓库 $UPSTREAM_REPO 的文件..."
+          curl -fsSL -o upstream_${SOURCE_FILE} "https://raw.githubusercontent.com/${UPSTREAM_REPO}/main/${SOURCE_FILE}"
+          curl -fsSL -o upstream_${README_FILE} "https://raw.githubusercontent.com/${UPSTREAM_REPO}/main/${README_FILE}"
+          
+          # 检查文件是否存在
+          if [ ! -f "upstream_${SOURCE_FILE}" ]; then
+            echo "错误：上游源文件不存在"
+            exit 1
+          fi
+          
+          # 计算文件哈希
+          UPSTREAM_HASH=$(sha256sum "upstream_${SOURCE_FILE}" | cut -d' ' -f1)
+          LOCAL_HASH=""
+          if [ -f "$SOURCE_FILE" ]; then
+            LOCAL_HASH=$(sha256sum "$SOURCE_FILE" | cut -d' ' -f1)
+          fi
+          
+          echo "上游哈希: $UPSTREAM_HASH"
+          echo "本地哈希: $LOCAL_HASH"
+          
+          # 执行三方合并
+          if [ -f "$SOURCE_FILE" ]; then
+            echo "执行三方合并..."
+            # 创建基线文件（如果不存在）
+            if [ ! -f "${SOURCE_FILE}.base" ]; then
+              echo "首次运行，创建基线文件"
+              cp "$SOURCE_FILE" "${SOURCE_FILE}.base"
+            fi
+            
+            # 三方合并
+            cp "$SOURCE_FILE" local_${SOURCE_FILE}
+            cp "${SOURCE_FILE}.base" base_${SOURCE_FILE}
+            cp "upstream_${SOURCE_FILE}" upstream_${SOURCE_FILE}
+            
+            if git merge-file local_${SOURCE_FILE} base_${SOURCE_FILE} upstream_${SOURCE_FILE}; then
+              echo "合并成功"
+              MERGE_SUCCESS="true"
+            else
+              echo "合并存在冲突，使用上游版本"
+              if grep -q "<<<<<<" local_${SOURCE_FILE}; then
+                echo "发现冲突标记，使用上游版本"
+                cp "upstream_${SOURCE_FILE}" local_${SOURCE_FILE}
+              fi
+              MERGE_SUCCESS="false"
+            fi
+            
+            # 更新文件
+            mv -f local_${SOURCE_FILE} "$SOURCE_FILE"
+            mv -f "upstream_${SOURCE_FILE}" "${SOURCE_FILE}.base"
+          else
+            echo "首次运行，直接使用上游文件"
+            cp "upstream_${SOURCE_FILE}" "$SOURCE_FILE"
+            cp "upstream_${SOURCE_FILE}" "${SOURCE_FILE}.base"
+            MERGE_SUCCESS="true"
+          fi
+          
+          # 清理临时文件
+          rm -f local_${SOURCE_FILE} base_${SOURCE_FILE} upstream_${SOURCE_FILE}
+          
+          # 输出结果
+          echo "merge_success=$MERGE_SUCCESS" >> $GITHUB_OUTPUT
+          echo "upstream_hash=$UPSTREAM_HASH" >> $GITHUB_OUTPUT
+
+      # ==================== 读取版本号 ====================
+      - name: 读取并同步版本号
+        id: read-version
+        run: |
+          set -euo pipefail
+          README_FILE="README.md"
+          UPSTREAM_README="upstream_${README_FILE}"
+          
+          if [ -f "$UPSTREAM_README" ]; then
+            # 从上游README提取版本号
+            VERSION=$(grep -oE 'v[0-9]+\.[0-9]+' "$UPSTREAM_README" | head -1 || echo "v2.9")
+            echo "从上游README读取到版本: $VERSION"
+            
+            # 同步到本地README
+            if [ -f "$README_FILE" ]; then
+              # 备份本地README
+              cp "$README_FILE" "${README_FILE}.backup"
+              # 更新版本号
+              sed -i "s/v[0-9]\+\.[0-9]\+/$VERSION/g" "$README_FILE"
+            else
+              # 创建新的README
+              cp "$UPSTREAM_README" "$README_FILE"
+            fi
+            
+            echo "version=$VERSION" >> $GITHUB_OUTPUT
+          else
+            echo "警告：无法读取上游版本号，使用默认版本"
+            echo "version=v2.9" >> $GITHUB_OUTPUT
+          fi
+          
+          # 清理临时文件
+          rm -f "$UPSTREAM_README"
+
+      # ==================== 设置Node.js ====================
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '18'
 
+      # ==================== 安装混淆器 ====================
       - name: Install Obfuscator
         run: npm install javascript-obfuscator
 
-      - name: Obfuscate from local source file
+      # ==================== 混淆代码 ====================
+      - name: Obfuscate from merged source file
         run: |
           cat > obfuscate.js << 'EOF'
           const JavaScriptObfuscator = require('javascript-obfuscator');
@@ -88,14 +202,146 @@ jobs:
           EOF
           node obfuscate.js
 
-      - name: Commit and push the obfuscated file
+      # ==================== 检测文件变更 ====================
+      - name: 检测文件变更
+        id: check-changes
+        run: |
+          set -euo pipefail
+          
+          # 计算当前文件哈希
+          SOURCE_HASH=$(sha256sum "明文源吗" | cut -d' ' -f1)
+          OBFUSCATED_HASH=$(sha256sum "少年你相信光吗" | cut -d' ' -f1)
+          
+          # 读取之前的哈希（如果存在）
+          OLD_SOURCE_HASH=""
+          OLD_OBFUSCATED_HASH=""
+          if [ -f ".source_hash" ]; then
+            OLD_SOURCE_HASH=$(cat ".source_hash")
+          fi
+          if [ -f ".obfuscated_hash" ]; then
+            OLD_OBFUSCATED_HASH=$(cat ".obfuscated_hash")
+          fi
+          
+          echo "当前源文件哈希: $SOURCE_HASH"
+          echo "之前源文件哈希: $OLD_SOURCE_HASH"
+          echo "当前混淆文件哈希: $OBFUSCATED_HASH"
+          echo "之前混淆文件哈希: $OLD_OBFUSCATED_HASH"
+          
+          # 检测变更
+          HAS_CHANGES="false"
+          if [ "$SOURCE_HASH" != "$OLD_SOURCE_HASH" ] || [ "$OBFUSCATED_HASH" != "$OLD_OBFUSCATED_HASH" ]; then
+            HAS_CHANGES="true"
+            echo "检测到文件变更"
+          else
+            echo "未检测到文件变更"
+          fi
+          
+          # 保存当前哈希
+          echo "$SOURCE_HASH" > ".source_hash"
+          echo "$OBFUSCATED_HASH" > ".obfuscated_hash"
+          
+          echo "has_changes=$HAS_CHANGES" >> $GITHUB_OUTPUT
+
+      # ==================== 准备发布文件 ====================
+      - name: 准备发布文件
+        if: steps.check-changes.outputs.has_changes == 'true' || github.event_name == 'workflow_dispatch'
+        run: |
+          set -euo pipefail
+          
+          # 重命名混淆文件为 _worker.js
+          cp "少年你相信光吗" "_worker.js"
+          
+          # 压缩为 Pages.zip
+          zip Pages.zip "_worker.js"
+          
+          # 复制明文源文件为 mingwenyuanma.js
+          cp "明文源吗" "mingwenyuanma.js"
+          
+          echo "发布文件准备完成"
+
+      # ==================== 提交和推送 ====================
+      - name: Commit and push changes
+        if: steps.check-changes.outputs.has_changes == 'true' || github.event_name == 'workflow_dispatch'
         run: |
           git config --global user.name 'GitHub Actions Bot'
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
-          git add '少年你相信光吗'
+          
+          # 添加所有相关文件
+          git add "明文源吗" "少年你相信光吗" "README.md" ".source_hash" ".obfuscated_hash" || true
+          git add "明文源吗.base" || true
+          
+          # 检查是否有变更
           if git diff --staged --quiet; then
-            echo "No changes to commit, the obfuscated file is already up-to-date."
+            echo "没有文件变更需要提交"
           else
-            git commit -m "部署用这个"
+            VERSION="${{ steps.read-version.outputs.version }}"
+            git commit -m "自动更新：合并上游并混淆（版本 $VERSION）"
             git push
           fi
+
+      # ==================== 创建GitHub Release ====================
+      - name: Create GitHub Release
+        if: steps.check-changes.outputs.has_changes == 'true' || github.event_name == 'workflow_dispatch'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          VERSION="${{ steps.read-version.outputs.version }}"
+          TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          
+          echo "正在创建 GitHub Release，版本：$VERSION"
+          
+          # 检查是否已存在该版本的Release
+          RELEASE_ID=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
+            "https://api.github.com/repos/${{ github.repository }}/releases/tags/$VERSION" | jq -r '.id // ""')
+          
+          # 如果存在，删除旧的Release
+          if [ -n "$RELEASE_ID" ] && [ "$RELEASE_ID" != "null" ]; then
+            echo "删除旧 Release $RELEASE_ID"
+            curl -X DELETE -H "Authorization: Bearer $GITHUB_TOKEN" \
+              "https://api.github.com/repos/${{ github.repository }}/releases/$RELEASE_ID"
+          fi
+          
+          # 删除旧的标签（如果存在）
+          if curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
+            "https://api.github.com/repos/${{ github.repository }}/git/refs/tags/$VERSION" | jq -e .ref >/dev/null 2>&1; then
+            curl -X DELETE -H "Authorization: Bearer $GITHUB_TOKEN" \
+              "https://api.github.com/repos/${{ github.repository }}/git/refs/tags/$VERSION"
+          fi
+          
+          # 创建Release描述
+          RELEASE_BODY="Pages $VERSION Latest\n部署信息\n源文件: 少年你相信光吗\n明文源文件: 明文源吗\n目标文件: _worker.js\n压缩文件: Pages.zip\n明文发布文件: mingwenyuanma.js\n标签: $VERSION\n部署时间: $TIMESTAMP\n文件变更\n已从 少年你相信光吗 生成 _worker.js 文件，并压缩为 Pages.zip。\n已从 明文源吗 复制为 mingwenyuanma.js 以供发布。"
+          
+          # 创建Release
+          PAYLOAD=$(jq -n --arg v "$VERSION" --arg body "$RELEASE_BODY" \
+            '{tag_name: $v, name: $v, body: $body, draft: false, prerelease: false}')
+          
+          RESPONSE=$(curl -s -X POST \
+            -H "Authorization: Bearer $GITHUB_TOKEN" \
+            -H "Content-Type: application/json" \
+            --data "$PAYLOAD" \
+            "https://api.github.com/repos/${{ github.repository }}/releases")
+          
+          RELEASE_ID=$(echo "$RESPONSE" | jq -r '.id')
+          
+          if [ -z "$RELEASE_ID" ] || [ "$RELEASE_ID" = "null" ]; then
+            echo "创建 Release 失败"
+            echo "$RESPONSE"
+            exit 1
+          fi
+          
+          echo "Release 创建成功：$VERSION (ID: $RELEASE_ID)"
+          
+          # 上传文件
+          for asset in Pages.zip mingwenyuanma.js; do
+            if [ -f "$asset" ]; then
+              echo "正在上传 $asset ..."
+              curl -s -X POST \
+                -H "Authorization: Bearer $GITHUB_TOKEN" \
+                -H "Content-Type: $(file -b --mime-type $asset)" \
+                --data-binary "@$asset" \
+                "https://uploads.github.com/repos/${{ github.repository }}/releases/$RELEASE_ID/assets?name=$asset"
+            fi
+          done
+          
+          echo "Release $VERSION 及所有资产上传完成"
