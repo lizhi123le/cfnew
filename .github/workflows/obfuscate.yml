@@ -313,8 +313,20 @@ jobs:
           fi
           
           # 创建Release描述
-          RELEASE_BODY="Pages $VERSION Latest\n部署信息\n源文件: 少年你相信光吗\n明文源文件: 明文源吗\n目标文件: _worker.js\n压缩文件: Pages.zip\n明文发布文件: mingwenyuanma.js\n标签: $VERSION\n部署时间: $TIMESTAMP\n文件变更\n已从 少年你相信光吗 生成 _worker.js 文件，并压缩为 Pages.zip。\n已从 明文源吗 复制为 mingwenyuanma.js 以供发布。"
-          
+          RELEASE_BODY=$(cat << EOF
+          部署信息
+          源文件: 少年你相信光吗
+          明文源文件: 明文源吗
+          目标文件: _worker.js
+          压缩文件: Pages.zip
+          明文发布文件: mingwenyuanma.js
+          标签: $VERSION
+          部署时间: $TIMESTAMP
+          文件变更
+          已从 少年你相信光吗 生成 _worker.js 文件，并压缩为 Pages.zip。
+          已从 明文源吗 复制为 mingwenyuanma.js 以供发布。
+          EOF
+          )
           # 创建Release
           PAYLOAD=$(jq -n --arg v "$VERSION" --arg body "$RELEASE_BODY" \
             '{tag_name: $v, name: $v, body: $body, draft: false, prerelease: false}')
