@@ -23,7 +23,7 @@
 
     let scu = 'https://url.v1.mk/sub';  
     // 远程配置URL（硬编码）
-    const remoteConfigUrl = 'https://raw.githubusercontent.com/lizhi123le/ACL4SSR/master/Clash/config/ACL4SSR_Online_Full_MultiMode.ini';
+    const remoteConfigUrl = 'https://raw.githubusercontent.com/byJoey/test/refs/heads/main/tist.ini';
 
     let epd = false;   // 优选域名默认关闭
     let epi = true;       
@@ -1206,6 +1206,275 @@
         return btoa(links.join('\n'));
     }
 
+    // 解析 VLESS/Trojan 链接并生成 Clash 节点配置
+    function parseLinkToClashNode(link) {
+        try {
+            // 解析 VLESS 链接
+            if (link.startsWith('vless://')) {
+                const url = new URL(link);
+                const name = decodeURIComponent(url.hash.substring(1));
+                const uuid = url.username;
+                const server = url.hostname;
+                const port = parseInt(url.port) || 443;
+                const params = new URLSearchParams(url.search);
+                
+                const tls = params.get('security') === 'tls' || params.get('tls') === 'true';
+                const network = params.get('type') || 'ws';
+                const path = params.get('path') || '/?ed=2048';
+                const host = params.get('host') || server;
+                const servername = params.get('sni') || host;
+                const alpn = params.get('alpn') || 'h3,h2,http/1.1';
+                const fingerprint = params.get('fp') || params.get('client-fingerprint') || 'chrome';
+                const ech = params.get('ech');
+                
+                const node = {
+                    name: name,
+                    type: 'vless',
+                    server: server,
+                    port: port,
+                    uuid: uuid,
+                    tls: tls,
+                    network: network,
+                    'client-fingerprint': fingerprint
+                };
+                
+                if (tls) {
+                    node.servername = servername;
+                    node.alpn = alpn.split(',').map(a => a.trim());
+                    node['skip-cert-verify'] = false;
+                }
+                
+                if (network === 'ws') {
+                    node['ws-opts'] = {
+                        path: path,
+                        headers: {
+                            Host: host
+                        }
+                    };
+                }
+                
+                if (ech) {
+                    node['ech-opts'] = {
+                        enable: true
+                    };
+                }
+                
+                return node;
+            }
+            
+            // 解析 Trojan 链接
+            if (link.startsWith('trojan://')) {
+                const url = new URL(link);
+                const name = decodeURIComponent(url.hash.substring(1));
+                const password = url.username;
+                const server = url.hostname;
+                const port = parseInt(url.port) || 443;
+                const params = new URLSearchParams(url.search);
+                
+                const network = params.get('type') || 'ws';
+                const path = params.get('path') || '/?ed=2048';
+                const host = params.get('host') || server;
+                const sni = params.get('sni') || host;
+                const alpn = params.get('alpn') || 'h3,h2,http/1.1';
+                const ech = params.get('ech');
+                
+                const node = {
+                    name: name,
+                    type: 'trojan',
+                    server: server,
+                    port: port,
+                    password: password,
+                    network: network,
+                    sni: sni,
+                    alpn: alpn.split(',').map(a => a.trim()),
+                    'skip-cert-verify': false
+                };
+                
+                if (network === 'ws') {
+                    node['ws-opts'] = {
+                        path: path,
+                        headers: {
+                            Host: host
+                        }
+                    };
+                }
+                
+                if (ech) {
+                    node['ech-opts'] = {
+                        enable: true
+                    };
+                }
+                
+                return node;
+            }
+        } catch (e) {
+            return null;
+        }
+        return null;
+    }
+
+    // 生成 Clash 配置
+    async function generateClashConfig(links, request, user) {
+        // 如果 ECH 未开启，使用订阅转换服务
+        if (!enableECH) {
+            // 返回一个重定向 URL，让前端使用订阅转换服务
+            // 或者直接调用订阅转换服务
+            const subscriptionUrl = new URL(request.url);
+            subscriptionUrl.pathname = subscriptionUrl.pathname.replace(/\/sub$/, '') + '/sub';
+            subscriptionUrl.searchParams.set('target', 'base64');
+            const encodedUrl = encodeURIComponent(subscriptionUrl.toString());
+            const converterUrl = `${scu}?target=clash&url=${encodedUrl}&insert=false&emoji=true&list=false&xudp=false&udp=false&tfo=false&expand=true&scv=false&fdn=false&new_name=true`;
+            
+            try {
+                const response = await fetch(converterUrl);
+                if (response.ok) {
+                    return await response.text();
+                }
+            } catch (e) {
+                // 如果订阅转换失败，fallback 到本地生成
+            }
+        }
+        
+        // ECH 开启时，使用本地模板生成
+        const templateUrl = 'https://raw.githubusercontent.com/byJoey/test/refs/heads/main/%E6%A8%A1%E6%9D%BF.yaml';
+        
+        try {
+            // 获取模板
+            const templateResponse = await fetch(templateUrl);
+            if (!templateResponse.ok) {
+                throw new Error('无法获取模板文件');
+            }
+            let template = await templateResponse.text();
+            
+            // 解析链接生成节点配置
+            const nodes = [];
+            for (const link of links) {
+                const node = parseLinkToClashNode(link);
+                if (node) {
+                    nodes.push(node);
+                }
+            }
+            
+            if (nodes.length === 0) {
+                throw new Error('没有有效的节点');
+            }
+            
+            // 将节点转换为 YAML 格式（单行格式，匹配模板）
+            const nodesYaml = nodes.map(node => {
+                const props = [];
+                
+                // 基本属性
+                props.push(`name: ${node.name}`);
+                props.push(`server: ${node.server}`);
+                props.push(`port: ${node.port}`);
+                props.push(`type: ${node.type}`);
+                
+                if (node.type === 'vless') {
+                    props.push(`uuid: ${node.uuid}`);
+                    if (node.tls) {
+                        props.push(`tls: true`);
+                        // alpn 格式：URL编码的逗号分隔值，如 h3%2Ch2%2Chttp%2F1.1
+                        const alpnStr = node.alpn.map(a => encodeURIComponent(a)).join('%2C');
+                        props.push(`alpn: [${alpnStr}]`);
+                        props.push(`tfo: false`);
+                        props.push(`skip-cert-verify: false`);
+                        props.push(`servername: ${node.servername}`);
+                        props.push(`client-fingerprint: ${node['client-fingerprint']}`);
+                    }
+                    if (node.network === 'ws') {
+                        props.push(`network: ws`);
+                        const path = node['ws-opts'].path;
+                        const host = node['ws-opts'].headers.Host;
+                        // ws-opts 格式：{path: "...", headers: {Host: "..."}}
+                        props.push(`ws-opts: {path: "${path}", headers: {Host: ${host}}}`);
+                    }
+                    if (node['ech-opts']) {
+                        props.push(`ech-opts: {enable: true}`);
+                    }
+                } else if (node.type === 'trojan') {
+                    props.push(`password: ${node.password}`);
+                    props.push(`sni: ${node.sni}`);
+                    // alpn 格式：URL编码的逗号分隔值
+                    const alpnStr = node.alpn.map(a => encodeURIComponent(a)).join('%2C');
+                    props.push(`alpn: [${alpnStr}]`);
+                    props.push(`skip-cert-verify: false`);
+                    if (node.network === 'ws') {
+                        props.push(`network: ws`);
+                        const path = node['ws-opts'].path;
+                        const host = node['ws-opts'].headers.Host;
+                        props.push(`ws-opts: {path: "${path}", headers: {Host: ${host}}}`);
+                    }
+                    if (node['ech-opts']) {
+                        props.push(`ech-opts: {enable: true}`);
+                    }
+                }
+                
+                // 生成单行格式：  - {prop1: value1, prop2: value2, ...}
+                return `  - {${props.join(', ')}}`;
+            }).join('\n');
+            
+            // 替换模板中的 proxies 部分
+            // 查找 proxies: 后面的内容，直到下一个顶级键
+            const proxiesRegex = /^proxies:\s*$/m;
+            const match = template.match(proxiesRegex);
+            
+            if (match) {
+                const startIndex = match.index + match[0].length;
+                // 查找下一个顶级键（以字母开头，后面跟冒号，前面可能有空格）
+                const nextKeyRegex = /^\s*[a-zA-Z][a-zA-Z0-9_-]*:\s*$/m;
+                const nextMatch = template.substring(startIndex).match(nextKeyRegex);
+                
+                let endIndex;
+                if (nextMatch) {
+                    endIndex = startIndex + nextMatch.index;
+                } else {
+                    endIndex = template.length;
+                }
+                
+                // 替换 proxies 部分
+                template = template.substring(0, startIndex) + '\n' + nodesYaml + '\n' + template.substring(endIndex);
+            } else {
+                // 如果没有找到 proxies，在适当位置插入
+                const insertRegex = /^proxies:\s*$/m;
+                if (!template.match(insertRegex)) {
+                    // 在 dns 部分之后插入
+                    const dnsRegex = /^dns:\s*$/m;
+                    const dnsMatch = template.match(dnsRegex);
+                    if (dnsMatch) {
+                        const insertIndex = template.indexOf('\n', dnsMatch.index + dnsMatch[0].length);
+                        const dnsEndRegex = /^[a-zA-Z]/m;
+                        const dnsEndMatch = template.substring(insertIndex + 1).match(dnsEndRegex);
+                        let dnsEndIndex;
+                        if (dnsEndMatch) {
+                            dnsEndIndex = insertIndex + 1 + dnsEndMatch.index;
+                        } else {
+                            dnsEndIndex = template.length;
+                        }
+                        template = template.substring(0, dnsEndIndex) + '\nproxies:\n' + nodesYaml + '\n' + template.substring(dnsEndIndex);
+                    }
+                }
+            }
+            
+            return template;
+        } catch (error) {
+            // 如果本地生成失败，fallback 到订阅转换服务
+            if (request) {
+                const subscriptionUrl = new URL(request.url);
+                subscriptionUrl.pathname = subscriptionUrl.pathname.replace(/\/sub$/, '') + '/sub';
+                subscriptionUrl.searchParams.set('target', 'base64');
+                const encodedUrl = encodeURIComponent(subscriptionUrl.toString());
+                const converterUrl = `${scu}?target=clash&url=${encodedUrl}&insert=false&emoji=true&list=false&xudp=false&udp=false&tfo=false&expand=true&scv=false&fdn=false&new_name=true`;
+                
+                const response = await fetch(converterUrl);
+                if (response.ok) {
+                    return await response.text();
+                }
+            }
+            
+            throw error;
+        }
+    }
+
     // 全局变量存储ECH调试信息
     let echDebugInfo = '';
     
@@ -1221,7 +1490,7 @@
         try {
             // 优先使用 Google DNS 查询 cloudflare-ech.com 的 ECH 配置
             debugSteps.push('尝试使用 Google DNS 查询 cloudflare-ech.com...');
-            const echDomainUrl = `https://dns.google/resolve?name=cloudflare-ech.com&type=65`;
+            const echDomainUrl = `https://v.recipes/dns/dns.google/dns-query?name=cloudflare-ech.com&type=65`;
             const echResponse = await fetch(echDomainUrl, {
                 headers: {
                     'Accept': 'application/json'
@@ -1271,7 +1540,7 @@
             
             // 如果 cloudflare-ech.com 查询失败，尝试使用 Google DNS 查询目标域名的 HTTPS 记录
             debugSteps.push(`尝试使用 Google DNS 查询目标域名 ${domain}...`);
-            const dohUrl = `https://dns.google/resolve?name=${encodeURIComponent(domain)}&type=65`;
+            const dohUrl = `https://v.recipes/dns/dns.google/dns-query?name=${encodeURIComponent(domain)}&type=65`;
             const response = await fetch(dohUrl, {
                 headers: {
                     'Accept': 'application/json'
@@ -1362,10 +1631,10 @@
         const workerDomain = url.hostname;
         const target = url.searchParams.get('target') || 'base64';
 
-        // 获取ECH配置（如果启用）
+        // 如果启用了ECH，直接使用固定值
         let echConfig = null;
         if (enableECH) {
-            echConfig = await fetchECHConfig(workerDomain);
+            echConfig = `cloudflare-ech.com+https://dns.alidns.com/dns-query`;
         }
 
         async function addNodesFromList(list) {
@@ -1409,13 +1678,13 @@
         if (disablePreferred) {
         } else if (hasCustomPreferred) {
             
+            if (customPreferredIPs.length > 0 && epi) {
+                await addNodesFromList(customPreferredIPs);
+            }
+            
             if (customPreferredDomains.length > 0 && epd) {
                 const customDomainList = customPreferredDomains.map(d => ({ ip: d.domain, isp: d.name || d.domain }));
                 await addNodesFromList(customDomainList);
-            }
-            
-            if (customPreferredIPs.length > 0 && epi) {
-                await addNodesFromList(customPreferredIPs);
             }
         } else {
             
@@ -1488,7 +1757,7 @@
         switch (target.toLowerCase()) {
             case atob('Y2xhc2g='):
             case atob('Y2xhc2hy'):
-                subscriptionContent = await generateClashConfig(finalLinks);
+                subscriptionContent = await generateClashConfig(finalLinks, request, user);
                 contentType = 'text/yaml; charset=utf-8';
                 break;
             case atob('c3VyZ2U='):
@@ -1521,10 +1790,9 @@
             'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
         };
         
-        // 添加ECH调试信息到响应头
-        if (enableECH && echDebugInfo) {
-            responseHeaders['X-ECH-Debug'] = echDebugInfo.replace(/\n/g, ' | ');
-            responseHeaders['X-ECH-Status'] = echConfig ? 'SUCCESS' : 'FAILED';
+        // 添加ECH状态到响应头
+        if (enableECH) {
+            responseHeaders['X-ECH-Status'] = 'ENABLED';
             if (echConfig) {
                 responseHeaders['X-ECH-Config-Length'] = String(echConfig.length);
             }
@@ -1543,7 +1811,7 @@
         const defaultHttpsPorts = [443];
         const defaultHttpPorts = disableNonTLS ? [] : [80];
         const links = [];
-        const wsPath = '/?ed=2560';
+        const wsPath = '/?ed=2048';
         const proto = atob('dmxlc3M=');
 
         list.forEach(item => {
@@ -1595,10 +1863,10 @@
                         path: wsPath
                     });
                     
-                    // 如果启用了ECH且有ECH配置，添加ech参数（ECH需要伪装成Chrome浏览器）
-                    if (enableECH && echConfig) {
-                        wsParams.set('alpn', 'h3');
-                        wsParams.set('ech', echConfig);
+                    // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
+                    if (enableECH) {
+                        wsParams.set('alpn', 'h3,h2,http/1.1');
+                        wsParams.set('ech', `cloudflare-ech.com+https://dns.alidns.com/dns-query`);
                     }
                     
                     links.push(`${proto}://${user}@${safeIP}:${port}?${wsParams.toString()}#${encodeURIComponent(wsNodeName)}`);
@@ -1627,7 +1895,7 @@
         const defaultHttpsPorts = [443];
         const defaultHttpPorts = disableNonTLS ? [] : [80];
         const links = [];
-        const wsPath = '/?ed=2560';
+        const wsPath = '/?ed=2048';
         
         const password = tp || user;
 
@@ -1674,10 +1942,10 @@
                         path: wsPath
                     });
                     
-                    // 如果启用了ECH且有ECH配置，添加ech参数（ECH需要伪装成Chrome浏览器）
-                    if (enableECH && echConfig) {
-                        wsParams.set('alpn', 'h3');
-                        wsParams.set('ech', echConfig);
+                    // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
+                    if (enableECH) {
+                        wsParams.set('alpn', 'h3,h2,http/1.1');
+                        wsParams.set('ech', `cloudflare-ech.com+https://dns.alidns.com/dns-query`);
                     }
                     
                     links.push(`${atob('dHJvamFuOi8v')}${password}@${safeIP}:${port}?${wsParams.toString()}#${encodeURIComponent(wsNodeName)}`);
@@ -2177,7 +2445,7 @@
                         KR: '🇰🇷 韩国', DE: '🇩🇪 德国', SE: '🇸🇪 瑞典', NL: '🇳🇱 荷兰',
                         FI: '🇫🇮 芬兰', GB: '🇬🇧 英国'
                     },
-                    terminal: '终端 v2.9.1',
+                    terminal: '终端 v2.9.2',
                     githubProject: 'GitHub 项目',
                     autoDetectClient: '自动识别',
                 selectionLogicText: '同地区 → 邻近地区 → 其他地区',
@@ -2310,7 +2578,7 @@
                         KR: '🇰🇷 کره جنوبی', DE: '🇩🇪 آلمان', SE: '🇸🇪 سوئد', NL: '🇳🇱 هلند',
                         FI: '🇫🇮 فنلاند', GB: '🇬🇧 بریتانیا'
                     },
-                    terminal: 'ترمینال v2.9.1',
+                    terminal: 'ترمینال v2.9.2',
                     githubProject: 'پروژه GitHub',
                     autoDetectClient: 'تشخیص خودکار',
                 selectionLogicText: 'هم‌منطقه → منطقه مجاور → سایر مناطق',
@@ -3061,18 +3329,21 @@
                         });
                     }
                 } else {
-                    var encodedUrl = encodeURIComponent(subscriptionUrl);
-                    finalUrl = SUB_CONVERTER_URL + "?target=" + clientType + "&url=" + encodedUrl + "&insert=false&config=" + encodeURIComponent(REMOTE_CONFIG_URL) + "&emoji=true&list=false&xudp=false&udp=false&tfo=false&expand=true&scv=false&fdn=false&new_name=true";
-                    var urlElement = document.getElementById("clientSubscriptionUrl");
-                    urlElement.textContent = finalUrl;
-                    urlElement.style.display = "block";
-                    urlElement.style.overflowWrap = "break-word";
-                    urlElement.style.wordBreak = "break-all";
-                    urlElement.style.overflowX = "auto";
-                    urlElement.style.maxWidth = "100%";
-                    urlElement.style.boxSizing = "border-box";
+                    // 检查 ECH 是否开启
+                    var echEnabled = document.getElementById('ech') && document.getElementById('ech').checked;
                     
-                    if (clientType === atob('Y2xhc2g=')) {
+                    // 如果 ECH 开启且是 Clash，直接使用后端接口
+                    if (echEnabled && clientType === atob('Y2xhc2g=')) {
+                        finalUrl = subscriptionUrl + "?target=" + clientType;
+                        var urlElement = document.getElementById("clientSubscriptionUrl");
+                        urlElement.textContent = finalUrl;
+                        urlElement.style.display = "block";
+                        urlElement.style.overflowWrap = "break-word";
+                        urlElement.style.wordBreak = "break-all";
+                        urlElement.style.overflowX = "auto";
+                        urlElement.style.maxWidth = "100%";
+                        urlElement.style.boxSizing = "border-box";
+                        
                         if (clientName === 'STASH') {
                             schemeUrl = 'stash://install?url=' + encodeURIComponent(finalUrl);
                             displayName = 'STASH';
@@ -3080,30 +3351,64 @@
                             schemeUrl = 'clash://install-config?url=' + encodeURIComponent(finalUrl);
                             displayName = 'CLASH';
                         }
-                    } else if (clientType === atob('c3VyZ2U=')) {
-                        schemeUrl = 'surge:///install-config?url=' + encodeURIComponent(finalUrl);
-                        displayName = 'SURGE';
-                    } else if (clientType === atob('c2luZ2JveA==')) {
-                        schemeUrl = 'sing-box://install-config?url=' + encodeURIComponent(finalUrl);
-                        displayName = 'SING-BOX';
-                    } else if (clientType === atob('bG9vbg==')) {
-                        schemeUrl = 'loon://install?url=' + encodeURIComponent(finalUrl);
-                        displayName = 'LOON';
-                    } else if (clientType === atob('cXVhbng=')) {
-                        schemeUrl = 'quantumult-x://install-config?url=' + encodeURIComponent(finalUrl);
-                        displayName = 'QUANTUMULT X';
-                    }
-                    
-                    if (schemeUrl) {
-                        tryOpenApp(schemeUrl, function() {
+                        
+                        if (schemeUrl) {
+                            tryOpenApp(schemeUrl, function() {
+                                navigator.clipboard.writeText(finalUrl).then(function() {
+                                        alert(displayName + " " + t.subscriptionCopied);
+                                });
+                            });
+                        } else {
                             navigator.clipboard.writeText(finalUrl).then(function() {
                                     alert(displayName + " " + t.subscriptionCopied);
                             });
-                        });
+                        }
                     } else {
-                        navigator.clipboard.writeText(finalUrl).then(function() {
-                                alert(displayName + " " + t.subscriptionCopied);
-                        });
+                        // 其他情况使用订阅转换服务
+                        var encodedUrl = encodeURIComponent(subscriptionUrl);
+                        finalUrl = SUB_CONVERTER_URL + "?target=" + clientType + "&url=" + encodedUrl + "&insert=false&config=" + encodeURIComponent(REMOTE_CONFIG_URL) + "&emoji=true&list=false&xudp=false&udp=false&tfo=false&expand=true&scv=false&fdn=false&new_name=true";
+                        var urlElement = document.getElementById("clientSubscriptionUrl");
+                        urlElement.textContent = finalUrl;
+                        urlElement.style.display = "block";
+                        urlElement.style.overflowWrap = "break-word";
+                        urlElement.style.wordBreak = "break-all";
+                        urlElement.style.overflowX = "auto";
+                        urlElement.style.maxWidth = "100%";
+                        urlElement.style.boxSizing = "border-box";
+                        
+                        if (clientType === atob('Y2xhc2g=')) {
+                            if (clientName === 'STASH') {
+                                schemeUrl = 'stash://install?url=' + encodeURIComponent(finalUrl);
+                                displayName = 'STASH';
+                            } else {
+                                schemeUrl = 'clash://install-config?url=' + encodeURIComponent(finalUrl);
+                                displayName = 'CLASH';
+                            }
+                        } else if (clientType === atob('c3VyZ2U=')) {
+                            schemeUrl = 'surge:///install-config?url=' + encodeURIComponent(finalUrl);
+                            displayName = 'SURGE';
+                        } else if (clientType === atob('c2luZ2JveA==')) {
+                            schemeUrl = 'sing-box://install-config?url=' + encodeURIComponent(finalUrl);
+                            displayName = 'SING-BOX';
+                        } else if (clientType === atob('bG9vbg==')) {
+                            schemeUrl = 'loon://install?url=' + encodeURIComponent(finalUrl);
+                            displayName = 'LOON';
+                        } else if (clientType === atob('cXVhbng=')) {
+                            schemeUrl = 'quantumult-x://install-config?url=' + encodeURIComponent(finalUrl);
+                            displayName = 'QUANTUMULT X';
+                        }
+                        
+                        if (schemeUrl) {
+                            tryOpenApp(schemeUrl, function() {
+                                navigator.clipboard.writeText(finalUrl).then(function() {
+                                        alert(displayName + " " + t.subscriptionCopied);
+                                });
+                            });
+                        } else {
+                            navigator.clipboard.writeText(finalUrl).then(function() {
+                                    alert(displayName + " " + t.subscriptionCopied);
+                            });
+                        }
                     }
                 }
             }
@@ -3801,12 +4106,10 @@
                     const echStatusHeader = response.headers.get('X-ECH-Status');
                     const echConfigLength = response.headers.get('X-ECH-Config-Length');
                     
-                    if (echStatusHeader === 'SUCCESS') {
-                        echStatusEl.innerHTML = 'ECH状态: <span style="color: #44ff44;">✅ 已启用 (配置长度: ' + (echConfigLength || 'N/A') + ')</span>';
-                    } else if (echStatusHeader === 'FAILED') {
-                        echStatusEl.innerHTML = 'ECH状态: <span style="color: #ff4444;">❌ 获取失败</span>';
+                    if (echStatusHeader === 'ENABLED') {
+                        echStatusEl.innerHTML = 'ECH状态: <span style="color: #44ff44;">✅ 已启用' + (echConfigLength ? ' (配置长度: ' + echConfigLength + ')' : '') + '</span>';
                     } else {
-                        echStatusEl.innerHTML = 'ECH状态: <span style="color: #ffaa00;">⚠️ 未启用或未检测到</span>';
+                        echStatusEl.innerHTML = 'ECH状态: <span style="color: #ffaa00;">⚠️ 未启用</span>';
                     }
                 } catch (error) {
                     echStatusEl.innerHTML = 'ECH状态: <span style="color: #ff4444;">❌ 检测失败: ' + error.message + '</span>';
@@ -5288,7 +5591,7 @@
         const CF_HTTPS_PORTS = [443, 2053, 2083, 2087, 2096, 8443];
         
         const links = [];
-        const wsPath = '/?ed=2560';
+        const wsPath = '/?ed=2048';
         const proto = atob('dmxlc3M=');
         
         list.forEach(item => {
@@ -5300,9 +5603,9 @@
                 const wsNodeName = `${nodeName}-${port}-WS-TLS`;
                 let link = `${proto}://${user}@${item.ip}:${port}?encryption=none&security=tls&sni=${workerDomain}&fp=${enableECH ? 'chrome' : 'randomized'}&type=ws&host=${workerDomain}&path=${wsPath}`;
                 
-                // 如果启用了ECH且有ECH配置，添加ech参数（ECH需要伪装成Chrome浏览器）
-                if (enableECH && echConfig) {
-                    link += `&alpn=h3&ech=${encodeURIComponent(echConfig)}`;
+                // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
+                if (enableECH) {
+                    link += `&alpn=h3%2Ch2%2Chttp%2F1.1&ech=${encodeURIComponent('cloudflare-ech.com+https://dns.alidns.com/dns-query')}`;
                 }
                 
                 link += `#${encodeURIComponent(wsNodeName)}`;
@@ -5319,9 +5622,9 @@
                 const wsNodeName = `${nodeName}-${port}-WS-TLS`;
                 let link = `${proto}://${user}@${item.ip}:${port}?encryption=none&security=tls&sni=${workerDomain}&fp=${enableECH ? 'chrome' : 'randomized'}&type=ws&host=${workerDomain}&path=${wsPath}`;
                 
-                // 如果启用了ECH且有ECH配置，添加ech参数（ECH需要伪装成Chrome浏览器）
-                if (enableECH && echConfig) {
-                    link += `&alpn=h3&ech=${encodeURIComponent(echConfig)}`;
+                // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
+                if (enableECH) {
+                    link += `&alpn=h3%2Ch2%2Chttp%2F1.1&ech=${encodeURIComponent('cloudflare-ech.com+https://dns.alidns.com/dns-query')}`;
                 }
                 
                 link += `#${encodeURIComponent(wsNodeName)}`;
@@ -5355,10 +5658,10 @@
                 mode: 'stream-one'
             });
             
-            // 如果启用了ECH且有ECH配置，添加ech参数（ECH需要伪装成Chrome浏览器）
-            if (enableECH && echConfig) {
+            // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
+            if (enableECH) {
                 params.set('alpn', 'h3,h2,http/1.1');
-                params.set('ech', echConfig);
+                params.set('ech', `cloudflare-ech.com+https://dns.alidns.com/dns-query`);
             }
             
             links.push(`vless://${user}@${safeIP}:${port}?${params.toString()}#${encodeURIComponent(wsNodeName)}`);
@@ -5373,7 +5676,7 @@
         const CF_HTTPS_PORTS = [443, 2053, 2083, 2087, 2096, 8443];
         
         const links = [];
-        const wsPath = '/?ed=2560';
+        const wsPath = '/?ed=2048';
         
         const password = tp || user;
         
@@ -5386,9 +5689,9 @@
                 const wsNodeName = `${nodeName}-${port}-${atob('VHJvamFu')}-WS-TLS`;
                 let link = `${atob('dHJvamFuOi8v')}${password}@${item.ip}:${port}?security=tls&sni=${workerDomain}&fp=chrome&type=ws&host=${workerDomain}&path=${wsPath}`;
                 
-                // 如果启用了ECH且有ECH配置，添加ech参数（ECH需要伪装成Chrome浏览器）
-                if (enableECH && echConfig) {
-                    link += `&alpn=h3&ech=${encodeURIComponent(echConfig)}`;
+                // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
+                if (enableECH) {
+                    link += `&alpn=h3%2Ch2%2Chttp%2F1.1&ech=${encodeURIComponent('cloudflare-ech.com+https://dns.alidns.com/dns-query')}`;
                 }
                 
                 link += `#${encodeURIComponent(wsNodeName)}`;
@@ -5405,9 +5708,9 @@
                 const wsNodeName = `${nodeName}-${port}-${atob('VHJvamFu')}-WS-TLS`;
                 let link = `${atob('dHJvamFuOi8v')}${password}@${item.ip}:${port}?security=tls&sni=${workerDomain}&fp=chrome&type=ws&host=${workerDomain}&path=${wsPath}`;
                 
-                // 如果启用了ECH且有ECH配置，添加ech参数（ECH需要伪装成Chrome浏览器）
-                if (enableECH && echConfig) {
-                    link += `&alpn=h3&ech=${encodeURIComponent(echConfig)}`;
+                // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
+                if (enableECH) {
+                    link += `&alpn=h3%2Ch2%2Chttp%2F1.1&ech=${encodeURIComponent('cloudflare-ech.com+https://dns.alidns.com/dns-query')}`;
                 }
                 
                 link += `#${encodeURIComponent(wsNodeName)}`;
