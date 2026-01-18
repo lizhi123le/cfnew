@@ -24,113 +24,238 @@ jobs:
           persist-credentials: true
 
       # ==================== 合并上游更新 ====================
-      - name: 合并上游仓库更新
-        id: merge-upstream
+      - name: 改进的合并上游仓库更新
+        id: improved-merge-upstream
         run: |
           set -euo pipefail
           UPSTREAM_REPO="byJoey/cfnew"
           SOURCE_FILE="明文源吗"
-          README_FILE="README.md"
+          
+          echo "=== 开始合并上游更新 ==="
           
           # 下载上游文件
-          echo "下载上游仓库 $UPSTREAM_REPO 的文件..."
-          curl -fsSL -o "upstream_${SOURCE_FILE}" "https://raw.githubusercontent.com/${UPSTREAM_REPO}/main/${SOURCE_FILE}"
-          curl -fsSL -o "upstream_${README_FILE}" "https://raw.githubusercontent.com/${UPSTREAM_REPO}/main/${README_FILE}"
-          
-          # 检查文件是否存在
-          if [ ! -f "upstream_${SOURCE_FILE}" ]; then
-            echo "错误：上游源文件不存在"
+          echo "正在下载上游仓库 $UPSTREAM_REPO 的文件..."
+          if ! curl -fsSL -o "upstream_${SOURCE_FILE}" "https://raw.githubusercontent.com/${UPSTREAM_REPO}/main/${SOURCE_FILE}"; then
+            echo "错误：无法下载上游源文件"
             exit 1
           fi
           
-          # 计算文件哈希
-          UPSTREAM_HASH=$(sha256sum "upstream_${SOURCE_FILE}" | cut -d' ' -f1)
-          LOCAL_HASH=""
-          if [ -f "$SOURCE_FILE" ]; then
-            LOCAL_HASH=$(sha256sum "$SOURCE_FILE" | cut -d' ' -f1)
+          # 检查上游文件是否存在且不为空
+          if [ ! -f "upstream_${SOURCE_FILE}" ] || [ ! -s "upstream_${SOURCE_FILE}" ]; then
+            echo "错误：上游源文件不存在或为空"
+            rm -f "upstream_${SOURCE_FILE}"
+            exit 1
           fi
           
-          echo "上游哈希: $UPSTREAM_HASH"
-          echo "本地哈希: $LOCAL_HASH"
+          echo "上游文件下载成功，大小: $(wc -c < "upstream_${SOURCE_FILE}") 字节"
           
-          # 执行三方合并
-          if [ -f "$SOURCE_FILE" ]; then
-            echo "执行三方合并..."
-            # 创建基线文件（如果不存在）
-            if [ ! -f "${SOURCE_FILE}.base" ]; then
-              echo "首次运行，创建基线文件"
-              cp "$SOURCE_FILE" "${SOURCE_FILE}.base"
-            fi
-            
-            # 三方合并 - 使用不同的临时文件名避免冲突
-            cp "$SOURCE_FILE" "local_${SOURCE_FILE}"
-            cp "${SOURCE_FILE}.base" "base_${SOURCE_FILE}"
-            cp "upstream_${SOURCE_FILE}" "upstream_temp_${SOURCE_FILE}"
-            
-            if git merge-file "local_${SOURCE_FILE}" "base_${SOURCE_FILE}" "upstream_temp_${SOURCE_FILE}"; then
-              echo "合并成功"
-              MERGE_SUCCESS="true"
-            else
-              echo "合并存在冲突，使用上游版本"
-              if grep -q "<<<<<<" "local_${SOURCE_FILE}"; then
-                echo "发现冲突标记，使用上游版本"
-                cp "upstream_temp_${SOURCE_FILE}" "local_${SOURCE_FILE}"
-              fi
-              MERGE_SUCCESS="false"
-            fi
-            
-            # 更新文件
-            mv -f "local_${SOURCE_FILE}" "$SOURCE_FILE"
-            mv -f "upstream_temp_${SOURCE_FILE}" "${SOURCE_FILE}.base"
-            
-            # 清理临时文件
-            rm -f "base_${SOURCE_FILE}"
-          else
-            echo "首次运行，直接使用上游文件"
+          # 计算上游文件哈希
+          UPSTREAM_HASH=$(sha256sum "upstream_${SOURCE_FILE}" | cut -d' ' -f1)
+          echo "上游文件哈希: $UPSTREAM_HASH"
+          
+          # 处理本地文件和基线文件
+          FIRST_RUN="false"
+          if [ ! -f "$SOURCE_FILE" ]; then
+            echo "本地文件不存在，首次运行"
             cp "upstream_${SOURCE_FILE}" "$SOURCE_FILE"
             cp "upstream_${SOURCE_FILE}" "${SOURCE_FILE}.base"
-            MERGE_SUCCESS="true"
+            FIRST_RUN="true"
+            MERGE_STATUS="first_run"
+          elif [ ! -f "${SOURCE_FILE}.base" ]; then
+            echo "基线文件不存在，创建基线"
+            cp "$SOURCE_FILE" "${SOURCE_FILE}.base"
+            
+            # 现在执行三方合并
+            echo "执行三方合并..."
+            if git merge-file "$SOURCE_FILE" "${SOURCE_FILE}.base" "upstream_${SOURCE_FILE}"; then
+              echo "合并成功，无冲突"
+              cp "upstream_${SOURCE_FILE}" "${SOURCE_FILE}.base"
+              MERGE_STATUS="success"
+            else
+              echo "发现合并冲突"
+              if grep -q "<<<<<<<" "$SOURCE_FILE"; then
+                echo "存在未解决的冲突，保留冲突标记"
+                MERGE_STATUS="conflict"
+                # 创建冲突报告
+                echo "冲突检测时间: $(date)" > "conflict_report.txt"
+                echo "冲突文件: $SOURCE_FILE" >> "conflict_report.txt"
+                echo "请手动检查文件中的冲突标记" >> "conflict_report.txt"
+              else
+                echo "自动解决了冲突"
+                cp "upstream_${SOURCE_FILE}" "${SOURCE_FILE}.base"
+                MERGE_STATUS="resolved"
+              fi
+            fi
+          else
+            echo "执行常规三方合并..."
+            LOCAL_HASH=$(sha256sum "$SOURCE_FILE" | cut -d' ' -f1)
+            BASE_HASH=$(sha256sum "${SOURCE_FILE}.base" | cut -d' ' -f1)
+            
+            echo "本地文件哈希: $LOCAL_HASH"
+            echo "基线文件哈希: $BASE_HASH"
+            
+            # 执行三方合并
+            if git merge-file "$SOURCE_FILE" "${SOURCE_FILE}.base" "upstream_${SOURCE_FILE}"; then
+              echo "合并成功，无冲突"
+              cp "upstream_${SOURCE_FILE}" "${SOURCE_FILE}.base"
+              MERGE_STATUS="success"
+            else
+              echo "发现合并冲突"
+              if grep -q "<<<<<<<" "$SOURCE_FILE"; then
+                echo "存在未解决的冲突，保留冲突标记"
+                MERGE_STATUS="conflict"
+                # 创建冲突报告
+                echo "冲突检测时间: $(date)" > "conflict_report.txt"
+                echo "冲突文件: $SOURCE_FILE" >> "conflict_report.txt"
+                echo "本地哈希: $LOCAL_HASH" >> "conflict_report.txt"
+                echo "基线哈希: $BASE_HASH" >> "conflict_report.txt"
+                echo "上游哈希: $UPSTREAM_HASH" >> "conflict_report.txt"
+                echo "请手动检查文件中的冲突标记" >> "conflict_report.txt"
+              else
+                echo "自动解决了冲突"
+                cp "upstream_${SOURCE_FILE}" "${SOURCE_FILE}.base"
+                MERGE_STATUS="resolved"
+              fi
+            fi
           fi
           
-          # 清理剩余的临时文件
-          rm -f "local_${SOURCE_FILE}" "base_${SOURCE_FILE}" "upstream_temp_${SOURCE_FILE}"
+          # 清理临时文件
+          rm -f "upstream_${SOURCE_FILE}"
           
           # 输出结果
-          echo "merge_success=$MERGE_SUCCESS" >> $GITHUB_OUTPUT
+          echo "merge_status=$MERGE_STATUS" >> $GITHUB_OUTPUT
+          echo "first_run=$FIRST_RUN" >> $GITHUB_OUTPUT
           echo "upstream_hash=$UPSTREAM_HASH" >> $GITHUB_OUTPUT
+          echo "=== 合并上游更新完成 ==="
 
-      # ==================== 读取版本号 ====================
+      # ==================== 读取并同步版本号 ====================
       - name: 读取并同步版本号
         id: read-version
         run: |
           set -euo pipefail
           README_FILE="README.md"
           UPSTREAM_README="upstream_${README_FILE}"
+          UPSTREAM_REPO="byJoey/cfnew"
           
-          if [ -f "$UPSTREAM_README" ]; then
-            # 从上游README提取版本号
-            VERSION=$(grep -oE 'v[0-9]+\.[0-9]+' "$UPSTREAM_README" | head -1 || echo "v2.9")
-            echo "从上游README读取到版本: $VERSION"
+          echo "=== 开始版本同步 ==="
+          
+          # 下载上游README文件
+          echo "正在下载上游README文件..."
+          if curl -fsSL -o "$UPSTREAM_README" "https://raw.githubusercontent.com/${UPSTREAM_REPO}/main/${README_FILE}"; then
+            echo "上游README下载成功"
             
-            # 同步到本地README
-            if [ -f "$README_FILE" ]; then
-              # 备份本地README
-              cp "$README_FILE" "${README_FILE}.backup"
-              # 更新版本号
-              sed -i "s/v[0-9]\+\.[0-9]\+/$VERSION/g" "$README_FILE"
+            # 检查文件内容
+            if [ -s "$UPSTREAM_README" ]; then
+              echo "上游README文件大小: $(wc -c < "$UPSTREAM_README") 字节"
+              echo "上游README文件前100字符："
+              head -c 100 "$UPSTREAM_README"
+              echo ""
+              
+              # 尝试多种版本号格式
+              VERSION=""
+              
+              # 尝试 v开头格式 (v2.9, v2.9.1, v3.0等)
+              VERSION=$(grep -oE 'v[0-9]+\.[0-9]+(\.[0-9]+)?' "$UPSTREAM_README" | head -1 || echo "")
+              
+              # 如果没找到，尝试普通格式 (2.9, 2.9.1, 3.0等)
+              if [ -z "$VERSION" ]; then
+                VERSION=$(grep -oE '[0-9]+\.[0-9]+(\.[0-9]+)?' "$UPSTREAM_README" | head -1 || echo "")
+                if [ -n "$VERSION" ]; then
+                  VERSION="v$VERSION"
+                fi
+              fi
+              
+              # 如果还是没找到，使用默认版本
+              if [ -z "$VERSION" ]; then
+                VERSION="v2.9"
+                echo "警告：无法从上游README提取版本号，使用默认版本: $VERSION"
+              else
+                echo "从上游README成功提取版本: $VERSION"
+              fi
+              
+              # 同步到本地README
+              if [ -f "$README_FILE" ]; then
+                echo "更新本地README版本号"
+                # 备份本地README
+                cp "$README_FILE" "${README_FILE}.backup"
+                
+                # 使用更精确的sed替换
+                if grep -qE 'v[0-9]+\.[0-9]+' "$README_FILE"; then
+                  sed -i "s/v[0-9]\+\.[0-9]\+\(\.[0-9]\+\)\?/$VERSION/g" "$README_FILE"
+                  echo "已更新现有版本号"
+                else
+                  # 如果README中没有版本号，在文件开头添加
+                  TEMP_FILE=$(mktemp)
+                  echo -e "# Version: $VERSION\n" > "$TEMP_FILE"
+                  cat "$README_FILE" >> "$TEMP_FILE"
+                  mv "$TEMP_FILE" "$README_FILE"
+                  echo "已在文件开头添加版本号"
+                fi
+                
+                echo "本地README已更新"
+              else
+                echo "创建新的本地README"
+                cp "$UPSTREAM_README" "$README_FILE"
+              fi
+              
             else
-              # 创建新的README
-              cp "$UPSTREAM_README" "$README_FILE"
+              echo "错误：上游README文件为空"
+              VERSION="v2.9"
             fi
             
-            echo "version=$VERSION" >> $GITHUB_OUTPUT
           else
-            echo "警告：无法读取上游版本号，使用默认版本"
-            echo "version=v2.9" >> $GITHUB_OUTPUT
+            echo "错误：无法下载上游README文件"
+            VERSION="v2.9"
           fi
           
-          # 清理临时文件
-          rm -f "$UPSTREAM_README"
+          echo "最终使用版本: $VERSION"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "=== 版本同步完成 ==="
+          
+          # 保留临时文件用于调试（如果需要）
+          # rm -f "$UPSTREAM_README"
+
+      # ==================== 调试步骤 ====================
+      - name: 调试信息输出
+        if: failure() || steps.improved-merge-upstream.outputs.first_run == 'true' || steps.improved-merge-upstream.outputs.merge_status == 'conflict'
+        run: |
+          echo "=== 调试信息 ==="
+          echo "当前目录文件："
+          ls -la
+          echo ""
+          
+          echo "合并状态: ${{ steps.improved-merge-upstream.outputs.merge_status }}"
+          echo "首次运行: ${{ steps.improved-merge-upstream.outputs.first_run }}"
+          echo "上游哈希: ${{ steps.improved-merge-upstream.outputs.upstream_hash }}"
+          echo "版本号: ${{ steps.read-version.outputs.version }}"
+          echo ""
+          
+          if [ -f "明文源吗" ]; then
+            echo "明文源吗 文件大小: $(wc -c < "明文源吗") 字节"
+            echo "明文源吗 前100字符："
+            head -c 100 "明文源吗"
+            echo ""
+          fi
+          
+          if [ -f "README.md" ]; then
+            echo "README.md 文件大小: $(wc -c < "README.md") 字节"
+            echo "README.md 前200字符："
+            head -c 200 "README.md"
+            echo ""
+          fi
+          
+          if [ -f "upstream_README.md" ]; then
+            echo "upstream_README.md 文件大小: $(wc -c < "upstream_README.md") 字节"
+            echo "upstream_README.md 前200字符："
+            head -c 200 "upstream_README.md"
+            echo ""
+          fi
+          
+          if [ -f "conflict_report.txt" ]; then
+            echo "冲突报告内容："
+            cat conflict_report.txt
+            echo ""
+          fi
 
       # ==================== 设置Node.js ====================
       - name: Set up Node.js
@@ -211,11 +336,22 @@ jobs:
       - name: 检测文件变更
         id: check-changes
         run: |
-          set -euo pipefail
+          set -euo pipefill
+          
+          echo "=== 检测文件变更 ==="
           
           # 计算当前文件哈希
-          SOURCE_HASH=$(sha256sum "明文源吗" | cut -d' ' -f1)
-          OBFUSCATED_HASH=$(sha256sum "少年你相信光吗" | cut -d' ' -f1)
+          if [ -f "明文源吗" ]; then
+            SOURCE_HASH=$(sha256sum "明文源吗" | cut -d' ' -f1)
+          else
+            SOURCE_HASH=""
+          fi
+          
+          if [ -f "少年你相信光吗" ]; then
+            OBFUSCATED_HASH=$(sha256sum "少年你相信光吗" | cut -d' ' -f1)
+          else
+            OBFUSCATED_HASH=""
+          fi
           
           # 读取之前的哈希（如果存在）
           OLD_SOURCE_HASH=""
@@ -242,10 +378,15 @@ jobs:
           fi
           
           # 保存当前哈希
-          echo "$SOURCE_HASH" > ".source_hash"
-          echo "$OBFUSCATED_HASH" > ".obfuscated_hash"
+          if [ -n "$SOURCE_HASH" ]; then
+            echo "$SOURCE_HASH" > ".source_hash"
+          fi
+          if [ -n "$OBFUSCATED_HASH" ]; then
+            echo "$OBFUSCATED_HASH" > ".obfuscated_hash"
+          fi
           
           echo "has_changes=$HAS_CHANGES" >> $GITHUB_OUTPUT
+          echo "=== 文件变更检测完成 ==="
 
       # ==================== 准备发布文件 ====================
       - name: 准备发布文件
@@ -253,16 +394,36 @@ jobs:
         run: |
           set -euo pipefail
           
+          echo "=== 准备发布文件 ==="
+          
+          # 检查必要文件
+          if [ ! -f "少年你相信光吗" ]; then
+            echo "错误：混淆文件不存在"
+            exit 1
+          fi
+          
+          if [ ! -f "明文源吗" ]; then
+            echo "错误：源文件不存在"
+            exit 1
+          fi
+          
           # 重命名混淆文件为 _worker.js
           cp "少年你相信光吗" "_worker.js"
+          echo "已创建 _worker.js"
           
           # 压缩为 Pages.zip
           zip Pages.zip "_worker.js"
+          echo "已创建 Pages.zip"
           
           # 复制明文源文件为 mingwenyuanma.js
           cp "明文源吗" "mingwenyuanma.js"
+          echo "已创建 mingwenyuanma.js"
           
-          echo "发布文件准备完成"
+          # 列出发布文件
+          echo "发布文件列表："
+          ls -la _worker.js Pages.zip mingwenyuanma.js
+          
+          echo "=== 发布文件准备完成 ==="
 
       # ==================== 提交和推送 ====================
       - name: Commit and push changes
@@ -271,18 +432,39 @@ jobs:
           git config --global user.name 'GitHub Actions Bot'
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
           
+          echo "=== 提交和推送变更 ==="
+          
           # 添加所有相关文件
           git add "明文源吗" "少年你相信光吗" "README.md" ".source_hash" ".obfuscated_hash" || true
           git add "明文源吗.base" || true
+          
+          # 添加冲突报告（如果存在）
+          git add "conflict_report.txt" || true
+          
+          # 添加备份文件（如果存在）
+          git add "README.md.backup" || true
           
           # 检查是否有变更
           if git diff --staged --quiet; then
             echo "没有文件变更需要提交"
           else
             VERSION="${{ steps.read-version.outputs.version }}"
-            git commit -m "自动更新：合并上游并混淆（版本 $VERSION）"
+            MERGE_STATUS="${{ steps.improved-merge-upstream.outputs.merge_status }}"
+            
+            if [ "$MERGE_STATUS" = "conflict" ]; then
+              COMMIT_MSG="自动更新：合并上游（存在冲突，需手动处理）版本 $VERSION"
+            elif [ "$MERGE_STATUS" = "resolved" ]; then
+              COMMIT_MSG="自动更新：合并上游（自动解决冲突）版本 $VERSION"
+            else
+              COMMIT_MSG="自动更新：合并上游并混淆（版本 $VERSION）"
+            fi
+            
+            git commit -m "$COMMIT_MSG"
             git push
+            echo "提交成功: $COMMIT_MSG"
           fi
+          
+          echo "=== 提交和推送完成 ==="
 
       # ==================== 创建GitHub Release ====================
       - name: Create GitHub Release
@@ -292,9 +474,12 @@ jobs:
         run: |
           set -euo pipefail
           VERSION="${{ steps.read-version.outputs.version }}"
+          MERGE_STATUS="${{ steps.improved-merge-upstream.outputs.merge_status }}"
           TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
           
-          echo "正在创建 GitHub Release，版本：$VERSION"
+          echo "=== 创建 GitHub Release ==="
+          echo "版本：$VERSION"
+          echo "合并状态：$MERGE_STATUS"
           
           # 检查是否已存在该版本的Release
           RELEASE_ID=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
@@ -325,13 +510,27 @@ jobs:
           - **明文发布文件**: mingwenyuanma.js
           - **标签**: $VERSION
           - **部署时间**: $TIMESTAMP
+          - **合并状态**: $MERGE_STATUS
           
           ## 文件变更
           
           已从 \`少年你相信光吗\` 生成 \`_worker.js\` 文件，并压缩为 \`Pages.zip\`。
           已从 \`明文源吗\` 复制为 \`mingwenyuanma.js\` 以供发布。
+          
           EOF
           )
+          
+          # 如果有冲突，添加冲突信息
+          if [ "$MERGE_STATUS" = "conflict" ]; then
+            RELEASE_BODY="$RELEASE_BODY
+          
+          ## ⚠️ 冲突警告
+          
+          本次合并存在冲突，请检查仓库中的冲突标记并手动解决。
+          冲突报告文件: \`conflict_report.txt\`
+          "
+          fi
+          
           # 创建Release
           PAYLOAD=$(jq -n --arg v "$VERSION" --arg body "$RELEASE_BODY" \
             '{tag_name: $v, name: ("Pages " + $v), body: $body, draft: false, prerelease: false}')
@@ -365,3 +564,4 @@ jobs:
           done
           
           echo "Release $VERSION 及所有资产上传完成"
+          echo "=== GitHub Release 创建完成 ==="
