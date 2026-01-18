@@ -1359,12 +1359,30 @@
                 throw new Error('没有有效的节点');
             }
             
+            // 确保节点名称唯一，处理重复名称
+            const usedNames = new Set();
+            nodes.forEach((node, index) => {
+                let uniqueName = node.name;
+                // 如果名称已使用，添加服务器地址和端口来区分
+                if (usedNames.has(uniqueName)) {
+                    uniqueName = `${node.name}-${node.server}:${node.port}`;
+                    // 如果添加了服务器和端口后还是重复，添加索引
+                    let counter = 1;
+                    while (usedNames.has(uniqueName)) {
+                        uniqueName = `${node.name}-${node.server}:${node.port}-${counter}`;
+                        counter++;
+                    }
+                }
+                usedNames.add(uniqueName);
+                node.uniqueName = uniqueName;
+            });
+            
             // 将节点转换为 YAML 格式（单行格式，匹配模板）
             const nodesYaml = nodes.map(node => {
                 const props = [];
                 
-                // 基本属性
-                props.push(`name: ${node.name}`);
+                // 基本属性，使用唯一名称（匹配模板格式，不加引号）
+                props.push(`name: ${node.uniqueName}`);
                 props.push(`server: ${node.server}`);
                 props.push(`port: ${node.port}`);
                 props.push(`type: ${node.type}`);
