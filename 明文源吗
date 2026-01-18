@@ -7,31 +7,25 @@
     let enableSocksDowngrade = false;
     let disableNonTLS = false;
     let disablePreferred = false;
-
     let enableRegionMatching = true;
     let currentWorkerRegion = '';
     let manualWorkerRegion = '';
     let piu = '';
     let cp = '';  
-
     let ev = true;   
     let et = false; 
     let ex = false;  
     let tp = '';
     // 启用ECH功能（true启用，false禁用）
     let enableECH = false;  
-
     let scu = 'https://url.v1.mk/sub';  
     // 远程配置URL（硬编码）
-    const remoteConfigUrl = 'https://raw.githubusercontent.com/byJoey/test/refs/heads/main/tist.ini';
-
+    const remoteConfigUrl = 'https://raw.githubusercontent.com/lizhi123le/ACL4SSR/master/Clash/config/ACL4SSR_Online_Full_MultiMode.ini';
     let epd = false;   // 优选域名默认关闭
     let epi = true;       
     let egi = true;          
-
     let kvStore = null;
     let kvConfig = {};
-
     const regionMapping = {
         'US': ['🇺🇸 美国', 'US', 'United States'],
         'SG': ['🇸🇬 新加坡', 'SG', 'Singapore'],
@@ -47,7 +41,6 @@
         'Vultr': ['Vultr', 'Vultr'],
         'Multacom': ['Multacom', 'Multacom']
     };
-
     let backupIPs = [
         { domain: 'ProxyIP.US.CMLiussss.net', region: 'US', regionCode: 'US', port: 443 },
         { domain: 'ProxyIP.SG.CMLiussss.net', region: 'SG', regionCode: 'SG', port: 443 },
@@ -63,7 +56,6 @@
         { domain: 'ProxyIP.Vultr.CMLiussss.net', region: 'Vultr', regionCode: 'Vultr', port: 443 },
         { domain: 'ProxyIP.Multacom.CMLiussss.net', region: 'Multacom', regionCode: 'Multacom', port: 443 }
     ];
-
     const directDomains = [
         { name: "cloudflare.182682.xyz", domain: "cloudflare.182682.xyz" }, { name: "speed.marisalnc.com", domain: "speed.marisalnc.com" },
         { domain: "freeyx.cloudflare88.eu.org" }, { domain: "bestcf.top" }, { domain: "cdn.2020111.xyz" }, { domain: "cfip.cfcdn.vip" },
@@ -72,7 +64,6 @@
         { domain: "115155.xyz" }, { domain: "cname.xirancdn.us" }, { domain: "f3058171cad.002404.xyz" }, { domain: "8.889288.xyz" },
         { domain: "cdn.tzpro.xyz" }, { domain: "cf.877771.xyz" }, { domain: "xn--b6gac.eu.org" }
     ];
-
     const E_INVALID_DATA = atob('aW52YWxpZCBkYXRh');
     const E_INVALID_USER = atob('aW52YWxpZCB1c2Vy');
     const E_UNSUPPORTED_CMD = atob('Y29tbWFuZCBpcyBub3Qgc3VwcG9ydGVk');
@@ -86,34 +77,25 @@
     const E_SOCKS_AUTH_NEEDED = atob('c29ja3Mgc2VydmVyIG5lZWRzIGF1dGg=');
     const E_SOCKS_AUTH_FAIL = atob('ZmFpbCB0byBhdXRoIHNvY2tzIHNlcnZlcg==');
     const E_SOCKS_CONN_FAIL = atob('ZmFpbCB0byBvcGVuIHNvY2tzIGNvbm5lY3Rpb24=');
-
     let parsedSocks5Config = {};
     let isSocksEnabled = false;
-
     const ADDRESS_TYPE_IPV4 = 1;
     const ADDRESS_TYPE_URL = 2;
     const ADDRESS_TYPE_IPV6 = 3;
-
     function isValidFormat(str) {
         const userRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
         return userRegex.test(str);
     }
-
     function isValidIP(ip) {
         const ipv4Regex = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
         if (ipv4Regex.test(ip)) return true;
-        
         const ipv6Regex = /^(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$/;
         if (ipv6Regex.test(ip)) return true;
-        
         const ipv6ShortRegex = /^::1$|^::$|^(?:[0-9a-fA-F]{1,4}:)*::(?:[0-9a-fA-F]{1,4}:)*[0-9a-fA-F]{1,4}$/;
         if (ipv6ShortRegex.test(ip)) return true;
-        
         return false;
     }
-
     async function initKVStore(env) {
-        
         if (env.C) {
             try {
                 kvStore = env.C;
@@ -124,16 +106,12 @@
         } else {
         }
     }
-
     async function loadKVConfig() {
-        
         if (!kvStore) {
             return;
         }
-        
         try {
             const configData = await kvStore.get('c');
-            
             if (configData) {
                 kvConfig = JSON.parse(configData);
             } else {
@@ -142,12 +120,10 @@
             kvConfig = {};
         }
     }
-
     async function saveKVConfig() {
         if (!kvStore) {
             return;
         }
-        
         try {
             const configString = JSON.stringify(kvConfig);
             await kvStore.put('c', configString);
@@ -155,24 +131,19 @@
             throw error; 
         }
     }
-
     function getConfigValue(key, defaultValue = '') {
-        
         if (kvConfig[key] !== undefined) {
             return kvConfig[key];
         }
         return defaultValue;
     }
-
     async function setConfigValue(key, value) {
         kvConfig[key] = value;
         await saveKVConfig();
     }
-
     async function detectWorkerRegion(request) {
         try {
             const cfCountry = request.cf?.country;
-            
             if (cfCountry) {
                 const countryToRegion = {
                     'US': 'US', 'SG': 'SG', 'JP': 'JP', 'KR': 'KR',
@@ -181,24 +152,19 @@
                     'FR': 'DE', 'IT': 'DE', 'ES': 'DE', 'CH': 'DE',
                     'AT': 'DE', 'BE': 'NL', 'DK': 'SE', 'NO': 'SE', 'IE': 'GB'
                 };
-                
                 if (countryToRegion[cfCountry]) {
                     return countryToRegion[cfCountry];
                 }
             }
-            
             return 'SG';
-            
         } catch (error) {
             return 'SG';
         }
     }
-
     async function checkIPAvailability(domain, port = 443, timeout = 2000) {
         try {
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), timeout);
-            
             const response = await fetch(`https://${domain}`, {
                 method: 'HEAD',
                 signal: controller.signal,
@@ -206,22 +172,17 @@
                     'User-Agent': 'Mozilla/5.0 (compatible; CF-IP-Checker/1.0)'
                 }
             });
-            
             clearTimeout(timeoutId);
             return response.status < 500;
         } catch (error) {
             return true;
         }
     }
-
     async function getBestBackupIP(workerRegion = '') {
-        
         if (backupIPs.length === 0) {
             return null;
         }
-        
         const availableIPs = backupIPs.map(ip => ({ ...ip, available: true }));
-        
         if (enableRegionMatching && workerRegion) {
             const sortedIPs = getSmartRegionSelection(workerRegion, availableIPs);
             if (sortedIPs.length > 0) {
@@ -229,11 +190,9 @@
                 return selectedIP;
             }
         }
-        
         const selectedIP = availableIPs[0];
         return selectedIP;
     }
-
     function getNearbyRegions(region) {
         const nearbyMap = {
             'US': ['SG', 'JP', 'KR'], 
@@ -246,35 +205,25 @@
             'FI': ['SE', 'DE', 'NL', 'GB'], 
             'GB': ['DE', 'NL', 'SE', 'FI']  
         };
-        
         return nearbyMap[region] || [];
     }
-
     function getAllRegionsByPriority(region) {
         const nearbyRegions = getNearbyRegions(region);
         const allRegions = ['US', 'SG', 'JP', 'KR', 'DE', 'SE', 'NL', 'FI', 'GB'];
-        
         return [region, ...nearbyRegions, ...allRegions.filter(r => r !== region && !nearbyRegions.includes(r))];
     }
-
     function getSmartRegionSelection(workerRegion, availableIPs) {
-        
         if (!enableRegionMatching || !workerRegion) {
             return availableIPs;
         }
-        
         const priorityRegions = getAllRegionsByPriority(workerRegion);
-        
         const sortedIPs = [];
-        
         for (const region of priorityRegions) {
             const regionIPs = availableIPs.filter(ip => ip.regionCode === region);
             sortedIPs.push(...regionIPs);
         }
-        
         return sortedIPs;
     }
-
     function parseAddressAndPort(input) {
         if (input.includes('[') && input.includes(']')) {
             const match = input.match(/^\[([^\]]+)\](?::(\d+))?$/);
@@ -285,33 +234,25 @@
                 };
             }
         }
-        
         const lastColonIndex = input.lastIndexOf(':');
         if (lastColonIndex > 0) {
             const address = input.substring(0, lastColonIndex);
             const portStr = input.substring(lastColonIndex + 1);
             const port = parseInt(portStr, 10);
-            
             if (!isNaN(port) && port > 0 && port <= 65535) {
                 return { address, port };
             }
         }
-        
         return { address: input, port: null };
     }
-
     export default {
         async fetch(request, env, ctx) {
             try {
-                
                 await initKVStore(env);
-                
                 at = (env.u || env.U || at).toLowerCase();
                 const subPath = (env.d || env.D || at).toLowerCase();
-                
                 const ci = getConfigValue('p', env.p || env.P);
                 let useCustomIP = false;
-                
                 const manualRegion = getConfigValue('wk', env.wk || env.WK);
                 if (manualRegion && manualRegion.trim()) {
                     manualWorkerRegion = manualRegion.trim().toUpperCase();
@@ -322,17 +263,14 @@
                 } else {
                     currentWorkerRegion = await detectWorkerRegion(request);
                 }
-                
                 const regionMatchingControl = env.rm || env.RM;
                 if (regionMatchingControl && regionMatchingControl.toLowerCase() === 'no') {
                     enableRegionMatching = false;
                 }
-                
                 const envFallback = getConfigValue('p', env.p || env.P);
                 if (envFallback) {
                     fallbackAddress = envFallback.trim();
                 }
-
                 socks5Config = getConfigValue('s', env.s || env.S) || socks5Config;
                 if (socks5Config) {
                     try {
@@ -342,31 +280,24 @@
                         isSocksEnabled = false;
                     }
                 }
-
                 const customPreferred = getConfigValue('yx', env.yx || env.YX);
                 if (customPreferred) {
                     try {
                         const preferredList = customPreferred.split(',').map(item => item.trim()).filter(item => item);
                         customPreferredIPs = [];
                         customPreferredDomains = [];
-                        
                         preferredList.forEach(item => {
-                            
                             let nodeName = '';
                             let addressPart = item;
-                            
                             if (item.includes('#')) {
                                 const parts = item.split('#');
                                 addressPart = parts[0].trim();
                                 nodeName = parts[1].trim();
                             }
-                            
                             const { address, port } = parseAddressAndPort(addressPart);
-                            
                             if (!nodeName) {
                                 nodeName = '自定义优选-' + address + (port ? ':' + port : '');
                             }
-                            
                             if (isValidIP(address)) {
                                 customPreferredIPs.push({ 
                                     ip: address, 
@@ -386,102 +317,78 @@
                         customPreferredDomains = [];
                     }
                 }
-
                 const downgradeControl = getConfigValue('qj', env.qj || env.QJ);
                 if (downgradeControl && downgradeControl.toLowerCase() === 'no') {
                     enableSocksDowngrade = true;
                 }
-
                 const dkbyControl = getConfigValue('dkby', env.dkby || env.DKBY);
                 if (dkbyControl && dkbyControl.toLowerCase() === 'yes') {
                     disableNonTLS = true;
                 }
-
                 const yxbyControl = env.yxby || env.YXBY;
                 if (yxbyControl && yxbyControl.toLowerCase() === 'yes') {
                     disablePreferred = true;
                 }
-
                 const vlessControl = getConfigValue('ev', env.ev);
                 if (vlessControl !== undefined && vlessControl !== '') {
                     ev = vlessControl === 'yes' || vlessControl === true || vlessControl === 'true';
                 }
-                
             const tjControl = getConfigValue('et', env.et);
             if (tjControl !== undefined && tjControl !== '') {
                 et = tjControl === 'yes' || tjControl === true || tjControl === 'true';
             }
-                
                 tp = getConfigValue('tp', env.tp) || '';
-                
                 const xhttpControl = getConfigValue('ex', env.ex);
                 if (xhttpControl !== undefined && xhttpControl !== '') {
                     ex = xhttpControl === 'yes' || xhttpControl === true || xhttpControl === 'true';
                 }
-                
                 scu = getConfigValue('scu', env.scu) || 'https://url.v1.mk/sub';
-                
                 const preferredDomainsControl = getConfigValue('epd', env.epd || 'no');
                 if (preferredDomainsControl !== undefined && preferredDomainsControl !== '') {
                     epd = preferredDomainsControl !== 'no' && preferredDomainsControl !== false && preferredDomainsControl !== 'false';
                 }
-                
                 const preferredIPsControl = getConfigValue('epi', env.epi);
                 if (preferredIPsControl !== undefined && preferredIPsControl !== '') {
                     epi = preferredIPsControl !== 'no' && preferredIPsControl !== false && preferredIPsControl !== 'false';
                 }
-                
                 const githubIPsControl = getConfigValue('egi', env.egi);
                 if (githubIPsControl !== undefined && githubIPsControl !== '') {
                     egi = githubIPsControl !== 'no' && githubIPsControl !== false && githubIPsControl !== 'false';
                 }
-                
                 const echControl = getConfigValue('ech', env.ech);
                 if (echControl !== undefined && echControl !== '') {
                     enableECH = echControl === 'yes' || echControl === true || echControl === 'true';
                 }
-                
                 // 如果启用了ECH，自动启用仅TLS模式（避免80端口干扰）
                 // ECH需要TLS才能工作，所以必须禁用非TLS节点
                 if (enableECH) {
                     disableNonTLS = true;
                 }
-                
                 if (!ev && !et && !ex) {
                     ev = true;
                 }
-
             piu = getConfigValue('yxURL', env.yxURL || env.YXURL) || 'https://raw.githubusercontent.com/qwer-search/bestip/refs/heads/main/kejilandbestip.txt';
-            
             cp = getConfigValue('d', env.d || env.D) || '';
-            
                 const defaultURL = 'https://raw.githubusercontent.com/qwer-search/bestip/refs/heads/main/kejilandbestip.txt';
             if (piu !== defaultURL) {
                     directDomains.length = 0;
                     customPreferredIPs = [];
                     customPreferredDomains = [];
                 }
-
                 const url = new URL(request.url);
-
                 if (url.pathname.includes('/api/config')) {
                     const pathParts = url.pathname.split('/').filter(p => p);
-                    
                     const apiIndex = pathParts.indexOf('api');
                     if (apiIndex > 0) {
                         const pathSegments = pathParts.slice(0, apiIndex);
                         const pathIdentifier = pathSegments.join('/');
-                        
                     let isValid = false;
                     if (cp && cp.trim()) {
-                        
                         const cleanCustomPath = cp.trim().startsWith('/') ? cp.trim().substring(1) : cp.trim();
                         isValid = (pathIdentifier === cleanCustomPath);
                         } else {
-                            
                             isValid = (isValidFormat(pathIdentifier) && pathIdentifier === at);
                         }
-                        
                         if (isValid) {
                             return await handleConfigAPI(request);
                         } else {
@@ -491,31 +398,24 @@
                             });
                         }
                     }
-                    
                     return new Response(JSON.stringify({ error: '无效的API路径' }), { 
                         status: 404,
                         headers: { 'Content-Type': 'application/json' }
                     });
                 }
-                
                 if (url.pathname.includes('/api/preferred-ips')) {
                     const pathParts = url.pathname.split('/').filter(p => p);
-                
                     const apiIndex = pathParts.indexOf('api');
                     if (apiIndex > 0) {
                     const pathSegments = pathParts.slice(0, apiIndex);
                     const pathIdentifier = pathSegments.join('/');
-                    
                     let isValid = false;
                     if (cp && cp.trim()) {
-                        
                         const cleanCustomPath = cp.trim().startsWith('/') ? cp.trim().substring(1) : cp.trim();
                         isValid = (pathIdentifier === cleanCustomPath);
                     } else {
-                        
                         isValid = (isValidFormat(pathIdentifier) && pathIdentifier === at);
                     }
-                    
                     if (isValid) {
                             return await handlePreferredIPsAPI(request);
                     } else {
@@ -525,13 +425,11 @@
                             });
                         }
                     }
-                
                     return new Response(JSON.stringify({ error: '无效的API路径' }), { 
                         status: 404,
                         headers: { 'Content-Type': 'application/json' }
                     });
                 }
-            
             if (request.method === 'POST' && ex) {
                 const r = await handleXhttpPost(request);
                 if (r) {
@@ -548,20 +446,16 @@
                 }
                 return new Response('Internal Server Error', { status: 500 });
             }
-
             if (request.headers.get('Upgrade') === atob('d2Vic29ja2V0')) {
                 return await handleWsRequest(request);
                 }
-                
                 if (request.method === 'GET') {
                     // 处理 /{UUID}/region 或 /{自定义路径}/region
                     if (url.pathname.endsWith('/region')) {
                         const pathParts = url.pathname.split('/').filter(p => p);
-                        
                         if (pathParts.length === 2 && pathParts[1] === 'region') {
                             const pathIdentifier = pathParts[0];
                             let isValid = false;
-                            
                             if (cp && cp.trim()) {
                                 // 使用自定义路径
                                 const cleanCustomPath = cp.trim().startsWith('/') ? cp.trim().substring(1) : cp.trim();
@@ -570,11 +464,9 @@
                                 // 使用UUID路径
                                 isValid = (isValidFormat(pathIdentifier) && pathIdentifier === at);
                             }
-                            
                             if (isValid) {
                                 const ci = getConfigValue('p', env.p || env.P);
                                 const manualRegion = getConfigValue('wk', env.wk || env.WK);
-                                
                                 if (manualRegion && manualRegion.trim()) {
                                     return new Response(JSON.stringify({
                                         region: manualRegion.trim().toUpperCase(),
@@ -613,15 +505,12 @@
                             }
                         }
                     }
-                    
                     // 处理 /{UUID}/test-api 或 /{自定义路径}/test-api
                     if (url.pathname.endsWith('/test-api')) {
                         const pathParts = url.pathname.split('/').filter(p => p);
-                        
                         if (pathParts.length === 2 && pathParts[1] === 'test-api') {
                             const pathIdentifier = pathParts[0];
                             let isValid = false;
-                            
                             if (cp && cp.trim()) {
                                 // 使用自定义路径
                                 const cleanCustomPath = cp.trim().startsWith('/') ? cp.trim().substring(1) : cp.trim();
@@ -630,7 +519,6 @@
                                 // 使用UUID路径
                                 isValid = (isValidFormat(pathIdentifier) && pathIdentifier === at);
                             }
-                            
                             if (isValid) {
                                 try {
                                     const testRegion = await detectWorkerRegion(request);
@@ -661,7 +549,6 @@
                             }
                         }
                     }
-                    
                     if (url.pathname === '/') {
                         // 检查是否有自定义首页URL配置
                         const customHomepage = getConfigValue('homepage', env.homepage || env.HOMEPAGE);
@@ -677,12 +564,10 @@
                                     },
                                     redirect: 'follow'
                                 });
-                                
                                 if (homepageResponse.ok) {
                                     // 获取响应内容
                                     const contentType = homepageResponse.headers.get('Content-Type') || 'text/html; charset=utf-8';
                                     const content = await homepageResponse.text();
-                                    
                                     // 返回自定义首页内容
                                     return new Response(content, {
                                         status: homepageResponse.status,
@@ -709,9 +594,7 @@
                                 }
                             }
                         }
-                        
                         let isFarsi = false;
-                        
                         if (langFromCookie === 'fa' || langFromCookie === 'fa-IR') {
                             isFarsi = true;
                         } else if (langFromCookie === 'zh' || langFromCookie === 'zh-CN') {
@@ -722,10 +605,8 @@
                             const browserLang = acceptLanguage.split(',')[0].split('-')[0].toLowerCase();
                             isFarsi = browserLang === 'fa' || acceptLanguage.includes('fa-IR') || acceptLanguage.includes('fa');
                         }
-                            
                             const lang = isFarsi ? 'fa' : 'zh-CN';
                             const langAttr = isFarsi ? 'fa-IR' : 'zh-CN';
-                            
                             const translations = {
                                 zh: {
                                     title: '终端',
@@ -762,9 +643,7 @@
                                     reenter: 'لطفا UUID معتبر را دوباره وارد کنید'
                                 }
                             };
-                            
                             const t = translations[isFarsi ? 'fa' : 'zh'];
-                            
                         const terminalHtml = `<!DOCTYPE html>
         <html lang="${langAttr}" dir="${isFarsi ? 'rtl' : 'ltr'}">
     <head>
@@ -952,7 +831,6 @@
                 const matrixContainer = document.getElementById('matrixCodeRain');
                 const matrixChars = '01ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
                 const columns = Math.floor(window.innerWidth / 18);
-                
                 for (let i = 0; i < columns; i++) {
                     const column = document.createElement('div');
                     column.className = 'matrix-column';
@@ -961,7 +839,6 @@
                     column.style.animationDuration = (Math.random() * 15 + 8) + 's';
                     column.style.fontSize = (Math.random() * 4 + 12) + 'px';
                     column.style.opacity = Math.random() * 0.8 + 0.2;
-                    
                     let text = '';
                     const charCount = Math.floor(Math.random() * 30 + 20);
                     for (let j = 0; j < charCount; j++) {
@@ -972,7 +849,6 @@
                     column.innerHTML = text;
                     matrixContainer.appendChild(column);
                 }
-                
                 setInterval(function() {
                     const columns = matrixContainer.querySelectorAll('.matrix-column');
                     columns.forEach(function(column) {
@@ -989,40 +865,31 @@
                     });
                 }, 100);
             }
-            
             function isValidUUID(uuid) {
                 const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
                 return uuidRegex.test(uuid);
             }
-            
             function addTerminalLine(content, type = 'output') {
                 const terminalBody = document.getElementById('terminalBody');
                 const line = document.createElement('div');
                 line.className = 'terminal-line';
-                
                 const prompt = document.createElement('span');
                 prompt.className = 'terminal-prompt';
                 prompt.textContent = 'root:~$';
-                
                 const output = document.createElement('span');
                 output.className = 'terminal-' + type;
                 output.textContent = content;
-                
                 line.appendChild(prompt);
                 line.appendChild(output);
                 terminalBody.appendChild(line);
-                
                 terminalBody.scrollTop = terminalBody.scrollHeight;
             }
-            
             function handleUUIDInput() {
                 const input = document.getElementById('uuidInput');
                 const inputValue = input.value.trim();
                 const cp = '${ cp }';
-                
                 if (inputValue) {
                     addTerminalLine(atob('Y29ubmVjdCA=') + inputValue, 'output');
-                        
                         const translations = {
                             zh: {
                                 connecting: '正在连接...',
@@ -1042,7 +909,6 @@
                         const browserLang = navigator.language || navigator.userLanguage || '';
                         const isFarsi = browserLang.includes('fa') || browserLang.includes('fa-IR');
                         const t = translations[isFarsi ? 'fa' : 'zh'];
-                    
                     if (cp) {
                         const cleanInput = inputValue.startsWith('/') ? inputValue : '/' + inputValue;
                             addTerminalLine(t.connecting, 'output');
@@ -1066,11 +932,9 @@
                             addTerminalLine(t.reenter, 'output');
                         }
                     }
-                    
                     input.value = '';
                 }
             }
-                
                 function changeLanguage(lang) {
                     localStorage.setItem('preferredLanguage', lang);
                     // 设置Cookie（有效期1年）
@@ -1080,7 +944,6 @@
                     // 刷新页面，不使用URL参数
                     window.location.reload();
                 }
-                
                 // 页面加载时检查 localStorage 和 Cookie，并清理URL参数
                 window.addEventListener('DOMContentLoaded', function() {
                     function getCookie(name) {
@@ -1089,23 +952,19 @@
                         if (parts.length === 2) return parts.pop().split(';').shift();
                         return null;
                     }
-                    
                     const savedLang = localStorage.getItem('preferredLanguage') || getCookie('preferredLanguage');
                     const urlParams = new URLSearchParams(window.location.search);
                     const urlLang = urlParams.get('lang');
-                    
                     // 如果URL中有语言参数，移除它并设置Cookie
                     if (urlLang) {
                         const currentUrl = new URL(window.location.href);
                         currentUrl.searchParams.delete('lang');
                         const newUrl = currentUrl.toString();
-                        
                         // 设置Cookie
                         const expiryDate = new Date();
                         expiryDate.setFullYear(expiryDate.getFullYear() + 1);
                         document.cookie = 'preferredLanguage=' + urlLang + '; path=/; expires=' + expiryDate.toUTCString() + '; SameSite=Lax';
                         localStorage.setItem('preferredLanguage', urlLang);
-                        
                         // 使用history API移除URL参数，不刷新页面
                         window.history.replaceState({}, '', newUrl);
                     } else if (savedLang) {
@@ -1115,7 +974,6 @@
                         document.cookie = 'preferredLanguage=' + savedLang + '; path=/; expires=' + expiryDate.toUTCString() + '; SameSite=Lax';
                     }
                 });
-            
             document.addEventListener('DOMContentLoaded', function() {
                 const input = document.getElementById('uuidInput');
                 input.focus();
@@ -1130,20 +988,16 @@
     </html>`;
                         return new Response(terminalHtml, { status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8' } });
                     }
-                
             if (cp && cp.trim()) {
                 const cleanCustomPath = cp.trim().startsWith('/') ? cp.trim() : '/' + cp.trim();
                 const normalizedCustomPath = cleanCustomPath.endsWith('/') && cleanCustomPath.length > 1 ? cleanCustomPath.slice(0, -1) : cleanCustomPath;
                 const normalizedPath = url.pathname.endsWith('/') && url.pathname.length > 1 ? url.pathname.slice(0, -1) : url.pathname;
-                    
                     if (normalizedPath === normalizedCustomPath) {
                         return await handleSubscriptionPage(request, at);
                     }
-                    
                     if (normalizedPath === normalizedCustomPath + '/sub') {
                         return await handleSubscriptionRequest(request, at, url);
                     }
-                    
                     if (url.pathname.length > 1 && url.pathname !== '/') {
                         const user = url.pathname.replace(/\/$/, '').replace('/sub', '').substring(1);
                         if (isValidFormat(user)) {
@@ -1157,7 +1011,6 @@
                         }
                     }
                 } else {
-                    
                     if (url.pathname.length > 1 && url.pathname !== '/' && !url.pathname.includes('/sub')) {
                         const user = url.pathname.replace(/\/$/, '').substring(1);
                         if (isValidFormat(user)) {
@@ -1201,11 +1054,9 @@
             }
         },
     };
-
     function generateQuantumultConfig(links) {
         return btoa(links.join('\n'));
     }
-
     // 解析 VLESS/Trojan 链接并生成 Clash 节点配置
     function parseLinkToClashNode(link) {
         try {
@@ -1217,16 +1068,14 @@
                 const server = url.hostname;
                 const port = parseInt(url.port) || 443;
                 const params = new URLSearchParams(url.search);
-                
                 const tls = params.get('security') === 'tls' || params.get('tls') === 'true';
                 const network = params.get('type') || 'ws';
-                const path = params.get('path') || '/?ed=2048';
+                const path = params.get('path') || '/?ed=2560';
                 const host = params.get('host') || server;
                 const servername = params.get('sni') || host;
                 const alpn = params.get('alpn') || 'h3,h2,http/1.1';
-                const fingerprint = params.get('fp') || params.get('client-fingerprint') || 'chrome';
+                const fingerprint = params.get('fp') || params.get('client-fingerprint') || 'firefox';
                 const ech = params.get('ech');
-                
                 const node = {
                     name: name,
                     type: 'vless',
@@ -1237,13 +1086,11 @@
                     network: network,
                     'client-fingerprint': fingerprint
                 };
-                
                 if (tls) {
                     node.servername = servername;
                     node.alpn = alpn.split(',').map(a => a.trim());
                     node['skip-cert-verify'] = false;
                 }
-                
                 if (network === 'ws') {
                     node['ws-opts'] = {
                         path: path,
@@ -1252,16 +1099,13 @@
                         }
                     };
                 }
-                
                 if (ech) {
                     node['ech-opts'] = {
                         enable: true
                     };
                 }
-                
                 return node;
             }
-            
             // 解析 Trojan 链接
             if (link.startsWith('trojan://')) {
                 const url = new URL(link);
@@ -1270,14 +1114,12 @@
                 const server = url.hostname;
                 const port = parseInt(url.port) || 443;
                 const params = new URLSearchParams(url.search);
-                
                 const network = params.get('type') || 'ws';
-                const path = params.get('path') || '/?ed=2048';
+                const path = params.get('path') || '/?ed=2560';
                 const host = params.get('host') || server;
                 const sni = params.get('sni') || host;
                 const alpn = params.get('alpn') || 'h3,h2,http/1.1';
                 const ech = params.get('ech');
-                
                 const node = {
                     name: name,
                     type: 'trojan',
@@ -1289,7 +1131,6 @@
                     alpn: alpn.split(',').map(a => a.trim()),
                     'skip-cert-verify': false
                 };
-                
                 if (network === 'ws') {
                     node['ws-opts'] = {
                         path: path,
@@ -1298,13 +1139,11 @@
                         }
                     };
                 }
-                
                 if (ech) {
                     node['ech-opts'] = {
                         enable: true
                     };
                 }
-                
                 return node;
             }
         } catch (e) {
@@ -1312,7 +1151,6 @@
         }
         return null;
     }
-
     // 生成 Clash 配置
     async function generateClashConfig(links, request, user) {
         // 如果 ECH 未开启，使用订阅转换服务
@@ -1324,7 +1162,6 @@
             subscriptionUrl.searchParams.set('target', 'base64');
             const encodedUrl = encodeURIComponent(subscriptionUrl.toString());
             const converterUrl = `${scu}?target=clash&url=${encodedUrl}&insert=false&emoji=true&list=false&xudp=false&udp=false&tfo=false&expand=true&scv=false&fdn=false&new_name=true`;
-            
             try {
                 const response = await fetch(converterUrl);
                 if (response.ok) {
@@ -1334,10 +1171,8 @@
                 // 如果订阅转换失败，fallback 到本地生成
             }
         }
-        
         // ECH 开启时，使用本地模板生成
         const templateUrl = 'https://raw.githubusercontent.com/byJoey/test/refs/heads/main/%E6%A8%A1%E6%9D%BF.yaml';
-        
         try {
             // 获取模板
             const templateResponse = await fetch(templateUrl);
@@ -1345,7 +1180,6 @@
                 throw new Error('无法获取模板文件');
             }
             let template = await templateResponse.text();
-            
             // 解析链接生成节点配置
             const nodes = [];
             for (const link of links) {
@@ -1354,11 +1188,9 @@
                     nodes.push(node);
                 }
             }
-            
             if (nodes.length === 0) {
                 throw new Error('没有有效的节点');
             }
-            
             // 确保节点名称唯一，处理重复名称
             const usedNames = new Set();
             nodes.forEach((node, index) => {
@@ -1376,22 +1208,19 @@
                 usedNames.add(uniqueName);
                 node.uniqueName = uniqueName;
             });
-            
             // 将节点转换为 YAML 格式（单行格式，匹配模板）
             const nodesYaml = nodes.map(node => {
                 const props = [];
-                
                 // 基本属性，使用唯一名称（匹配模板格式，不加引号）
                 props.push(`name: ${node.uniqueName}`);
                 props.push(`server: ${node.server}`);
                 props.push(`port: ${node.port}`);
                 props.push(`type: ${node.type}`);
-                
                 if (node.type === 'vless') {
                     props.push(`uuid: ${node.uuid}`);
                     if (node.tls) {
                         props.push(`tls: true`);
-                        // alpn 格式：URL编码的逗号分隔值，如 h3%2Ch2%2Chttp%2F1.1
+                        // alpn 格式：URL编码的逗号分隔值，如 h3
                         const alpnStr = node.alpn.map(a => encodeURIComponent(a)).join('%2C');
                         props.push(`alpn: [${alpnStr}]`);
                         props.push(`tfo: false`);
@@ -1426,29 +1255,24 @@
                         props.push(`ech-opts: {enable: true}`);
                     }
                 }
-                
                 // 生成单行格式：  - {prop1: value1, prop2: value2, ...}
                 return `  - {${props.join(', ')}}`;
             }).join('\n');
-            
             // 替换模板中的 proxies 部分
             // 查找 proxies: 后面的内容，直到下一个顶级键
             const proxiesRegex = /^proxies:\s*$/m;
             const match = template.match(proxiesRegex);
-            
             if (match) {
                 const startIndex = match.index + match[0].length;
                 // 查找下一个顶级键（以字母开头，后面跟冒号，前面可能有空格）
                 const nextKeyRegex = /^\s*[a-zA-Z][a-zA-Z0-9_-]*:\s*$/m;
                 const nextMatch = template.substring(startIndex).match(nextKeyRegex);
-                
                 let endIndex;
                 if (nextMatch) {
                     endIndex = startIndex + nextMatch.index;
                 } else {
                     endIndex = template.length;
                 }
-                
                 // 替换 proxies 部分
                 template = template.substring(0, startIndex) + '\n' + nodesYaml + '\n' + template.substring(endIndex);
             } else {
@@ -1472,7 +1296,6 @@
                     }
                 }
             }
-            
             return template;
         } catch (error) {
             // 如果本地生成失败，fallback 到订阅转换服务
@@ -1482,29 +1305,23 @@
                 subscriptionUrl.searchParams.set('target', 'base64');
                 const encodedUrl = encodeURIComponent(subscriptionUrl.toString());
                 const converterUrl = `${scu}?target=clash&url=${encodedUrl}&insert=false&emoji=true&list=false&xudp=false&udp=false&tfo=false&expand=true&scv=false&fdn=false&new_name=true`;
-                
                 const response = await fetch(converterUrl);
                 if (response.ok) {
                     return await response.text();
                 }
             }
-            
             throw error;
         }
     }
-
     // 全局变量存储ECH调试信息
     let echDebugInfo = '';
-    
     async function fetchECHConfig(domain) {
         if (!enableECH) {
             echDebugInfo = 'ECH功能已禁用';
             return null;
         }
-        
         echDebugInfo = '';
         const debugSteps = [];
-        
         try {
             // 优先使用 Google DNS 查询 cloudflare-ech.com 的 ECH 配置
             debugSteps.push('尝试使用 Google DNS 查询 cloudflare-ech.com...');
@@ -1514,13 +1331,10 @@
                     'Accept': 'application/json'
                 }
             });
-            
             debugSteps.push(`Google DNS 响应状态: ${echResponse.status}`);
-            
             if (echResponse.ok) {
                 const echData = await echResponse.json();
                 debugSteps.push(`Google DNS 返回数据: ${JSON.stringify(echData).substring(0, 200)}...`);
-                
                 if (echData.Answer && echData.Answer.length > 0) {
                     debugSteps.push(`找到 ${echData.Answer.length} 条答案记录`);
                     for (const answer of echData.Answer) {
@@ -1555,7 +1369,6 @@
             } else {
                 debugSteps.push(`Google DNS 请求失败: ${echResponse.status}`);
             }
-            
             // 如果 cloudflare-ech.com 查询失败，尝试使用 Google DNS 查询目标域名的 HTTPS 记录
             debugSteps.push(`尝试使用 Google DNS 查询目标域名 ${domain}...`);
             const dohUrl = `https://v.recipes/dns/dns.google/dns-query?name=${encodeURIComponent(domain)}&type=65`;
@@ -1564,13 +1377,10 @@
                     'Accept': 'application/json'
                 }
             });
-            
             debugSteps.push(`Google DNS (目标域名) 响应状态: ${response.status}`);
-            
             if (response.ok) {
                 const data = await response.json();
                 debugSteps.push(`Google DNS (目标域名) 返回数据: ${JSON.stringify(data).substring(0, 200)}...`);
-                
                 if (data.Answer && data.Answer.length > 0) {
                     debugSteps.push(`找到 ${data.Answer.length} 条答案记录`);
                     for (const answer of data.Answer) {
@@ -1600,7 +1410,6 @@
             } else {
                 debugSteps.push(`Google DNS (目标域名) 请求失败: ${response.status}`);
             }
-            
             // 如果 Google DNS 失败，尝试使用 Cloudflare DNS 作为备选
             debugSteps.push('尝试使用 Cloudflare DNS 作为备选...');
             const cfEchUrl = `https://cloudflare-dns.com/dns-query?name=cloudflare-ech.com&type=65`;
@@ -1609,13 +1418,10 @@
                     'Accept': 'application/dns-json'
                 }
             });
-            
             debugSteps.push(`Cloudflare DNS 响应状态: ${cfResponse.status}`);
-            
             if (cfResponse.ok) {
                 const cfData = await cfResponse.json();
                 debugSteps.push(`Cloudflare DNS 返回数据: ${JSON.stringify(cfData).substring(0, 200)}...`);
-                
                 if (cfData.Answer && cfData.Answer.length > 0) {
                     debugSteps.push(`找到 ${cfData.Answer.length} 条答案记录`);
                     for (const answer of cfData.Answer) {
@@ -1633,7 +1439,6 @@
             } else {
                 debugSteps.push(`Cloudflare DNS 请求失败: ${cfResponse.status}`);
             }
-            
             echDebugInfo = debugSteps.join('\\n') + '\\n❌ 所有DNS查询均失败，未获取到ECH配置';
             return null;
         } catch (error) {
@@ -1641,20 +1446,16 @@
             return null;
         }
     }
-
     async function handleSubscriptionRequest(request, user, url = null) {
         if (!url) url = new URL(request.url);
-        
         const finalLinks = [];
         const workerDomain = url.hostname;
         const target = url.searchParams.get('target') || 'base64';
-
         // 如果启用了ECH，直接使用固定值
         let echConfig = null;
         if (enableECH) {
             echConfig = `cloudflare-ech.com+https://dns.alidns.com/dns-query`;
         }
-
         async function addNodesFromList(list) {
             if (ev) {
                 finalLinks.push(...generateLinksFromSource(list, user, workerDomain, echConfig));
@@ -1666,7 +1467,6 @@
                 finalLinks.push(...generateXhttpLinksFromSource(list, user, workerDomain, echConfig));
             }
         }
-
         if (currentWorkerRegion === 'CUSTOM') {
             const nativeList = [{ ip: workerDomain, isp: '原生地址' }];
             await addNodesFromList(nativeList);
@@ -1678,7 +1478,6 @@
                 if (!currentWorkerRegion) {
                     currentWorkerRegion = await detectWorkerRegion(request);
                 }
-                
                 const bestBackupIP = await getBestBackupIP(currentWorkerRegion);
                 if (bestBackupIP) {
                     fallbackAddress = bestBackupIP.domain + ':' + bestBackupIP.port;
@@ -1690,27 +1489,21 @@
                 }
             }
         }
-
         const hasCustomPreferred = customPreferredIPs.length > 0 || customPreferredDomains.length > 0;
-        
         if (disablePreferred) {
         } else if (hasCustomPreferred) {
-            
-            if (customPreferredIPs.length > 0 && epi) {
-                await addNodesFromList(customPreferredIPs);
-            }
-            
             if (customPreferredDomains.length > 0 && epd) {
                 const customDomainList = customPreferredDomains.map(d => ({ ip: d.domain, isp: d.name || d.domain }));
                 await addNodesFromList(customDomainList);
             }
+            if (customPreferredIPs.length > 0 && epi) {
+                await addNodesFromList(customPreferredIPs);
+            }
         } else {
-            
             if (epd) {
             const domainList = directDomains.map(d => ({ ip: d.domain, isp: d.name || d.domain }));
                 await addNodesFromList(domainList);
             }
-
             if (epi) {
             const defaultURL = 'https://raw.githubusercontent.com/qwer-search/bestip/refs/heads/main/kejilandbestip.txt';
                 if (piu === defaultURL) {
@@ -1723,18 +1516,15 @@
                     if (!currentWorkerRegion) {
                         currentWorkerRegion = await detectWorkerRegion(request);
                     }
-                    
                     const bestBackupIP = await getBestBackupIP(currentWorkerRegion);
                     if (bestBackupIP) {
                         fallbackAddress = bestBackupIP.domain + ':' + bestBackupIP.port;
-                        
                         const backupList = [{ ip: bestBackupIP.domain, isp: 'ProxyIP-' + currentWorkerRegion }];
                             await addNodesFromList(backupList);
                         }
                     }
                 }
             }
-
             if (egi) {
             try {
                 const newIPList = await fetchAndParseNewIPs();
@@ -1750,28 +1540,23 @@
                 if (!currentWorkerRegion) {
                     currentWorkerRegion = await detectWorkerRegion(request);
                 }
-                
                 const bestBackupIP = await getBestBackupIP(currentWorkerRegion);
                 if (bestBackupIP) {
                     fallbackAddress = bestBackupIP.domain + ':' + bestBackupIP.port;
-                    
                     const backupList = [{ ip: bestBackupIP.domain, isp: 'ProxyIP-' + currentWorkerRegion }];
                         await addNodesFromList(backupList);
                     }
                 }
             }
         }
-
         if (finalLinks.length === 0) {
             const errorRemark = "所有节点获取失败";
             const proto = atob('dmxlc3M=');
             const errorLink = `${proto}://00000000-0000-0000-0000-000000000000@127.0.0.1:80?encryption=none&security=none&type=ws&host=error.com&path=%2F#${encodeURIComponent(errorRemark)}`;
             finalLinks.push(errorLink);
         }
-
         let subscriptionContent;
         let contentType = 'text/plain; charset=utf-8';
-        
         switch (target.toLowerCase()) {
             case atob('Y2xhc2g='):
             case atob('Y2xhc2hy'):
@@ -1802,12 +1587,10 @@
             default:
                 subscriptionContent = btoa(finalLinks.join('\n'));
         }
-        
         const responseHeaders = { 
             'Content-Type': contentType,
             'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
         };
-        
         // 添加ECH状态到响应头
         if (enableECH) {
             responseHeaders['X-ECH-Status'] = 'ENABLED';
@@ -1815,50 +1598,37 @@
                 responseHeaders['X-ECH-Config-Length'] = String(echConfig.length);
             }
         }
-        
         return new Response(subscriptionContent, {
             headers: responseHeaders,
         });
     }
-
     function generateLinksFromSource(list, user, workerDomain, echConfig = null) {
-        
         const CF_HTTP_PORTS = [80, 8080, 8880, 2052, 2082, 2086, 2095];
         const CF_HTTPS_PORTS = [443, 2053, 2083, 2087, 2096, 8443];
-        
         const defaultHttpsPorts = [443];
         const defaultHttpPorts = disableNonTLS ? [] : [80];
         const links = [];
-        const wsPath = '/?ed=2048';
+        const wsPath = '/?ed=2560';
         const proto = atob('dmxlc3M=');
-
         list.forEach(item => {
             let nodeNameBase = item.isp.replace(/\s/g, '_');
             if (item.colo && item.colo.trim()) {
                 nodeNameBase = `${nodeNameBase}-${item.colo.trim()}`;
             }
             const safeIP = item.ip.includes(':') ? `[${item.ip}]` : item.ip;
-            
             let portsToGenerate = [];
-            
             if (item.port) {
-                
                 const port = item.port;
-                
                 if (CF_HTTPS_PORTS.includes(port)) {
-                    
                     portsToGenerate.push({ port: port, tls: true });
                 } else if (CF_HTTP_PORTS.includes(port)) {
-                    
                     if (!disableNonTLS) {
                         portsToGenerate.push({ port: port, tls: false });
                     }
                 } else {
-                    
                     portsToGenerate.push({ port: port, tls: true });
                 }
             } else {
-                
                 defaultHttpsPorts.forEach(port => {
                     portsToGenerate.push({ port: port, tls: true });
                 });
@@ -1866,30 +1636,25 @@
                     portsToGenerate.push({ port: port, tls: false });
                 });
             }
-
             portsToGenerate.forEach(({ port, tls }) => {
                 if (tls) {
-                    
                     const wsNodeName = `${nodeNameBase}-${port}-WS-TLS`;
                     const wsParams = new URLSearchParams({ 
                         encryption: 'none', 
                         security: 'tls', 
                         sni: workerDomain, 
-                        fp: enableECH ? 'chrome' : 'randomized',
+                        fp: enableECH ? 'firefox' : 'randomized',
                         type: 'ws', 
                         host: workerDomain, 
                         path: wsPath
                     });
-                    
-                    // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
+                    // 如果启用了ECH，添加ech参数（ECH需要伪装成firefox浏览器）
                     if (enableECH) {
                         wsParams.set('alpn', 'h3,h2,http/1.1');
                         wsParams.set('ech', `cloudflare-ech.com+https://dns.alidns.com/dns-query`);
                     }
-                    
                     links.push(`${proto}://${user}@${safeIP}:${port}?${wsParams.toString()}#${encodeURIComponent(wsNodeName)}`);
                 } else {
-                    
                     const wsNodeName = `${nodeNameBase}-${port}-WS`;
                     const wsParams = new URLSearchParams({
                         encryption: 'none',
@@ -1904,31 +1669,23 @@
         });
         return links;
     }
-
     async function generateTrojanLinksFromSource(list, user, workerDomain, echConfig = null) {
-        
         const CF_HTTP_PORTS = [80, 8080, 8880, 2052, 2082, 2086, 2095];
         const CF_HTTPS_PORTS = [443, 2053, 2083, 2087, 2096, 8443];
-        
         const defaultHttpsPorts = [443];
         const defaultHttpPorts = disableNonTLS ? [] : [80];
         const links = [];
-        const wsPath = '/?ed=2048';
-        
+        const wsPath = '/?ed=2560';
         const password = tp || user;
-
         list.forEach(item => {
             let nodeNameBase = item.isp.replace(/\s/g, '_');
             if (item.colo && item.colo.trim()) {
                 nodeNameBase = `${nodeNameBase}-${item.colo.trim()}`;
             }
             const safeIP = item.ip.includes(':') ? `[${item.ip}]` : item.ip;
-            
             let portsToGenerate = [];
-            
             if (item.port) {
                 const port = item.port;
-                
                 if (CF_HTTPS_PORTS.includes(port)) {
                     portsToGenerate.push({ port: port, tls: true });
                 } else if (CF_HTTP_PORTS.includes(port)) {
@@ -1946,29 +1703,24 @@
                     portsToGenerate.push({ port: port, tls: false });
                 });
             }
-
             portsToGenerate.forEach(({ port, tls }) => {
                 if (tls) {
-                    
                     const wsNodeName = `${nodeNameBase}-${port}-${atob('VHJvamFu')}-WS-TLS`;
                     const wsParams = new URLSearchParams({ 
                         security: 'tls', 
                         sni: workerDomain, 
-                        fp: 'chrome',
+                        fp: 'firefox',
                         type: 'ws', 
                         host: workerDomain, 
                         path: wsPath
                     });
-                    
-                    // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
+                    // 如果启用了ECH，添加ech参数（ECH需要伪装成firefox浏览器）
                     if (enableECH) {
                         wsParams.set('alpn', 'h3,h2,http/1.1');
                         wsParams.set('ech', `cloudflare-ech.com+https://dns.alidns.com/dns-query`);
                     }
-                    
                     links.push(`${atob('dHJvamFuOi8v')}${password}@${safeIP}:${port}?${wsParams.toString()}#${encodeURIComponent(wsNodeName)}`);
                 } else {
-                    
                     const wsNodeName = `${nodeNameBase}-${port}-${atob('VHJvamFu')}-WS`;
                     const wsParams = new URLSearchParams({
                         security: 'none',
@@ -1982,19 +1734,16 @@
         });
         return links;
     }
-
     async function fetchDynamicIPs() {
         const v4Url1 = "https://www.wetest.vip/page/cloudflare/address_v4.html";
         const v6Url1 = "https://www.wetest.vip/page/cloudflare/address_v6.html";
         let results = [];
-
         // 读取筛选配置（默认全部启用）
         const ipv4Enabled = getConfigValue('ipv4', '') === '' || getConfigValue('ipv4', 'yes') !== 'no';
         const ipv6Enabled = getConfigValue('ipv6', '') === '' || getConfigValue('ipv6', 'yes') !== 'no';
         const ispMobile = getConfigValue('ispMobile', '') === '' || getConfigValue('ispMobile', 'yes') !== 'no';
         const ispUnicom = getConfigValue('ispUnicom', '') === '' || getConfigValue('ispUnicom', 'yes') !== 'no';
         const ispTelecom = getConfigValue('ispTelecom', '') === '' || getConfigValue('ispTelecom', 'yes') !== 'no';
-
         try {
             const fetchPromises = [];
             if (ipv4Enabled) {
@@ -2007,10 +1756,8 @@
             } else {
                 fetchPromises.push(Promise.resolve([]));
             }
-
             const [ipv4List, ipv6List] = await Promise.all(fetchPromises);
             results = [...ipv4List, ...ipv6List];
-            
             // 按运营商筛选
             if (results.length > 0) {
                 results = results.filter(item => {
@@ -2021,16 +1768,13 @@
                     return true;
                 });
             }
-            
             if (results.length > 0) {
                 return results;
             }
         } catch (e) {
         }
-
                 return [];
             }
-
     async function fetchAndParseWetest(url) {
         try {
             const response = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
@@ -2041,7 +1785,6 @@
             const results = [];
             const rowRegex = /<tr[\s\S]*?<\/tr>/g;
             const cellRegex = /<td data-label="线路名称">(.+?)<\/td>[\s\S]*?<td data-label="优选地址">([\d.:a-fA-F]+)<\/td>[\s\S]*?<td data-label="数据中心">(.+?)<\/td>/;
-
             let match;
             while ((match = rowRegex.exec(html)) !== null) {
                 const rowHtml = match[0];
@@ -2055,16 +1798,13 @@
                     });
                 }
             }
-            
             if (results.length === 0) {
             }
-
             return results;
         } catch (error) {
             return [];
         }
     }
-
     async function handleWsRequest(request) {
         // 检测并设置当前Worker地区，确保WebSocket请求能正确进行就近匹配
         if (!currentWorkerRegion || currentWorkerRegion === '') {
@@ -2074,18 +1814,14 @@
                 currentWorkerRegion = await detectWorkerRegion(request);
             }
         }
-        
         const wsPair = new WebSocketPair();
         const [clientSock, serverSock] = Object.values(wsPair);
         serverSock.accept();
-
         let remoteConnWrapper = { socket: null };
         let isDnsQuery = false;
         let protocolType = null; 
-
         const earlyData = request.headers.get(atob('c2VjLXdlYnNvY2tldC1wcm90b2NvbA==')) || '';
         const readable = makeReadableStream(serverSock, earlyData);
-
         readable.pipeTo(new WritableStream({
             async write(chunk) {
                 if (isDnsQuery) return await forwardUDP(chunk, serverSock, null);
@@ -2095,9 +1831,7 @@
                     writer.releaseLock();
                     return;
                 }
-                
                 if (!protocolType) {
-                    
                     if (ev && chunk.byteLength >= 24) {
                         const vlessResult = parseWsPacketHeader(chunk, at);
                         if (!vlessResult.hasError) {
@@ -2114,7 +1848,6 @@
                             return;
                         }
                     }
-                    
                     if (et && chunk.byteLength >= 56) {
                         const tjResult = await parseTrojanHeader(chunk, at);
                         if (!tjResult.hasError) {
@@ -2124,15 +1857,12 @@
                             return;
                         }
                     }
-                    
                     throw new Error('Invalid protocol or authentication failed');
                 }
             },
         })).catch((err) => { });
-
         return new Response(null, { status: 101, webSocket: clientSock });
     }
-
     async function forwardTCP(addrType, host, portNum, rawData, ws, respHeader, remoteConnWrapper) {
         async function connectAndSend(address, port, useSocks = false) {
             const remoteSock = useSocks ?
@@ -2143,7 +1873,6 @@
             writer.releaseLock();
             return remoteSock;
         }
-        
         async function retryConnection() {
             if (enableSocksDowngrade && isSocksEnabled) {
                 try {
@@ -2163,7 +1892,6 @@
                         backupHost = bestBackupIP ? bestBackupIP.domain : host;
                         backupPort = bestBackupIP ? bestBackupIP.port : portNum;
                     }
-                    
                     try {
                         const fallbackSocket = await connectAndSend(backupHost, backupPort, false);
                         remoteConnWrapper.socket = fallbackSocket;
@@ -2184,7 +1912,6 @@
                     backupHost = bestBackupIP ? bestBackupIP.domain : host;
                     backupPort = bestBackupIP ? bestBackupIP.port : portNum;
                 }
-                
                 try {
                     const fallbackSocket = await connectAndSend(backupHost, backupPort, isSocksEnabled);
                     remoteConnWrapper.socket = fallbackSocket;
@@ -2195,7 +1922,6 @@
                 }
             }
         }
-        
         try {
             const initialSocket = await connectAndSend(host, portNum, enableSocksDowngrade ? false : isSocksEnabled);
             remoteConnWrapper.socket = initialSocket;
@@ -2204,7 +1930,6 @@
             retryConnection();
         }
     }
-
     function parseWsPacketHeader(chunk, token) {
         if (chunk.byteLength < 24) return { hasError: true, message: E_INVALID_DATA };
         const version = new Uint8Array(chunk.slice(0, 1));
@@ -2226,7 +1951,6 @@
         if (!hostname) return { hasError: true, message: `${E_EMPTY_ADDR}: ${addressType}` };
         return { hasError: false, addressType, port, hostname, isUDP, rawIndex: addrValIdx + addrLen, version };
     }
-
     function makeReadableStream(socket, earlyDataHeader) {
         let cancelled = false;
         return new ReadableStream({
@@ -2240,7 +1964,6 @@
             cancel() { cancelled = true; closeSocketQuietly(socket); }
         });
     }
-
     async function connectStreams(remoteSocket, webSocket, headerData, retryFunc) {
         let header = headerData, hasData = false;
         await remoteSocket.readable.pipeTo(
@@ -2256,7 +1979,6 @@
         ).catch((error) => { closeSocketQuietly(webSocket); });
         if (!hasData && retryFunc) retryFunc();
     }
-
     async function forwardUDP(udpChunk, webSocket, respHeader) {
         try {
             const tcpSocket = connect({ hostname: '8.8.4.4', port: 53 });
@@ -2274,7 +1996,6 @@
             }));
         } catch (error) { }
     }
-
     async function establishSocksConnection(addrType, address, port) {
         const { username, password, hostname, socksPort } = parsedSocks5Config;
         const socket = connect({ hostname, port: socksPort });
@@ -2304,30 +2025,23 @@
         writer.releaseLock(); reader.releaseLock();
         return socket;
     }
-
     function parseSocksConfig(address) {
         let [latter, former] = address.split("@").reverse(); 
         let username, password, hostname, socksPort;
-        
         if (former) { 
             const formers = former.split(":"); 
             if (formers.length !== 2) throw new Error(E_INVALID_SOCKS_ADDR);
             [username, password] = formers; 
         }
-        
         const latters = latter.split(":"); 
         socksPort = Number(latters.pop()); 
         if (isNaN(socksPort)) throw new Error(E_INVALID_SOCKS_ADDR);
-        
         hostname = latters.join(":"); 
         if (hostname.includes(":") && !/^\[.*\]$/.test(hostname)) throw new Error(E_INVALID_SOCKS_ADDR);
-        
         return { username, password, hostname, socksPort };
     }
-
     async function handleSubscriptionPage(request, user = null) {
         if (!user) user = at;
-        
         const url = new URL(request.url);
         // 优先检查Cookie中的语言设置
         const cookieHeader = request.headers.get('Cookie') || '';
@@ -2341,9 +2055,7 @@
                 }
             }
         }
-        
         let isFarsi = false;
-        
         if (langFromCookie === 'fa' || langFromCookie === 'fa-IR') {
             isFarsi = true;
         } else if (langFromCookie === 'zh' || langFromCookie === 'zh-CN') {
@@ -2354,9 +2066,7 @@
             const browserLang = acceptLanguage.split(',')[0].split('-')[0].toLowerCase();
             isFarsi = browserLang === 'fa' || acceptLanguage.includes('fa-IR') || acceptLanguage.includes('fa');
         }
-            
             const langAttr = isFarsi ? 'fa-IR' : 'zh-CN';
-            
             const translations = {
                 zh: {
                     title: '订阅中心',
@@ -2625,9 +2335,7 @@
                 kvCheckFailedError: 'بررسی ذخیره‌سازی KV ناموفق - خطا: '
             }
         };
-            
             const t = translations[isFarsi ? 'fa' : 'zh'];
-        
         const pageHtml = `<!DOCTYPE html>
         <html lang="${langAttr}" dir="${isFarsi ? 'rtl' : 'ltr'}">
     <head>
@@ -2969,7 +2677,6 @@
                                 <input type="text" id="yxURL" placeholder="${isFarsi ? 'پیش‌فرض: https://raw.githubusercontent.com/qwer-search/bestip/refs/heads/main/kejilandbestip.txt' : '默认: https://raw.githubusercontent.com/qwer-search/bestip/refs/heads/main/kejilandbestip.txt'}" style="width: 100%; padding: 12px; background: rgba(0, 0, 0, 0.8); border: 2px solid #00ff00; color: #00ff00; font-family: 'Courier New', monospace; font-size: 14px;">
                                 <small style="color: #00aa00; font-size: 0.85rem;">${isFarsi ? 'URL منبع لیست IP ترجیحی سفارشی، اگر خالی بگذارید از آدرس پیش‌فرض استفاده می‌شود' : '自定义优选IP列表来源URL，留空则使用默认地址'}</small>
                         </div>
-                        
                         <div style="margin-bottom: 20px; padding: 15px; background: rgba(0, 40, 0, 0.6); border: 2px solid #00aa00; border-radius: 8px;">
                             <h4 style="color: #00ff00; margin: 0 0 15px 0; font-size: 1.1rem; text-shadow: 0 0 5px #00ff00;">⚡ ${t.latencyTest}</h4>
                             <div style="display: flex; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; align-items: center;">
@@ -3041,7 +2748,6 @@
                                 </div>
                             </div>
                         </div>
-                        
                         <div style="margin-bottom: 15px;">
                                 <label style="display: block; margin-bottom: 8px; color: #00ff00; font-weight: bold; text-shadow: 0 0 3px #00ff00;">${t.socks5Config}</label>
                                 <input type="text" id="socksConfig" placeholder="${isFarsi ? 'مثال: user:pass@host:port یا host:port' : '例如: user:pass@host:port 或 host:port'}" style="width: 100%; padding: 12px; background: rgba(0, 0, 0, 0.8); border: 2px solid #00ff00; color: #00ff00; font-family: 'Courier New', monospace; font-size: 14px;">
@@ -3049,7 +2755,6 @@
                         </div>
                             <button type="submit" style="background: rgba(0, 255, 0, 0.15); border: 2px solid #00ff00; padding: 12px 24px; color: #00ff00; font-family: 'Courier New', monospace; font-weight: bold; cursor: pointer; margin-right: 10px; text-shadow: 0 0 8px #00ff00; transition: all 0.4s ease;">${t.saveConfig}</button>
                     </form>
-                    
                         <h3 style="color: #00ff00; margin: 20px 0 15px 0; font-size: 1.2rem;">${t.advancedControl}</h3>
                     <form id="advancedConfigForm" style="margin-bottom: 20px;">
                         <div style="margin-bottom: 15px;">
@@ -3171,7 +2876,6 @@
                 </div>
                 <div id="statusMessage" style="display: none; padding: 10px; margin: 10px 0; border: 1px solid #00ff00; background: rgba(0, 20, 0, 0.8); color: #00ff00; text-shadow: 0 0 5px #00ff00;"></div>
             </div>
-            
             <div class="card">
                     <h2 class="card-title">${t.relatedLinks}</h2>
                 <div style="text-align: center; margin: 20px 0;">
@@ -3185,7 +2889,6 @@
             var SUB_CONVERTER_URL = "${ scu }";
             // 远程配置URL（硬编码）
             var REMOTE_CONFIG_URL = "${ remoteConfigUrl }";
-                
                 // 翻译对象
                 const translations = {
                     zh: {
@@ -3197,18 +2900,15 @@
                         autoSubscriptionCopied: 'لینک اشتراک تشخیص خودکار کپی شد، کلاینت هنگام دسترسی بر اساس User-Agent به طور خودکار تشخیص داده و قالب مربوطه را برمی‌گرداند'
                     }
                 };
-                
                 function getCookie(name) {
                     const value = '; ' + document.cookie;
                     const parts = value.split('; ' + name + '=');
                     if (parts.length === 2) return parts.pop().split(';').shift();
                     return null;
                 }
-                
                 const browserLang = navigator.language || navigator.userLanguage || '';
                 const savedLang = localStorage.getItem('preferredLanguage') || getCookie('preferredLanguage');
                 let isFarsi = false;
-                
                 if (savedLang === 'fa' || savedLang === 'fa-IR') {
                     isFarsi = true;
                 } else if (savedLang === 'zh' || savedLang === 'zh-CN') {
@@ -3216,9 +2916,7 @@
                 } else {
                     isFarsi = browserLang.includes('fa') || browserLang.includes('fa-IR');
                 }
-                
                 const t = translations[isFarsi ? 'fa' : 'zh'];
-                
                 function changeLanguage(lang) {
                     localStorage.setItem('preferredLanguage', lang);
                     // 设置Cookie（有效期1年）
@@ -3228,25 +2926,21 @@
                     // 刷新页面，不使用URL参数
                     window.location.reload();
                 }
-                
                 // 页面加载时检查 localStorage 和 Cookie，并清理URL参数
                 window.addEventListener('DOMContentLoaded', function() {
                     const savedLang = localStorage.getItem('preferredLanguage') || getCookie('preferredLanguage');
                     const urlParams = new URLSearchParams(window.location.search);
                     const urlLang = urlParams.get('lang');
-                    
                     // 如果URL中有语言参数，移除它并设置Cookie
                     if (urlLang) {
                         const currentUrl = new URL(window.location.href);
                         currentUrl.searchParams.delete('lang');
                         const newUrl = currentUrl.toString();
-                        
                         // 设置Cookie
                         const expiryDate = new Date();
                         expiryDate.setFullYear(expiryDate.getFullYear() + 1);
                         document.cookie = 'preferredLanguage=' + urlLang + '; path=/; expires=' + expiryDate.toUTCString() + '; SameSite=Lax';
                         localStorage.setItem('preferredLanguage', urlLang);
-                        
                         // 使用history API移除URL参数，不刷新页面
                         window.history.replaceState({}, '', newUrl);
                     } else if (savedLang) {
@@ -3256,43 +2950,35 @@
                         document.cookie = 'preferredLanguage=' + savedLang + '; path=/; expires=' + expiryDate.toUTCString() + '; SameSite=Lax';
                     }
                 });
-            
             function tryOpenApp(schemeUrl, fallbackCallback, timeout) {
                 timeout = timeout || 2500;
                 var appOpened = false;
                 var callbackExecuted = false;
                 var startTime = Date.now();
-                
                 var blurHandler = function() {
                     var elapsed = Date.now() - startTime;
                     if (elapsed < 3000 && !callbackExecuted) {
                         appOpened = true;
                     }
                 };
-                
                 window.addEventListener('blur', blurHandler);
-                
                 var hiddenHandler = function() {
                     var elapsed = Date.now() - startTime;
                     if (elapsed < 3000 && !callbackExecuted) {
                         appOpened = true;
                     }
                 };
-                
                 document.addEventListener('visibilitychange', hiddenHandler);
-                
                 var iframe = document.createElement('iframe');
                 iframe.style.display = 'none';
                 iframe.style.width = '1px';
                 iframe.style.height = '1px';
                 iframe.src = schemeUrl;
                 document.body.appendChild(iframe);
-                
                 setTimeout(function() {
                     iframe.parentNode && iframe.parentNode.removeChild(iframe);
                     window.removeEventListener('blur', blurHandler);
                     document.removeEventListener('visibilitychange', hiddenHandler);
-                    
                     if (!callbackExecuted) {
                         callbackExecuted = true;
                         if (!appOpened && fallbackCallback) {
@@ -3301,14 +2987,12 @@
                     }
                 }, timeout);
             }
-            
             function generateClientLink(clientType, clientName) {
                 var currentUrl = window.location.href;
                 var subscriptionUrl = currentUrl + "/sub";
                 var schemeUrl = '';
                 var displayName = clientName || '';
                 var finalUrl = subscriptionUrl;
-                
                 if (clientType === atob('djJyYXk=')) {
                     finalUrl = subscriptionUrl;
                     var urlElement = document.getElementById("clientSubscriptionUrl");
@@ -3319,7 +3003,6 @@
                     urlElement.style.overflowX = "auto";
                     urlElement.style.maxWidth = "100%";
                     urlElement.style.boxSizing = "border-box";
-                    
                     if (clientName === 'V2RAY') {
                         navigator.clipboard.writeText(finalUrl).then(function() {
                                 alert(displayName + " " + t.subscriptionCopied);
@@ -3349,7 +3032,6 @@
                 } else {
                     // 检查 ECH 是否开启
                     var echEnabled = document.getElementById('ech') && document.getElementById('ech').checked;
-                    
                     // 如果 ECH 开启且是 Clash，直接使用后端接口
                     if (echEnabled && clientType === atob('Y2xhc2g=')) {
                         finalUrl = subscriptionUrl + "?target=" + clientType;
@@ -3361,7 +3043,6 @@
                         urlElement.style.overflowX = "auto";
                         urlElement.style.maxWidth = "100%";
                         urlElement.style.boxSizing = "border-box";
-                        
                         if (clientName === 'STASH') {
                             schemeUrl = 'stash://install?url=' + encodeURIComponent(finalUrl);
                             displayName = 'STASH';
@@ -3369,7 +3050,6 @@
                             schemeUrl = 'clash://install-config?url=' + encodeURIComponent(finalUrl);
                             displayName = 'CLASH';
                         }
-                        
                         if (schemeUrl) {
                             tryOpenApp(schemeUrl, function() {
                                 navigator.clipboard.writeText(finalUrl).then(function() {
@@ -3393,7 +3073,6 @@
                         urlElement.style.overflowX = "auto";
                         urlElement.style.maxWidth = "100%";
                         urlElement.style.boxSizing = "border-box";
-                        
                         if (clientType === atob('Y2xhc2g=')) {
                             if (clientName === 'STASH') {
                                 schemeUrl = 'stash://install?url=' + encodeURIComponent(finalUrl);
@@ -3415,7 +3094,6 @@
                             schemeUrl = 'quantumult-x://install-config?url=' + encodeURIComponent(finalUrl);
                             displayName = 'QUANTUMULT X';
                         }
-                        
                         if (schemeUrl) {
                             tryOpenApp(schemeUrl, function() {
                                 navigator.clipboard.writeText(finalUrl).then(function() {
@@ -3430,12 +3108,10 @@
                     }
                 }
             }
-            
             function createMatrixRain() {
                 const matrixContainer = document.getElementById('matrixCodeRain');
                 const matrixChars = '01ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
                 const columns = Math.floor(window.innerWidth / 18);
-                
                 for (let i = 0; i < columns; i++) {
                     const column = document.createElement('div');
                     column.className = 'matrix-column';
@@ -3444,7 +3120,6 @@
                     column.style.animationDuration = (Math.random() * 15 + 8) + 's';
                     column.style.fontSize = (Math.random() * 4 + 12) + 'px';
                     column.style.opacity = Math.random() * 0.8 + 0.2;
-                    
                     let text = '';
                     const charCount = Math.floor(Math.random() * 30 + 20);
                     for (let j = 0; j < charCount; j++) {
@@ -3455,7 +3130,6 @@
                     column.innerHTML = text;
                     matrixContainer.appendChild(column);
                 }
-                
                 setInterval(function() {
                     const columns = matrixContainer.querySelectorAll('.matrix-column');
                     columns.forEach(function(column) {
@@ -3472,7 +3146,6 @@
                     });
                 }, 100);
             }
-            
             async function checkSystemStatus() {
                 try {
                     const cfStatus = document.getElementById('cfStatus');
@@ -3481,7 +3154,6 @@
                     const backupStatus = document.getElementById('backupStatus');
                     const currentIP = document.getElementById('currentIP');
                     const regionMatch = document.getElementById('regionMatch');
-                    
                         // 获取当前语言设置（优先从Cookie/localStorage读取）
                         function getCookie(name) {
                             const value = '; ' + document.cookie;
@@ -3489,11 +3161,9 @@
                             if (parts.length === 2) return parts.pop().split(';').shift();
                             return null;
                         }
-                        
                         const browserLang = navigator.language || navigator.userLanguage || '';
                         const savedLang = localStorage.getItem('preferredLanguage') || getCookie('preferredLanguage');
                         let isFarsi = false;
-                        
                         if (savedLang === 'fa' || savedLang === 'fa-IR') {
                             isFarsi = true;
                         } else if (savedLang === 'zh' || savedLang === 'zh-CN') {
@@ -3501,7 +3171,6 @@
                         } else {
                             isFarsi = browserLang.includes('fa') || browserLang.includes('fa-IR');
                         }
-                        
                         const translations = {
                             zh: {
                                 workerRegion: 'Worker地区: ',
@@ -3554,70 +3223,53 @@
                                 unknown: 'ناشناخته'
                             }
                         };
-                        
                         const t = translations[isFarsi ? 'fa' : 'zh'];
-                    
                     let detectedRegion = 'US'; // 默认值
                     let isCustomIPMode = false;
                     let isManualRegionMode = false;
                     try {
                         const response = await fetch(window.location.pathname + '/region');
                         const data = await response.json();
-                        
                         if (data.region === 'CUSTOM') {
                             isCustomIPMode = true;
                             detectedRegion = 'CUSTOM';
-                            
                             // 获取自定义IP的详细信息
                                 const customIPInfo = data.ci || t.unknown;
-                            
                                 geoInfo.innerHTML = t.detectionMethod + '<span style="color: #ffaa00;">⚙️ ' + t.customIPMode + '</span>';
                                 regionStatus.innerHTML = t.workerRegion + '<span style="color: #ffaa00;">🔧 ' + t.customIPModeDesc + '</span>';
-                            
                             // 显示自定义IP配置状态，包含具体IP
                                 if (backupStatus) backupStatus.innerHTML = t.proxyIPStatus + '<span style="color: #ffaa00;">🔧 ' + t.usingCustomProxyIP + customIPInfo + '</span>';
                                 if (currentIP) currentIP.innerHTML = t.currentIP + '<span style="color: #ffaa00;">✅ ' + customIPInfo + t.customIPConfig + '</span>';
                                 if (regionMatch) regionMatch.innerHTML = t.regionMatch + '<span style="color: #ffaa00;">⚠️ ' + t.customIPModeDisabled + '</span>';
-                            
                             return; // 提前返回，不执行后续的地区匹配逻辑
                             } else if (data.detectionMethod === '手动指定地区' || data.detectionMethod === 'تعیین منطقه دستی') {
                             isManualRegionMode = true;
                             detectedRegion = data.region;
-                            
                                 geoInfo.innerHTML = t.detectionMethod + '<span style="color: #44aa44;">' + t.manualRegion + '</span>';
                                 regionStatus.innerHTML = t.workerRegion + '<span style="color: #44ff44;">🎯 ' + t.regionNames[detectedRegion] + t.manualRegionDesc + '</span>';
-                            
                             // 显示配置状态而不是检测状态
                                 if (backupStatus) backupStatus.innerHTML = t.proxyIPStatus + '<span style="color: #44ff44;">✅ ' + t.proxyIPAvailable + '</span>';
                                 if (currentIP) currentIP.innerHTML = t.currentIP + '<span style="color: #44ff44;">✅ ' + t.smartSelection + '</span>';
                                 if (regionMatch) regionMatch.innerHTML = t.regionMatch + '<span style="color: #44ff44;">✅ ' + t.sameRegionIP + '</span>';
-                            
                             return; // 提前返回，不执行后续的地区匹配逻辑
                             } else if (data.region && t.regionNames[data.region]) {
                             detectedRegion = data.region;
                         }
-                        
                             geoInfo.innerHTML = t.detectionMethod + '<span style="color: #44ff44;">' + t.cloudflareDetection + '</span>';
-                        
                     } catch (e) {
                             geoInfo.innerHTML = t.detectionMethod + '<span style="color: #ff4444;">' + t.detectionFailed + '</span>';
                     }
-                    
                         regionStatus.innerHTML = t.workerRegion + '<span style="color: #44ff44;">✅ ' + t.regionNames[detectedRegion] + '</span>';
-                    
                     // 直接显示配置状态，不再进行检测
                     if (backupStatus) {
                             backupStatus.innerHTML = t.proxyIPStatus + '<span style="color: #44ff44;">✅ ' + t.proxyIPAvailable + '</span>';
                     }
-                    
                     if (currentIP) {
                             currentIP.innerHTML = t.currentIP + '<span style="color: #44ff44;">✅ ' + t.smartSelection + '</span>';
                     }
-                    
                     if (regionMatch) {
                             regionMatch.innerHTML = t.regionMatch + '<span style="color: #44ff44;">✅ ' + t.sameRegionIP + '</span>';
                     }
-                    
                 } catch (error) {
                         function getCookie(name) {
                             const value = '; ' + document.cookie;
@@ -3625,17 +3277,14 @@
                             if (parts.length === 2) return parts.pop().split(';').shift();
                             return null;
                         }
-                        
                         const browserLang = navigator.language || navigator.userLanguage || '';
                         const savedLang = localStorage.getItem('preferredLanguage') || getCookie('preferredLanguage');
                         let isFarsi = false;
-                        
                         if (savedLang === 'fa' || savedLang === 'fa-IR') {
                             isFarsi = true;
                         } else {
                             isFarsi = browserLang.includes('fa') || browserLang.includes('fa-IR');
                         }
-                        
                         const translations = {
                             zh: {
                                 workerRegion: 'Worker地区: ',
@@ -3654,9 +3303,7 @@
                                 detectionFailed: 'تشخیص ناموفق'
                             }
                         };
-                        
                         const t = translations[isFarsi ? 'fa' : 'zh'];
-                        
                         document.getElementById('regionStatus').innerHTML = t.workerRegion + '<span style="color: #ff4444;">❌ ' + t.detectionFailed + '</span>';
                         document.getElementById('geoInfo').innerHTML = t.detectionMethod + '<span style="color: #ff4444;">❌ ' + t.detectionFailed + '</span>';
                         document.getElementById('backupStatus').innerHTML = t.proxyIPStatus + '<span style="color: #ff4444;">❌ ' + t.detectionFailed + '</span>';
@@ -3664,7 +3311,6 @@
                         document.getElementById('regionMatch').innerHTML = t.regionMatch + '<span style="color: #ff4444;">❌ ' + t.detectionFailed + '</span>';
                 }
             }
-            
                 async function testAPI() {
                     try {
                         function getCookie(name) {
@@ -3673,17 +3319,14 @@
                             if (parts.length === 2) return parts.pop().split(';').shift();
                             return null;
                         }
-                        
                         const browserLang = navigator.language || navigator.userLanguage || '';
                         const savedLang = localStorage.getItem('preferredLanguage') || getCookie('preferredLanguage');
                         let isFarsi = false;
-                        
                         if (savedLang === 'fa' || savedLang === 'fa-IR') {
                             isFarsi = true;
                         } else {
                             isFarsi = browserLang.includes('fa') || browserLang.includes('fa-IR');
                         }
-                        
                         const translations = {
                             zh: {
                                 apiTestResult: 'API检测结果: ',
@@ -3700,12 +3343,9 @@
                                 apiTestError: 'تست API ناموفق: '
                             }
                         };
-                        
                         const t = translations[isFarsi ? 'fa' : 'zh'];
-                        
                     const response = await fetch(window.location.pathname + '/test-api');
                     const data = await response.json();
-                    
                     if (data.detectedRegion) {
                             alert(t.apiTestResult + data.detectedRegion + '\\n' + t.apiTestTime + data.timestamp);
                     } else {
@@ -3718,51 +3358,41 @@
                             if (parts.length === 2) return parts.pop().split(';').shift();
                             return null;
                         }
-                        
                         const browserLang = navigator.language || navigator.userLanguage || '';
                         const savedLang = localStorage.getItem('preferredLanguage') || getCookie('preferredLanguage');
                         let isFarsi = false;
-                        
                         if (savedLang === 'fa' || savedLang === 'fa-IR') {
                             isFarsi = true;
                         } else {
                             isFarsi = browserLang.includes('fa') || browserLang.includes('fa-IR');
                         }
-                        
                         const translations = {
                             zh: { apiTestError: 'API测试失败: ' },
                             fa: { apiTestError: 'تست API ناموفق: ' }
                         };
-                        
                         const t = translations[isFarsi ? 'fa' : 'zh'];
                         alert(t.apiTestError + error.message);
                 }
             }
-            
             // 配置管理相关函数
             async function checkKVStatus() {
                 const apiUrl = window.location.pathname + '/api/config';
-                
                 try {
                     const response = await fetch(apiUrl);
-                    
                         function getCookie(name) {
                             const value = '; ' + document.cookie;
                             const parts = value.split('; ' + name + '=');
                             if (parts.length === 2) return parts.pop().split(';').shift();
                             return null;
                         }
-                        
                         const browserLang = navigator.language || navigator.userLanguage || '';
                         const savedLang = localStorage.getItem('preferredLanguage') || getCookie('preferredLanguage');
                         let isFarsi = false;
-                        
                         if (savedLang === 'fa' || savedLang === 'fa-IR') {
                             isFarsi = true;
                         } else {
                             isFarsi = browserLang.includes('fa') || browserLang.includes('fa-IR');
                         }
-                        
                         const translations = {
                             zh: {
                                 kvDisabled: '⚠️ KV存储未启用或未配置',
@@ -3785,9 +3415,7 @@
                                 kvCheckFailedError: 'بررسی ذخیره‌سازی KV ناموفق - خطا: '
                             }
                         };
-                        
                         const t = translations[isFarsi ? 'fa' : 'zh'];
-                        
                         if (response.status === 503) {
                             // KV未配置
                             document.getElementById('kvStatus').innerHTML = '<span style="color: #ffaa00;">' + t.kvDisabled + '</span>';
@@ -3796,7 +3424,6 @@
                     } else if (response.ok) {
                         try {
                         const data = await response.json();
-                        
                             // 检查响应是否包含KV配置信息
                             if (data && data.kvEnabled === true) {
                                 document.getElementById('kvStatus').innerHTML = '<span style="color: #44ff44;">' + t.kvEnabled + '</span>';
@@ -3825,17 +3452,14 @@
                         if (parts.length === 2) return parts.pop().split(';').shift();
                         return null;
                     }
-                    
                     const browserLang = navigator.language || navigator.userLanguage || '';
                     const savedLang = localStorage.getItem('preferredLanguage') || getCookie('preferredLanguage');
                     let isFarsi = false;
-                    
                     if (savedLang === 'fa' || savedLang === 'fa-IR') {
                         isFarsi = true;
                     } else {
                         isFarsi = browserLang.includes('fa') || browserLang.includes('fa-IR');
                     }
-                    
                     const translations = {
                         zh: {
                             kvDisabled: '⚠️ KV存储未启用或未配置',
@@ -3846,21 +3470,16 @@
                             kvCheckFailedError: 'بررسی ذخیره‌سازی KV ناموفق - خطا: '
                         }
                     };
-                    
                     const t = translations[isFarsi ? 'fa' : 'zh'];
-                    
                     document.getElementById('kvStatus').innerHTML = '<span style="color: #ffaa00;">' + t.kvDisabled + '</span>';
                     document.getElementById('configCard').style.display = 'block';
                     document.getElementById('currentConfig').textContent = t.kvCheckFailedError + error.message;
                 }
             }
-            
             async function loadCurrentConfig() {
                 const apiUrl = window.location.pathname + '/api/config';
-                
                 try {
                     const response = await fetch(apiUrl);
-                    
                     if (response.status === 503) {
                         document.getElementById('currentConfig').textContent = 'KV存储未配置，无法加载配置';
                         return;
@@ -3871,7 +3490,6 @@
                         return;
                     }
                     const config = await response.json();
-                    
                     // 过滤掉内部字段 kvEnabled
                     const displayConfig = {};
                     for (const [key, value] of Object.entries(config)) {
@@ -3879,7 +3497,6 @@
                             displayConfig[key] = value;
                         }
                     }
-                    
                     let configText = '当前配置:\\n';
                     if (Object.keys(displayConfig).length === 0) {
                         configText += '(暂无配置)';
@@ -3888,9 +3505,7 @@
                             configText += key + ': ' + (value || '(未设置)') + '\\n';
                         }
                     }
-                    
                     document.getElementById('currentConfig').textContent = configText;
-                    
                     // 更新表单值
                     document.getElementById('wkRegion').value = config.wk || '';
                     document.getElementById('ev').checked = config.ev !== 'no';
@@ -3918,25 +3533,20 @@
                     document.getElementById('downgradeControl').value = config.qj || '';
                     document.getElementById('portControl').value = config.dkby || '';
                     document.getElementById('preferredControl').value = config.yxby || '';
-                    
                     // 更新路径类型显示
                     updatePathTypeStatus(config.d);
-                    
                     // 检查p变量，如果有值则禁用wk地区选择
                     updateWkRegionState();
-                    
                 } catch (error) {
                     document.getElementById('currentConfig').textContent = '加载配置失败: ' + error.message;
                 }
             }
-            
             // 更新路径类型显示
             function updatePathTypeStatus(cp) {
                 const pathTypeStatus = document.getElementById('pathTypeStatus');
                 const currentUrl = window.location.href;
                 const pathParts = window.location.pathname.split('/').filter(p => p);
                 const currentPath = pathParts.length > 0 ? pathParts[0] : '';
-                
                 if (cp && cp.trim()) {
                     // 使用自定义路径 (d)
                     pathTypeStatus.innerHTML = '<div style="color: #44ff44;">使用类型: <strong>自定义路径 (d)</strong></div>' +
@@ -3950,17 +3560,14 @@
                         '<div style="margin-top: 5px; font-size: 0.9rem; color: #00aa00;">访问地址: ' + currentUrl.split('/sub')[0] + '/sub</div>';
                 }
             }
-            
             // 更新wk地区选择的启用/禁用状态
             function updateWkRegionState() {
                 const customIPInput = document.getElementById('customIP');
                 const wkRegion = document.getElementById('wkRegion');
                 const wkRegionHint = document.getElementById('wkRegionHint');
-                
                 if (customIPInput && wkRegion) {
                     const hasCustomIP = customIPInput.value.trim() !== '';
                     wkRegion.disabled = hasCustomIP;
-                    
                     // 添加视觉反馈
                     if (hasCustomIP) {
                         wkRegion.style.opacity = '0.5';
@@ -3982,10 +3589,8 @@
                     }
                 }
             }
-            
             async function saveConfig(configData) {
                 const apiUrl = window.location.pathname + '/api/config';
-                
                 try {
                     const response = await fetch(apiUrl, {
                         method: 'POST',
@@ -3993,15 +3598,12 @@
                         body: JSON.stringify(configData)
                     });
                     
-                    
                     if (response.status === 503) {
                         showStatus('KV存储未配置，无法保存配置。请先在Cloudflare Workers中配置KV存储。', 'error');
                         return;
                     }
-                    
                     if (!response.ok) {
                         const errorText = await response.text();
-                        
                         // 尝试解析 JSON 错误信息
                         try {
                             const errorData = JSON.parse(errorText);
@@ -4012,11 +3614,8 @@
                         }
                         return;
                     }
-                    
                     const result = await response.json();
-                    
                     showStatus(result.message, result.success ? 'success' : 'error');
-                    
                     if (result.success) {
                         await loadCurrentConfig();
                         // 更新wk地区选择状态
@@ -4031,19 +3630,16 @@
                     showStatus('保存失败: ' + error.message, 'error');
                 }
             }
-            
             function showStatus(message, type) {
                 const statusDiv = document.getElementById('statusMessage');
                 statusDiv.textContent = message;
                 statusDiv.style.display = 'block';
                 statusDiv.style.color = type === 'success' ? '#00ff00' : '#ff0000';
                 statusDiv.style.borderColor = type === 'success' ? '#00ff00' : '#ff0000';
-                
                 setTimeout(function() {
                     statusDiv.style.display = 'none';
                 }, 3000);
             }
-            
             async function resetAllConfig() {
                 if (confirm('确定要重置所有配置吗？这将清空所有KV配置，恢复为环境变量设置。')) {
                     try {
@@ -4065,15 +3661,12 @@
                                 homepage: ''
                             })
                         });
-                        
                         if (response.status === 503) {
                             showStatus('KV存储未配置，无法重置配置。', 'error');
                             return;
                         }
-                        
                         if (!response.ok) {
                             const errorText = await response.text();
-                            
                             // 尝试解析 JSON 错误信息
                             try {
                                 const errorData = JSON.parse(errorText);
@@ -4084,10 +3677,8 @@
                             }
                             return;
                         }
-                        
                         const result = await response.json();
                         showStatus(result.message || '配置已重置', result.success ? 'success' : 'error');
-                        
                         if (result.success) {
                             await loadCurrentConfig();
                             // 更新wk地区选择状态
@@ -4102,28 +3693,21 @@
                     }
                 }
             }
-            
             async function checkECHStatus() {
                 const echStatusEl = document.getElementById('echStatus');
-                
                 if (!echStatusEl) return;
-                
                 try {
                     const currentUrl = window.location.href;
                     const subscriptionUrl = currentUrl + '/sub';
-                    
                     echStatusEl.innerHTML = 'ECH状态: <span style="color: #ffaa00;">检测中...</span>';
-                    
                     const response = await fetch(subscriptionUrl, {
                         method: 'GET',
                         headers: {
                             'Accept': 'text/plain'
                         }
                     });
-                    
                     const echStatusHeader = response.headers.get('X-ECH-Status');
                     const echConfigLength = response.headers.get('X-ECH-Config-Length');
-                    
                     if (echStatusHeader === 'ENABLED') {
                         echStatusEl.innerHTML = 'ECH状态: <span style="color: #44ff44;">✅ 已启用' + (echConfigLength ? ' (配置长度: ' + echConfigLength + ')' : '') + '</span>';
                     } else {
@@ -4133,13 +3717,11 @@
                     echStatusEl.innerHTML = 'ECH状态: <span style="color: #ff4444;">❌ 检测失败: ' + error.message + '</span>';
                 }
             }
-            
             document.addEventListener('DOMContentLoaded', function() {
                 createMatrixRain();
                 checkSystemStatus();
                 checkKVStatus();
                 checkECHStatus();
-                
                 // 监听customIP输入框变化，实时更新wk地区选择状态
                 const customIPInput = document.getElementById('customIP');
                 if (customIPInput) {
@@ -4147,7 +3729,6 @@
                         updateWkRegionState();
                     });
                 }
-                
                 // 绑定表单事件
                 const regionForm = document.getElementById('regionForm');
                 if (regionForm) {
@@ -4157,7 +3738,6 @@
                         await saveConfig({ wk: wkRegion });
                     });
                 }
-                
                 const saveProtocolBtn = document.getElementById('saveProtocolBtn');
                 if (saveProtocolBtn) {
                     saveProtocolBtn.addEventListener('click', async function(e) {
@@ -4169,18 +3749,15 @@
                             ech: document.getElementById('ech').checked ? 'yes' : 'no',
                             tp: document.getElementById('tp').value
                         };
-                        
                         if (!document.getElementById('ev').checked && 
                             !document.getElementById('et').checked && 
                             !document.getElementById('ex').checked) {
                             alert('至少需要启用一个协议！');
                             return;
                         }
-                        
                         await saveConfig(configData);
                     });
                 }
-                
                 const otherConfigForm = document.getElementById('otherConfigForm');
                 if (otherConfigForm) {
                     otherConfigForm.addEventListener('submit', async function(e) {
@@ -4193,7 +3770,6 @@
                             s: document.getElementById('socksConfig').value,
                             homepage: document.getElementById('customHomepage').value
                         };
-                        
                         // 确保至少选择一个协议
                         if (!document.getElementById('ev').checked && 
                             !document.getElementById('et').checked && 
@@ -4201,11 +3777,9 @@
                             alert('至少需要启用一个协议！');
                             return;
                         }
-                        
                         await saveConfig(configData);
                     });
                 }
-                
                 const advancedConfigForm = document.getElementById('advancedConfigForm');
                 if (advancedConfigForm) {
                     advancedConfigForm.addEventListener('submit', async function(e) {
@@ -4224,10 +3798,8 @@
                         await saveConfig(configData);
                     });
                 }
-                
                 let testAbortController = null;
                 let testResults = [];
-                
                 const startTestBtn = document.getElementById('startLatencyTest');
                 const stopTestBtn = document.getElementById('stopLatencyTest');
                 const testStatus = document.getElementById('latencyTestStatus');
@@ -4248,7 +3820,6 @@
                 const randomCountDiv = document.getElementById('randomCountDiv');
                 const generateCFIPBtn = document.getElementById('generateCFIPBtn');
                 const fetchIPBtn = document.getElementById('fetchIPBtn');
-                
                 if (latencyTestInput) {
                     const savedTestInput = localStorage.getItem('latencyTestInput');
                     if (savedTestInput) latencyTestInput.value = savedTestInput;
@@ -4304,14 +3875,12 @@
                         randomIPCount.disabled = currentSource !== 'cfRandom';
                     }
                 }
-                
                 const CF_CIDR_LIST = [
                     '173.245.48.0/20', '103.21.244.0/22', '103.22.200.0/22', '103.31.4.0/22',
                     '141.101.64.0/18', '108.162.192.0/18', '190.93.240.0/20', '188.114.96.0/20',
                     '197.234.240.0/22', '198.41.128.0/17', '162.158.0.0/15', '104.16.0.0/13',
                     '104.24.0.0/14', '172.64.0.0/13', '131.0.72.0/22'
                 ];
-                
                 function generateRandomIPFromCIDR(cidr) {
                     const [baseIP, prefixLength] = cidr.split('/');
                     const prefix = parseInt(prefixLength);
@@ -4323,7 +3892,6 @@
                     const randomIP = (((ipInt & mask) >>> 0) + randomOffset) >>> 0;
                     return [(randomIP >>> 24) & 0xFF, (randomIP >>> 16) & 0xFF, (randomIP >>> 8) & 0xFF, randomIP & 0xFF].join('.');
                 }
-                
                 function generateCFRandomIPs(count, port) {
                     const ips = [];
                     for (let i = 0; i < count; i++) {
@@ -4333,7 +3901,6 @@
                     }
                     return ips;
                 }
-                
                 if (ipSourceSelect) {
                     ipSourceSelect.addEventListener('change', function() {
                         const value = this.value;
@@ -4348,7 +3915,6 @@
                         }
                     });
                 }
-                
                 if (generateCFIPBtn) {
                     generateCFIPBtn.addEventListener('click', function() {
                         const count = parseInt(document.getElementById('randomIPCount').value) || 20;
@@ -4359,7 +3925,6 @@
                         showStatus('${isFarsi ? 'تولید شد' : '已生成'} ' + count + ' ${isFarsi ? 'IP تصادفی CF' : '个CF随机IP'}', 'success');
                     });
                 }
-                
                 if (fetchIPBtn) {
                     fetchIPBtn.addEventListener('click', async function() {
                         const urlInput = document.getElementById('fetchURLInput');
@@ -4368,35 +3933,28 @@
                             alert('${isFarsi ? 'لطفا URL را وارد کنید' : '请输入URL'}');
                             return;
                         }
-                        
                         fetchIPBtn.disabled = true;
                         fetchIPBtn.textContent = '${isFarsi ? 'در حال دریافت...' : '获取中...'}';
-                        
                         try {
                             // 支持多个 URL（逗号分隔）以及返回内容中逗号分隔的多个 IP/节点
                             const urlList = Array.from(new Set(
                                 fetchUrl.split(',').map(u => u.trim()).filter(u => u)
                             ));
-                            
                             const allItems = [];
-                            
                             for (const u of urlList) {
                                 const response = await fetch(u);
                                 if (!response.ok) {
                                     throw new Error('HTTP ' + response.status + ' @ ' + u);
                                 }
                                 const text = await response.text();
-                                
                                 // 先按行分割，再在每行内按逗号分割，兼容“多行 + 逗号分隔”两种格式
                                 const perUrlItems = text
                                     .split(/\\r?\\n/)
                                     .map(l => l.trim())
                                     .filter(l => l && !l.startsWith('#'))
                                     .flatMap(l => l.split(',').map(p => p.trim()).filter(p => p));
-                                
                                 allItems.push(...perUrlItems);
                             }
-                            
                             if (allItems.length > 0) {
                                 document.getElementById('latencyTestInput').value = allItems.join(',');
                                 manualInputDiv.style.display = 'block';
@@ -4412,7 +3970,6 @@
                         }
                     });
                 }
-                
                 if (startTestBtn) {
                     startTestBtn.addEventListener('click', async function() {
                         const inputField = document.getElementById('latencyTestInput');
@@ -4421,15 +3978,12 @@
                         const inputValue = inputField.value.trim();
                         const defaultPort = portField.value || '443';
                         const threads = parseInt(threadsField.value) || 5;
-                        
                         if (!inputValue) {
                             showStatus('${isFarsi ? 'لطفا IP یا دامنه وارد کنید' : '请输入IP或域名'}', 'error');
                             return;
                         }
-                        
                         const targets = inputValue.split(',').map(t => t.trim()).filter(t => t);
                         if (targets.length === 0) return;
-                        
                         startTestBtn.style.display = 'none';
                         stopTestBtn.style.display = 'inline-block';
                         testStatus.style.display = 'block';
@@ -4439,23 +3993,18 @@
                         if (cityFilterContainer) {
                             cityFilterContainer.style.display = 'none';
                         }
-                        
                         testAbortController = new AbortController();
-                        
                         let completed = 0;
                         const total = targets.length;
-                        
                         function parseTarget(target) {
                             let host = target;
                             let port = defaultPort;
                             let nodeName = '';
-                            
                             if (target.includes('#')) {
                                 const parts = target.split('#');
                                 nodeName = parts[1] || '';
                                 host = parts[0];
                             }
-                            
                             if (host.includes(':') && !host.startsWith('[')) {
                                 const lastColon = host.lastIndexOf(':');
                                 const possiblePort = host.substring(lastColon + 1);
@@ -4470,13 +4019,11 @@
                             }
                             return { host, port, nodeName };
                         }
-                        
                         function renderResult(result, index, shouldShow = true) {
                             // 只展示在线优选成功的结果，失败/超时的不再显示
                             if (!result.success) {
                                 return null;
                             }
-                            
                             const resultItem = document.createElement('div');
                             resultItem.style.cssText = 'display: flex; align-items: center; padding: 8px; border-bottom: 1px solid #003300; gap: 10px;';
                             resultItem.dataset.index = index;
@@ -4484,27 +4031,22 @@
                             if (!shouldShow) {
                                 resultItem.style.display = 'none';
                             }
-                            
                             const checkbox = document.createElement('input');
                             checkbox.type = 'checkbox';
                             checkbox.checked = true;
                             checkbox.disabled = false;
                             checkbox.dataset.index = index;
                             checkbox.style.cssText = 'width: 18px; height: 18px; cursor: pointer;';
-                            
                             const info = document.createElement('div');
                             info.style.cssText = 'flex: 1; font-family: monospace; font-size: 13px;';
-                            
                             const coloName = result.colo ? getColoName(result.colo) : '';
                             const coloDisplay = coloName ? ' <span style="color: #00aaff;">[' + coloName + ']</span>' : '';
                             info.innerHTML = '<span style="color: #00ff00;">' + result.host + ':' + result.port + '</span>' + coloDisplay + ' <span style="color: #ffff00;">' + result.latency + 'ms</span>';
-                            
                             resultItem.appendChild(checkbox);
                             resultItem.appendChild(info);
                             resultsList.appendChild(resultItem);
                             return resultItem;
                         }
-                        
                         async function testOne(target) {
                             if (testAbortController.signal.aborted) return null;
                             const { host, port, nodeName } = parseTarget(target);
@@ -4514,15 +4056,11 @@
                             result.nodeName = (result.success && result.colo) ? (nodeName || ('CF-' + result.colo)) : (nodeName || host);
                             return result;
                         }
-                        
                         for (let i = 0; i < total; i += threads) {
                             if (testAbortController.signal.aborted) break;
-                            
                             const batch = targets.slice(i, Math.min(i + threads, total));
                             testStatus.textContent = '${isFarsi ? 'در حال تست' : '测试中'}: ' + (i + 1) + '-' + Math.min(i + threads, total) + '/' + total + ' (${isFarsi ? 'رشته‌ها' : '线程'}: ' + threads + ')';
-                            
                             const results = await Promise.all(batch.map(t => testOne(t)));
-                            
                             for (const result of results) {
                                 if (result) {
                                     const idx = testResults.length;
@@ -4532,16 +4070,13 @@
                                 }
                             }
                         }
-                        
                         testStatus.textContent = '${isFarsi ? 'تست کامل شد' : '测试完成'}: ' + completed + '/' + total;
                         startTestBtn.style.display = 'inline-block';
                         stopTestBtn.style.display = 'none';
-                        
                         // 更新城市选择器
                         updateCityFilter();
                     });
                 }
-                
                 if (stopTestBtn) {
                     stopTestBtn.addEventListener('click', function() {
                         if (testAbortController) {
@@ -4552,21 +4087,18 @@
                         testStatus.textContent = '${isFarsi ? 'تست متوقف شد' : '测试已停止'}';
                     });
                 }
-                
                 if (selectAllBtn) {
                     selectAllBtn.addEventListener('click', function() {
                         const checkboxes = resultsList.querySelectorAll('input[type="checkbox"]:not(:disabled)');
                         checkboxes.forEach(cb => cb.checked = true);
                     });
                 }
-                
                 if (deselectAllBtn) {
                     deselectAllBtn.addEventListener('click', function() {
                         const checkboxes = resultsList.querySelectorAll('input[type="checkbox"]');
                         checkboxes.forEach(cb => cb.checked = false);
                     });
                 }
-                
                 // 获取选中项的通用函数
                 function getSelectedItems() {
                     const checkboxes = resultsList.querySelectorAll('input[type="checkbox"]:checked');
@@ -4574,7 +4106,6 @@
                         showStatus('${isFarsi ? 'لطفا حداقل یک مورد انتخاب کنید' : '请至少选择一项'}', 'error');
                         return null;
                     }
-                    
                     const selectedItems = [];
                     checkboxes.forEach(cb => {
                         const idx = parseInt(cb.dataset.index);
@@ -4585,24 +4116,19 @@
                             selectedItems.push(itemStr);
                         }
                     });
-                    
                     return selectedItems;
                 }
-                
                 // 覆盖添加
                 if (overwriteSelectedBtn) {
                     overwriteSelectedBtn.addEventListener('click', async function() {
                         const selectedItems = getSelectedItems();
                         if (!selectedItems || selectedItems.length === 0) return;
-                        
                         const yxInput = document.getElementById('yx');
                         const newValue = selectedItems.join(',');
                         yxInput.value = newValue;
-                        
                         overwriteSelectedBtn.disabled = true;
                         appendSelectedBtn.disabled = true;
                         overwriteSelectedBtn.textContent = '${isFarsi ? 'در حال ذخیره...' : '保存中...'}';
-                        
                         try {
                             const configData = {
                                 customIP: document.getElementById('customIP').value,
@@ -4621,23 +4147,19 @@
                         }
                     });
                 }
-                
                 // 追加添加
                 if (appendSelectedBtn) {
                     appendSelectedBtn.addEventListener('click', async function() {
                         const selectedItems = getSelectedItems();
                         if (!selectedItems || selectedItems.length === 0) return;
-                        
                         const yxInput = document.getElementById('yx');
                         const currentValue = yxInput.value.trim();
                         const newItems = selectedItems.join(',');
                         const newValue = currentValue ? (currentValue + ',' + newItems) : newItems;
                         yxInput.value = newValue;
-                        
                         overwriteSelectedBtn.disabled = true;
                         appendSelectedBtn.disabled = true;
                         appendSelectedBtn.textContent = '${isFarsi ? 'در حال ذخیره...' : '保存中...'}';
-                        
                         try {
                             const configData = {
                                 customIP: document.getElementById('customIP').value,
@@ -4656,7 +4178,6 @@
                         }
                     });
                 }
-                
                 function ipToHex(ip) {
                     const parts = ip.split('.');
                     if (parts.length !== 4) return null;
@@ -4668,7 +4189,6 @@
                     }
                     return hex;
                 }
-                
                 const coloMap = {
                     'SJC': '🇺🇸 圣何塞', 'LAX': '🇺🇸 洛杉矶', 'SEA': '🇺🇸 西雅图', 'SFO': '🇺🇸 旧金山', 'DFW': '🇺🇸 达拉斯',
                     'ORD': '🇺🇸 芝加哥', 'IAD': '🇺🇸 华盛顿', 'ATL': '🇺🇸 亚特兰大', 'MIA': '🇺🇸 迈阿密', 'DEN': '🇺🇸 丹佛',
@@ -4725,18 +4245,14 @@
                     'YYZ': '🇨🇦 多伦多', 'YVR': '🇨🇦 温哥华', 'YUL': '🇨🇦 蒙特利尔', 'YYC': '🇨🇦 卡尔加里', 'YEG': '🇨🇦 埃德蒙顿', 'YOW': '🇨🇦 渥太华', 'YWG': '🇨🇦 温尼伯', 'YHZ': '🇨🇦 哈利法克斯',
                     'HAV': '🇨🇺 哈瓦那', 'SJU': '🇵🇷 圣胡安', 'SDQ': '🇩🇴 圣多明各', 'PAP': '🇭🇹 太子港', 'KIN': '🇯🇲 金斯顿', 'NAS': '🇧🇸 拿骚', 'MBJ': '🇯🇲 蒙特哥贝'
                 };
-                
                 function getColoName(colo) {
                     return coloMap[colo] || colo;
                 }
-                
                 // 城市筛选相关函数
                 const cityFilterContainer = document.getElementById('cityFilterContainer');
                 const cityCheckboxesContainer = document.getElementById('cityCheckboxesContainer');
-                
                 function updateCityFilter() {
                     if (!cityFilterContainer || !cityCheckboxesContainer) return;
-                    
                     // 从测试结果中提取所有可用的城市
                     const cityMap = new Map();
                     testResults.forEach((result, index) => {
@@ -4752,39 +4268,30 @@
                             cityMap.get(colo).count++;
                         }
                     });
-                    
                     if (cityMap.size === 0) {
                         cityFilterContainer.style.display = 'none';
                         return;
                     }
-                    
                     cityFilterContainer.style.display = 'block';
                     cityCheckboxesContainer.innerHTML = '';
-                    
                     // 按城市名称排序
                     const cities = Array.from(cityMap.values()).sort((a, b) => a.name.localeCompare(b.name));
-                    
                     cities.forEach(city => {
                         const label = document.createElement('label');
                         label.style.cssText = 'display: inline-flex; align-items: center; cursor: pointer; color: #00ff00; font-size: 0.85rem; padding: 4px 8px; background: rgba(0, 40, 0, 0.4); border: 1px solid #00aa00; border-radius: 4px;';
-                        
                         const checkbox = document.createElement('input');
                         checkbox.type = 'checkbox';
                         checkbox.value = city.colo;
                         checkbox.checked = true;
                         checkbox.dataset.colo = city.colo;
                         checkbox.style.cssText = 'margin-right: 6px; width: 16px; height: 16px; cursor: pointer;';
-                        
                         const span = document.createElement('span');
                         span.textContent = city.name + ' (' + city.count + ')';
-                        
                         label.appendChild(checkbox);
                         label.appendChild(span);
                         cityCheckboxesContainer.appendChild(label);
-                        
                         checkbox.addEventListener('change', filterResultsByCity);
                     });
-                    
                     // 监听筛选模式变化
                     const filterModeRadios = document.querySelectorAll('input[name="cityFilterMode"]');
                     filterModeRadios.forEach(radio => {
@@ -4801,14 +4308,11 @@
                         });
                     });
                 }
-                
                 function filterResultsByCity() {
                     if (!resultsList || !cityCheckboxesContainer) return;
-                    
                     const filterMode = document.querySelector('input[name="cityFilterMode"]:checked')?.value || 'all';
                     const resultItems = resultsList.querySelectorAll('[data-index]');
                     const cityCheckboxes = cityCheckboxesContainer.querySelectorAll('input[type="checkbox"]');
-                    
                     if (filterMode === 'fastest10') {
                         // 只选择最快的10个
                         const sortedResults = testResults
@@ -4816,9 +4320,7 @@
                             .filter(item => item.result.success)
                             .sort((a, b) => a.result.latency - b.result.latency)
                             .slice(0, 10);
-                        
                         const fastestIndices = new Set(sortedResults.map(item => item.index));
-                        
                         resultItems.forEach(item => {
                             const index = parseInt(item.dataset.index);
                             const checkbox = item.querySelector('input[type="checkbox"]');
@@ -4830,7 +4332,6 @@
                                 if (checkbox) checkbox.checked = false;
                             }
                         });
-                        
                         // 禁用城市复选框
                         cityCheckboxes.forEach(cb => cb.disabled = true);
                     } else {
@@ -4841,11 +4342,9 @@
                                 selectedCities.add(cb.value);
                             }
                         });
-                        
                         // 如果所有城市都被选中（或没有选中任何城市），显示所有结果
                         const allChecked = cityCheckboxes.length > 0 && selectedCities.size === cityCheckboxes.length;
                         const noneChecked = selectedCities.size === 0;
-                        
                         resultItems.forEach(item => {
                             const colo = item.dataset.colo || '';
                             if (allChecked || noneChecked || selectedCities.has(colo)) {
@@ -4854,43 +4353,34 @@
                                 item.style.display = 'none';
                             }
                         });
-                        
                         // 启用城市复选框
                         cityCheckboxes.forEach(cb => cb.disabled = false);
                     }
                 }
-                
                 async function testLatency(host, port, signal) {
                     const timeout = 8000;
                     let colo = '';
                     let testUrl = '';
-                    
                     try {
                         const controller = new AbortController();
                         const timeoutId = setTimeout(() => controller.abort(), timeout);
-                        
                         if (signal) {
                             signal.addEventListener('abort', () => controller.abort());
                         }
-                        
                         const cleanHost = host.replace(/^\\[|\\]$/g, '');
                         const hexIP = ipToHex(cleanHost);
                         const testDomain = hexIP ? (hexIP + '.nip.lfree.org') : (cleanHost + '.nip.lfree.org');
                         testUrl = 'https://' + testDomain + ':' + port + '/';
-                        
                         console.log('[LatencyTest] Testing:', testUrl, 'Original:', host + ':' + port, 'HexIP:', hexIP);
-                        
                         const firstStart = Date.now();
                         const response1 = await fetch(testUrl, { 
                             signal: controller.signal
                         });
                         const firstTime = Date.now() - firstStart;
-                        
                         if (!response1.ok) {
                             clearTimeout(timeoutId);
                             return { success: false, latency: firstTime, error: 'HTTP ' + response1.status + ' ' + response1.statusText, colo: '', testUrl: testUrl };
                         }
-                        
                         try {
                             const text = await response1.text();
                             console.log('[LatencyTest] Response body:', text.substring(0, 200));
@@ -4901,18 +4391,14 @@
                         } catch (e) {
                             console.log('[LatencyTest] Parse error:', e.message);
                         }
-                        
                         const secondStart = Date.now();
                         const response2 = await fetch(testUrl, { 
                             signal: controller.signal
                         });
                         await response2.text();
                         const latency = Date.now() - secondStart;
-                        
                         clearTimeout(timeoutId);
-                        
                         console.log('[LatencyTest] First:', firstTime + 'ms (DNS+TLS+RTT)', 'Second:', latency + 'ms (RTT only)');
-                        
                         return { success: true, latency: latency, colo: colo, testUrl: testUrl };
                     } catch (error) {
                         const errorMsg = error.name === 'AbortError' ? '${isFarsi ? 'زمان تمام شد' : '超时'}' : error.message;
@@ -4924,18 +4410,14 @@
         </script>
     </body>
     </html>`;
-        
         return new Response(pageHtml, { 
             status: 200, 
             headers: { 'Content-Type': 'text/html; charset=utf-8' } 
         });
     }
-
     async function parseTrojanHeader(buffer, ut) {
-        
         const passwordToHash = tp || ut;
         const sha224Password = await sha224Hash(passwordToHash);
-        
         if (buffer.byteLength < 56) {
             return {
                 hasError: true,
@@ -4956,7 +4438,6 @@
                 message: "invalid " + atob('dHJvamFu') + " password"
             };
         }
-
         const socks5DataBuffer = buffer.slice(crLfIndex + 2);
         if (socks5DataBuffer.byteLength < 6) {
             return {
@@ -4964,7 +4445,6 @@
                 message: atob('aW52YWxpZCBTT0NLUzUgcmVxdWVzdCBkYXRh')
             };
         }
-
         const view = new DataView(socks5DataBuffer);
         const cmd = view.getUint8(0);
         if (cmd !== 1) {
@@ -4973,7 +4453,6 @@
                 message: "unsupported command, only TCP (CONNECT) is allowed"
             };
         }
-
         const atype = view.getUint8(1);
         let addressLength = 0;
         let addressIndex = 2;
@@ -5009,18 +4488,15 @@
                     message: `invalid addressType is ${atype}`
                 };
         }
-
         if (!address) {
             return {
                 hasError: true,
                 message: `address is empty, addressType is ${atype}`
             };
         }
-
         const portIndex = addressIndex + addressLength;
         const portBuffer = socks5DataBuffer.slice(portIndex, portIndex + 2);
         const portRemote = new DataView(portBuffer).getUint16(0);
-        
         return {
             hasError: false,
             addressRemote: address,
@@ -5030,11 +4506,9 @@
             rawClientData: socks5DataBuffer.slice(portIndex + 4)
         };
     }
-
     async function sha224Hash(text) {
         const encoder = new TextEncoder();
         const data = encoder.encode(text);
-        
         const K = [
             0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
             0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
@@ -5045,37 +4519,29 @@
             0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
             0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2
         ];
-        
         let H = [
             0xc1059ed8, 0x367cd507, 0x3070dd17, 0xf70e5939,
             0xffc00b31, 0x68581511, 0x64f98fa7, 0xbefa4fa4
         ];
-        
         const msgLen = data.length;
         const bitLen = msgLen * 8;
         const paddedLen = Math.ceil((msgLen + 9) / 64) * 64;
         const padded = new Uint8Array(paddedLen);
         padded.set(data);
         padded[msgLen] = 0x80;
-        
         const view = new DataView(padded.buffer);
         view.setUint32(paddedLen - 4, bitLen, false);
-        
         for (let chunk = 0; chunk < paddedLen; chunk += 64) {
             const W = new Uint32Array(64);
-            
             for (let i = 0; i < 16; i++) {
                 W[i] = view.getUint32(chunk + i * 4, false);
             }
-            
             for (let i = 16; i < 64; i++) {
                 const s0 = rightRotate(W[i - 15], 7) ^ rightRotate(W[i - 15], 18) ^ (W[i - 15] >>> 3);
                 const s1 = rightRotate(W[i - 2], 17) ^ rightRotate(W[i - 2], 19) ^ (W[i - 2] >>> 10);
                 W[i] = (W[i - 16] + s0 + W[i - 7] + s1) >>> 0;
             }
-            
             let [a, b, c, d, e, f, g, h] = H;
-            
             for (let i = 0; i < 64; i++) {
                 const S1 = rightRotate(e, 6) ^ rightRotate(e, 11) ^ rightRotate(e, 25);
                 const ch = (e & f) ^ (~e & g);
@@ -5083,7 +4549,6 @@
                 const S0 = rightRotate(a, 2) ^ rightRotate(a, 13) ^ rightRotate(a, 22);
                 const maj = (a & b) ^ (a & c) ^ (b & c);
                 const temp2 = (S0 + maj) >>> 0;
-                
                 h = g;
                 g = f;
                 f = e;
@@ -5093,7 +4558,6 @@
                 b = a;
                 a = (temp1 + temp2) >>> 0;
             }
-            
             H[0] = (H[0] + a) >>> 0;
             H[1] = (H[1] + b) >>> 0;
             H[2] = (H[2] + c) >>> 0;
@@ -5103,7 +4567,6 @@
             H[6] = (H[6] + g) >>> 0;
             H[7] = (H[7] + h) >>> 0;
         }
-        
         const result = [];
         for (let i = 0; i < 7; i++) {
             result.push(
@@ -5113,25 +4576,20 @@
                 (H[i] & 0xff).toString(16).padStart(2, '0')
             );
         }
-        
         return result.join('');
     }
-
     function rightRotate(value, amount) {
         return (value >>> amount) | (value << (32 - amount));
     }
-
     let ACTIVE_CONNECTIONS = 0;
     const XHTTP_BUFFER_SIZE = 128 * 1024;
     const CONNECT_TIMEOUT_MS = 5000;
     const IDLE_TIMEOUT_MS = 45000;
     const MAX_RETRIES = 2;
     const MAX_CONCURRENT = 32;
-
     function xhttp_sleep(ms) {
         return new Promise((r) => setTimeout(r, ms));
     }
-
     function validate_uuid_xhttp(id, uuid) {
         for (let index = 0; index < 16; index++) {
             if (id[index] !== uuid[index]) {
@@ -5140,23 +4598,18 @@
         }
         return true;
     }
-
     class XhttpCounter {
         #total
-
         constructor() {
             this.#total = 0;
         }
-
         get() {
             return this.#total;
         }
-
         add(size) {
             this.#total += size;
         }
     }
-
     function concat_typed_arrays(first, ...args) {
         let len = first.length;
         for (let a of args) {
@@ -5171,7 +4624,6 @@
         }
         return r;
     }
-
     function parse_uuid_xhttp(uuid) {
         uuid = uuid.replaceAll('-', '');
         const r = [];
@@ -5181,21 +4633,17 @@
         }
         return r;
     }
-
     function get_xhttp_buffer(size) {
         return new Uint8Array(new ArrayBuffer(size || XHTTP_BUFFER_SIZE));
     }
-
     async function read_xhttp_header(readable, uuid_str) {
         const reader = readable.getReader({ mode: 'byob' });
-
         try {
             let r = await reader.readAtLeast(1 + 16 + 1, get_xhttp_buffer());
             let rlen = 0;
             let idx = 0;
             let cache = r.value;
             rlen += r.value.length;
-
             const version = cache[0];
             const id = cache.slice(1, 1 + 16);
             const uuid = parse_uuid_xhttp(uuid_str);
@@ -5204,7 +4652,6 @@
             }
             const pb_len = cache[1 + 16];
             const addr_plus1 = 1 + 16 + 1 + pb_len + 1 + 2 + 1;
-
             if (addr_plus1 + 1 > rlen) {
                 if (r.done) {
                     return `header too short`;
@@ -5214,7 +4661,6 @@
                 rlen += r.value.length;
                 cache = concat_typed_arrays(cache, r.value);
             }
-
             const cmd = cache[1 + 16 + 1 + pb_len];
             if (cmd !== 1) {
                 return `unsupported command: ${cmd}`;
@@ -5229,11 +4675,9 @@
             } else if (atype === ADDRESS_TYPE_URL) {
                 header_len = addr_plus1 + 1 + cache[addr_plus1];
             }
-
             if (header_len < 0) {
                 return 'read address type failed';
             }
-
             idx = header_len - rlen;
             if (idx > 0) {
                 if (r.done) {
@@ -5243,7 +4687,6 @@
                 rlen += r.value.length;
                 cache = concat_typed_arrays(cache, r.value);
             }
-
             let hostname = '';
             idx = addr_plus1;
             switch (atype) {
@@ -5268,11 +4711,9 @@
                         .join(':');
                     break;
             }
-
             if (hostname.length < 1) {
                 return 'failed to parse hostname';
             }
-
             const data = cache.slice(header_len);
             return {
                 hostname,
@@ -5287,7 +4728,6 @@
             throw error;
         }
     }
-
     async function upload_to_remote_xhttp(counter, writer, httpx) {
         async function inner_upload(d) {
             if (!d || d.length === 0) {
@@ -5300,7 +4740,6 @@
                 throw error;
             }
         }
-
         try {
             await inner_upload(httpx.data);
             let chunkCount = 0;
@@ -5321,11 +4760,9 @@
             throw error;
         }
     }
-
     function create_xhttp_uploader(httpx, writable) {
         const counter = new XhttpCounter();
         const writer = writable.getWriter();
-        
         const done = (async () => {
             try {
                 await upload_to_remote_xhttp(counter, writer, httpx);
@@ -5335,11 +4772,9 @@
                 try {
                     await writer.close();
                 } catch (error) {
-                    
                 }
             }
         })();
-
         return {
             counter,
             done,
@@ -5348,11 +4783,9 @@
             }
         };
     }
-
     function create_xhttp_downloader(resp, remote_readable) {
         const counter = new XhttpCounter();
         let stream;
-
         const done = new Promise((resolve, reject) => {
             stream = new TransformStream(
                 {
@@ -5371,7 +4804,6 @@
                 null,
                 new ByteLengthQueuingStrategy({ highWaterMark: XHTTP_BUFFER_SIZE }),
             );
-
             let lastActivity = Date.now();
             const idleTimer = setInterval(() => {
                 if (Date.now() - lastActivity > IDLE_TIMEOUT_MS) {
@@ -5382,10 +4814,8 @@
                     reject('idle timeout');
                 }
             }, 5000);
-
             const reader = remote_readable.getReader();
             const writer = stream.writable.getWriter();
-
             ;(async () => {
                 try {
                     let chunkCount = 0;
@@ -5416,7 +4846,6 @@
                 }
             })();
         });
-
         return {
             readable: stream.readable,
             counter,
@@ -5427,16 +4856,12 @@
             }
         };
     }
-
     async function connect_to_remote_xhttp(httpx, ...remotes) {
         let attempt = 0;
         let lastErr;
-        
         const connectionList = [httpx.hostname, ...remotes.filter(r => r && r !== httpx.hostname)];
-        
         for (const hostname of connectionList) {
             if (!hostname) continue;
-            
             attempt = 0;
             while (attempt < MAX_RETRIES) {
                 attempt++;
@@ -5445,12 +4870,9 @@
                     const timeoutPromise = xhttp_sleep(CONNECT_TIMEOUT_MS).then(() => {
                         throw new Error(atob('Y29ubmVjdCB0aW1lb3V0'));
                     });
-                    
                     await Promise.race([remote.opened, timeoutPromise]);
-
                     const uploader = create_xhttp_uploader(httpx, remote.writable);
                     const downloader = create_xhttp_downloader(httpx.resp, remote.readable);
-                    
                     return { 
                         downloader, 
                         uploader,
@@ -5466,17 +4888,13 @@
                 }
             }
         }
-        
         return null;
     }
-
     async function handle_xhttp_client(body, uuid) {
         if (ACTIVE_CONNECTIONS >= MAX_CONCURRENT) {
             return new Response('Too many connections', { status: 429 });
         }
-        
         ACTIVE_CONNECTIONS++;
-        
         let cleaned = false;
         const cleanup = () => {
             if (!cleaned) {
@@ -5484,44 +4902,36 @@
                 cleaned = true;
             }
         };
-
         try {
             const httpx = await read_xhttp_header(body, uuid);
             if (typeof httpx !== 'object' || !httpx) {
                 return null;
             }
-
             const remoteConnection = await connect_to_remote_xhttp(httpx, fallbackAddress, '13.230.34.30');
             if (remoteConnection === null) {
                 return null;
             }
-
             const connectionClosed = Promise.race([
                 (async () => {
                     try {
                         await remoteConnection.downloader.done;
                     } catch (err) {
-                        
                     }
                 })(),
                 (async () => {
                     try {
                         await remoteConnection.uploader.done;
                     } catch (err) {
-                        
                     }
                 })(),
                 xhttp_sleep(IDLE_TIMEOUT_MS).then(() => {
-                    
                 })
             ]).finally(() => {
                 try { remoteConnection.close(); } catch (_) {}
                 try { remoteConnection.downloader.abort(); } catch (_) {}
                 try { remoteConnection.uploader.abort(); } catch (_) {}
-                
                 cleanup();
             });
-
             return {
                 readable: remoteConnection.downloader.readable,
                 closed: connectionClosed
@@ -5531,7 +4941,6 @@
             return null;
         }
     }
-
     async function handleXhttpPost(request) {
         try {
             return await handle_xhttp_client(request.body, at);
@@ -5539,32 +4948,26 @@
             return null;
         }
     }
-
     function base64ToArray(b64Str) {
         if (!b64Str) return { error: null };
         try { b64Str = b64Str.replace(/-/g, '+').replace(/_/g, '/'); return { earlyData: Uint8Array.from(atob(b64Str), (c) => c.charCodeAt(0)).buffer, error: null }; } 
         catch (error) { return { error }; }
     }
-
     function closeSocketQuietly(socket) { try { if (socket.readyState === 1 || socket.readyState === 2) socket.close(); } catch (error) {} }
-
     const hexTable = Array.from({ length: 256 }, (v, i) => (i + 256).toString(16).slice(1));
     function formatIdentifier(arr, offset = 0) {
         const id = (hexTable[arr[offset]]+hexTable[arr[offset+1]]+hexTable[arr[offset+2]]+hexTable[arr[offset+3]]+"-"+hexTable[arr[offset+4]]+hexTable[arr[offset+5]]+"-"+hexTable[arr[offset+6]]+hexTable[arr[offset+7]]+"-"+hexTable[arr[offset+8]]+hexTable[arr[offset+9]]+"-"+hexTable[arr[offset+10]]+hexTable[arr[offset+11]]+hexTable[arr[offset+12]]+hexTable[arr[offset+13]]+hexTable[arr[offset+14]]+hexTable[arr[offset+15]]).toLowerCase();
         if (!isValidFormat(id)) throw new TypeError(E_INVALID_ID_STR);
         return id;
     }
-
     async function fetchAndParseNewIPs() {
         const url = piu || "https://raw.githubusercontent.com/qwer-search/bestip/refs/heads/main/kejilandbestip.txt";
         try {
             const urls = url.includes(',') ? url.split(',').map(u => u.trim()).filter(u => u) : [url];
             const apiResults = await fetchPreferredAPI(urls, '443', 5000);
-            
             if (apiResults.length > 0) {
                 const results = [];
                 const regex = /^(\[[\da-fA-F:]+\]|[\d.]+|[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?)*)(?::(\d+))?(?:#(.+))?$/;
-                
                 for (const item of apiResults) {
                     const match = item.match(regex);
                     if (match) {
@@ -5577,14 +4980,12 @@
                 }
                 return results;
             }
-            
             const response = await fetch(url);
             if (!response.ok) return [];
             const text = await response.text();
             const results = [];
             const lines = text.trim().replace(/\r/g, "").split('\n');
             const simpleRegex = /^([^:]+):(\d+)#(.*)$/;
-
             for (const line of lines) {
                 const trimmedLine = line.trim();
                 if (!trimmedLine) continue;
@@ -5602,60 +5003,46 @@
             return [];
         }
     }
-
     function generateLinksFromNewIPs(list, user, workerDomain, echConfig = null) {
-        
         const CF_HTTP_PORTS = [80, 8080, 8880, 2052, 2082, 2086, 2095];
         const CF_HTTPS_PORTS = [443, 2053, 2083, 2087, 2096, 8443];
-        
         const links = [];
-        const wsPath = '/?ed=2048';
+        const wsPath = '/?ed=2560';
         const proto = atob('dmxlc3M=');
-        
         list.forEach(item => {
             const nodeName = item.name.replace(/\s/g, '_');
             const port = item.port;
-            
             if (CF_HTTPS_PORTS.includes(port)) {
-                
                 const wsNodeName = `${nodeName}-${port}-WS-TLS`;
-                let link = `${proto}://${user}@${item.ip}:${port}?encryption=none&security=tls&sni=${workerDomain}&fp=${enableECH ? 'chrome' : 'randomized'}&type=ws&host=${workerDomain}&path=${wsPath}`;
-                
-                // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
+                let link = `${proto}://${user}@${item.ip}:${port}?encryption=none&security=tls&sni=${workerDomain}&fp=${enableECH ? 'firefox' : 'randomized'}&type=ws&host=${workerDomain}&path=${wsPath}`;
+                // 如果启用了ECH，添加ech参数（ECH需要伪装成firefox浏览器）
                 if (enableECH) {
-                    link += `&alpn=h3%2Ch2%2Chttp%2F1.1&ech=${encodeURIComponent('cloudflare-ech.com+https://dns.alidns.com/dns-query')}`;
+                    link += `&alpn=h3&ech=${encodeURIComponent('cloudflare-ech.com+https://dns.alidns.com/dns-query')}`;
                 }
-                
                 link += `#${encodeURIComponent(wsNodeName)}`;
                 links.push(link);
             } else if (CF_HTTP_PORTS.includes(port)) {
-                
                 if (!disableNonTLS) {
                     const wsNodeName = `${nodeName}-${port}-WS`;
                     const link = `${proto}://${user}@${item.ip}:${port}?encryption=none&security=none&type=ws&host=${workerDomain}&path=${wsPath}#${encodeURIComponent(wsNodeName)}`;
                     links.push(link);
                 }
             } else {
-                
                 const wsNodeName = `${nodeName}-${port}-WS-TLS`;
-                let link = `${proto}://${user}@${item.ip}:${port}?encryption=none&security=tls&sni=${workerDomain}&fp=${enableECH ? 'chrome' : 'randomized'}&type=ws&host=${workerDomain}&path=${wsPath}`;
-                
-                // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
+                let link = `${proto}://${user}@${item.ip}:${port}?encryption=none&security=tls&sni=${workerDomain}&fp=${enableECH ? 'firefox' : 'randomized'}&type=ws&host=${workerDomain}&path=${wsPath}`;
+                // 如果启用了ECH，添加ech参数（ECH需要伪装成firefox浏览器）
                 if (enableECH) {
-                    link += `&alpn=h3%2Ch2%2Chttp%2F1.1&ech=${encodeURIComponent('cloudflare-ech.com+https://dns.alidns.com/dns-query')}`;
+                    link += `&alpn=h3&ech=${encodeURIComponent('cloudflare-ech.com+https://dns.alidns.com/dns-query')}`;
                 }
-                
                 link += `#${encodeURIComponent(wsNodeName)}`;
                 links.push(link);
             }
         });
         return links;
     }
-
     function generateXhttpLinksFromSource(list, user, workerDomain, echConfig = null) {
         const links = [];
         const nodePath = user.substring(0, 8);
-        
         list.forEach(item => {
             let nodeNameBase = item.isp.replace(/\s/g, '_');
             if (item.colo && item.colo.trim()) {
@@ -5663,84 +5050,65 @@
             }
             const safeIP = item.ip.includes(':') ? `[${item.ip}]` : item.ip;
             const port = item.port || 443;
-            
             const wsNodeName = `${nodeNameBase}-${port}-xhttp`;
             const params = new URLSearchParams({
                 encryption: 'none',
                 security: 'tls',
                 sni: workerDomain,
-                fp: 'chrome',
+                fp: 'firefox',
                 type: 'xhttp',
                 host: workerDomain,
                 path: `/${nodePath}`,
                 mode: 'stream-one'
             });
-            
-            // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
+            // 如果启用了ECH，添加ech参数（ECH需要伪装成firefox浏览器）
             if (enableECH) {
                 params.set('alpn', 'h3,h2,http/1.1');
                 params.set('ech', `cloudflare-ech.com+https://dns.alidns.com/dns-query`);
             }
-            
             links.push(`vless://${user}@${safeIP}:${port}?${params.toString()}#${encodeURIComponent(wsNodeName)}`);
         });
-        
         return links;
     }
-
     async function generateTrojanLinksFromNewIPs(list, user, workerDomain, echConfig = null) {
-        
         const CF_HTTP_PORTS = [80, 8080, 8880, 2052, 2082, 2086, 2095];
         const CF_HTTPS_PORTS = [443, 2053, 2083, 2087, 2096, 8443];
-        
         const links = [];
-        const wsPath = '/?ed=2048';
-        
+        const wsPath = '/?ed=2560';
         const password = tp || user;
-        
         list.forEach(item => {
             const nodeName = item.name.replace(/\s/g, '_');
             const port = item.port;
-            
             if (CF_HTTPS_PORTS.includes(port)) {
-                
                 const wsNodeName = `${nodeName}-${port}-${atob('VHJvamFu')}-WS-TLS`;
-                let link = `${atob('dHJvamFuOi8v')}${password}@${item.ip}:${port}?security=tls&sni=${workerDomain}&fp=chrome&type=ws&host=${workerDomain}&path=${wsPath}`;
-                
-                // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
+                let link = `${atob('dHJvamFuOi8v')}${password}@${item.ip}:${port}?security=tls&sni=${workerDomain}&fp=firefox&type=ws&host=${workerDomain}&path=${wsPath}`;
+                // 如果启用了ECH，添加ech参数（ECH需要伪装成firefox浏览器）
                 if (enableECH) {
-                    link += `&alpn=h3%2Ch2%2Chttp%2F1.1&ech=${encodeURIComponent('cloudflare-ech.com+https://dns.alidns.com/dns-query')}`;
+                    link += `&alpn=h3&ech=${encodeURIComponent('cloudflare-ech.com+https://dns.alidns.com/dns-query')}`;
                 }
-                
                 link += `#${encodeURIComponent(wsNodeName)}`;
                 links.push(link);
             } else if (CF_HTTP_PORTS.includes(port)) {
-                
                 if (!disableNonTLS) {
                     const wsNodeName = `${nodeName}-${port}-${atob('VHJvamFu')}-WS`;
                     const link = `${atob('dHJvamFuOi8v')}${password}@${item.ip}:${port}?security=none&type=ws&host=${workerDomain}&path=${wsPath}#${encodeURIComponent(wsNodeName)}`;
                     links.push(link);
                 }
             } else {
-                
                 const wsNodeName = `${nodeName}-${port}-${atob('VHJvamFu')}-WS-TLS`;
-                let link = `${atob('dHJvamFuOi8v')}${password}@${item.ip}:${port}?security=tls&sni=${workerDomain}&fp=chrome&type=ws&host=${workerDomain}&path=${wsPath}`;
-                
-                // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
+                let link = `${atob('dHJvamFuOi8v')}${password}@${item.ip}:${port}?security=tls&sni=${workerDomain}&fp=firefox&type=ws&host=${workerDomain}&path=${wsPath}`;
+                // 如果启用了ECH，添加ech参数（ECH需要伪装成firefox浏览器）
                 if (enableECH) {
-                    link += `&alpn=h3%2Ch2%2Chttp%2F1.1&ech=${encodeURIComponent('cloudflare-ech.com+https://dns.alidns.com/dns-query')}`;
+                    link += `&alpn=h3&ech=${encodeURIComponent('cloudflare-ech.com+https://dns.alidns.com/dns-query')}`;
                 }
-                
                 link += `#${encodeURIComponent(wsNodeName)}`;
                 links.push(link);
             }
         });
         return links;
     }
-
     async function handleConfigAPI(request) {
         if (request.method === 'GET') {
-            
             if (!kvStore) {
                 return new Response(JSON.stringify({
                     error: 'KV存储未配置',
@@ -5750,7 +5118,6 @@
                     headers: { 'Content-Type': 'application/json' }
                 });
             }
-            
             return new Response(JSON.stringify({
                 ...kvConfig,
                 kvEnabled: true
@@ -5758,7 +5125,6 @@
                 headers: { 'Content-Type': 'application/json' }
             });
         } else if (request.method === 'POST') {
-            
             if (!kvStore) {
                 return new Response(JSON.stringify({
                     success: false,
@@ -5768,10 +5134,8 @@
                     headers: { 'Content-Type': 'application/json' }
                 });
             }
-            
             try {
                 const newConfig = await request.json();
-                
                 for (const [key, value] of Object.entries(newConfig)) {
                     if (value === '' || value === null || value === undefined) {
                         delete kvConfig[key];
@@ -5779,15 +5143,11 @@
                         kvConfig[key] = value;
                     }
                 }
-                
                 await saveKVConfig();
-                
                 updateConfigVariables();
-                
                 if (newConfig.yx !== undefined) {
                     updateCustomPreferredFromYx();
                 }
-                
                 const newPreferredIPsURL = getConfigValue('yxURL', '') || 'https://raw.githubusercontent.com/qwer-search/bestip/refs/heads/main/kejilandbestip.txt';
                 const defaultURL = 'https://raw.githubusercontent.com/qwer-search/bestip/refs/heads/main/kejilandbestip.txt';
                 if (newPreferredIPsURL !== defaultURL) {
@@ -5835,7 +5195,6 @@
                         { domain: "xn--b6gac.eu.org" }
                     );
                 }
-                
                 return new Response(JSON.stringify({
                     success: true,
                     message: '配置已保存',
@@ -5844,7 +5203,6 @@
                     headers: { 'Content-Type': 'application/json' }
                 });
             } catch (error) {
-                
                 return new Response(JSON.stringify({
                     success: false,
                     message: '保存配置失败: ' + error.message
@@ -5854,15 +5212,12 @@
                 });
             }
         }
-        
         return new Response(JSON.stringify({ error: 'Method not allowed' }), { 
             status: 405,
             headers: { 'Content-Type': 'application/json' }
         });
     }
-
     async function handlePreferredIPsAPI(request) {
-        
         if (!kvStore) {
             return new Response(JSON.stringify({
                 success: false,
@@ -5873,7 +5228,6 @@
                 headers: { 'Content-Type': 'application/json' }
             });
         }
-        
         const ae = getConfigValue('ae', '') === 'yes';
         if (!ae) {
             return new Response(JSON.stringify({
@@ -5885,13 +5239,10 @@
                 headers: { 'Content-Type': 'application/json' }
             });
         }
-        
         try {
             if (request.method === 'GET') {
-                
                 const yxValue = getConfigValue('yx', '');
                 const pi = parseYxToArray(yxValue);
-                
                 return new Response(JSON.stringify({
                     success: true,
                     count: pi.length,
@@ -5899,13 +5250,9 @@
                 }), {
                     headers: { 'Content-Type': 'application/json' }
                 });
-                
             } else if (request.method === 'POST') {
-                
                 const body = await request.json();
-                
                 const ipsToAdd = Array.isArray(body) ? body : [body];
-                
                 if (ipsToAdd.length === 0) {
                     return new Response(JSON.stringify({
                         success: false,
@@ -5916,55 +5263,43 @@
                         headers: { 'Content-Type': 'application/json' }
                     });
                 }
-                
                 const yxValue = getConfigValue('yx', '');
                 let pi = parseYxToArray(yxValue);
-                
                 const addedIPs = [];
                 const skippedIPs = [];
                 const errors = [];
-                
                 for (const item of ipsToAdd) {
-                    
                     if (!item.ip) {
                         errors.push({ ip: '未知', reason: 'IP地址是必需的' });
                         continue;
                     }
-                    
                     const port = item.port || 443;
                     const name = item.name || `API优选-${item.ip}:${port}`;
-                    
                     if (!isValidIP(item.ip) && !isValidDomain(item.ip)) {
                         errors.push({ ip: item.ip, reason: '无效的IP或域名格式' });
                         continue;
                     }
-                    
                     const exists = pi.some(existItem => 
                         existItem.ip === item.ip && existItem.port === port
                     );
-                    
                     if (exists) {
                         skippedIPs.push({ ip: item.ip, port: port, reason: '已存在' });
                         continue;
                     }
-                    
                     const newIP = {
                         ip: item.ip,
                         port: port,
                         name: name,
                         addedAt: new Date().toISOString()
                     };
-                    
                     pi.push(newIP);
                     addedIPs.push(newIP);
                 }
-                
                 if (addedIPs.length > 0) {
                     const newYxValue = arrayToYx(pi);
                     await setConfigValue('yx', newYxValue);
                     updateCustomPreferredFromYx();
                 }
-                
                 return new Response(JSON.stringify({
                     success: addedIPs.length > 0,
                     message: `成功添加 ${addedIPs.length} 个IP`,
@@ -5979,20 +5314,14 @@
                 }), {
                     headers: { 'Content-Type': 'application/json' }
                 });
-                
             } else if (request.method === 'DELETE') {
-                
                 const body = await request.json();
-                
                 if (body.all === true) {
-                    
                     const yxValue = getConfigValue('yx', '');
                     const pi = parseYxToArray(yxValue);
                     const deletedCount = pi.length;
-                    
                     await setConfigValue('yx', '');
                     updateCustomPreferredFromYx();
-                    
                     return new Response(JSON.stringify({
                         success: true,
                         message: `已清空所有优选IP，共删除 ${deletedCount} 个`,
@@ -6001,7 +5330,6 @@
                         headers: { 'Content-Type': 'application/json' }
                     });
                 }
-                
                 if (!body.ip) {
                     return new Response(JSON.stringify({
                         success: false,
@@ -6012,17 +5340,13 @@
                         headers: { 'Content-Type': 'application/json' }
                     });
                 }
-                
                 const port = body.port || 443;
-                
                 const yxValue = getConfigValue('yx', '');
                 let pi = parseYxToArray(yxValue);
                 const initialLength = pi.length;
-                
                 const filteredIPs = pi.filter(item => 
                     !(item.ip === body.ip && item.port === port)
                 );
-                
                 if (filteredIPs.length === initialLength) {
                     return new Response(JSON.stringify({
                         success: false,
@@ -6033,11 +5357,9 @@
                         headers: { 'Content-Type': 'application/json' }
                     });
                 }
-                
                 const newYxValue = arrayToYx(filteredIPs);
                 await setConfigValue('yx', newYxValue);
                 updateCustomPreferredFromYx();
-                
                 return new Response(JSON.stringify({
                     success: true,
                     message: '优选IP已删除',
@@ -6045,7 +5367,6 @@
                 }), {
                     headers: { 'Content-Type': 'application/json' }
                 });
-                
             } else {
                 return new Response(JSON.stringify({
                     success: false,
@@ -6067,7 +5388,6 @@
             });
         }
     }
-
     function updateConfigVariables() {
         const manualRegion = getConfigValue('wk', '');
         if (manualRegion && manualRegion.trim()) {
@@ -6081,80 +5401,63 @@
                 manualWorkerRegion = '';
             }
         }
-        
         const regionMatchingControl = getConfigValue('rm', '');
         if (regionMatchingControl && regionMatchingControl.toLowerCase() === 'no') {
             enableRegionMatching = false;
         } else {
             enableRegionMatching = true;
         }
-        
         const vlessControl = getConfigValue('ev', '');
         if (vlessControl !== undefined && vlessControl !== '') {
             ev = vlessControl === 'yes' || vlessControl === true || vlessControl === 'true';
         }
-        
         const tjControl = getConfigValue('et', '');
         if (tjControl !== undefined && tjControl !== '') {
             et = tjControl === 'yes' || tjControl === true || tjControl === 'true';
         }
-        
         tp = getConfigValue('tp', '') || '';
-        
         const xhttpControl = getConfigValue('ex', '');
         if (xhttpControl !== undefined && xhttpControl !== '') {
             ex = xhttpControl === 'yes' || xhttpControl === true || xhttpControl === 'true';
         }
-        
         if (!ev && !et && !ex) {
             ev = true;
         }
-        
         scu = getConfigValue('scu', '') || 'https://url.v1.mk/sub';
-        
         const preferredDomainsControl = getConfigValue('epd', 'no');
         if (preferredDomainsControl !== undefined && preferredDomainsControl !== '') {
             epd = preferredDomainsControl !== 'no' && preferredDomainsControl !== false && preferredDomainsControl !== 'false';
         }
-        
         const preferredIPsControl = getConfigValue('epi', '');
         if (preferredIPsControl !== undefined && preferredIPsControl !== '') {
             epi = preferredIPsControl !== 'no' && preferredIPsControl !== false && preferredIPsControl !== 'false';
         }
-        
         const githubIPsControl = getConfigValue('egi', '');
         if (githubIPsControl !== undefined && githubIPsControl !== '') {
             egi = githubIPsControl !== 'no' && githubIPsControl !== false && githubIPsControl !== 'false';
         }
-        
         const echControl = getConfigValue('ech', '');
         if (echControl !== undefined && echControl !== '') {
             enableECH = echControl === 'yes' || echControl === true || echControl === 'true';
         }
-        
         // 如果启用了ECH，自动启用仅TLS模式（避免80端口干扰）
         // ECH需要TLS才能工作，所以必须禁用非TLS节点
         if (enableECH) {
             disableNonTLS = true;
         }
-        
         // 检查dkby配置（如果手动设置了dkby=yes，也会启用仅TLS）
         const dkbyControl = getConfigValue('dkby', '');
         if (dkbyControl && dkbyControl.toLowerCase() === 'yes') {
             disableNonTLS = true;
         }
-        
         cp = getConfigValue('d', '') || '';
-        
         piu = getConfigValue('yxURL', '') || 'https://raw.githubusercontent.com/qwer-search/bestip/refs/heads/main/kejilandbestip.txt';
-        
         const envFallback = getConfigValue('p', '');
         if (envFallback) {
             fallbackAddress = envFallback.trim();
         } else {
             fallbackAddress = '';
         }
-        
         socks5Config = getConfigValue('s', '') || '';
         if (socks5Config) {
             try {
@@ -6166,14 +5469,12 @@
         } else {
             isSocksEnabled = false;
         }
-        
         const yxbyControl = getConfigValue('yxby', '');
         if (yxbyControl && yxbyControl.toLowerCase() === 'yes') {
             disablePreferred = true;
         } else {
             disablePreferred = false;
         }
-        
         const defaultURL = 'https://raw.githubusercontent.com/qwer-search/bestip/refs/heads/main/kejilandbestip.txt';
         if (piu !== defaultURL) {
             directDomains.length = 0;
@@ -6181,7 +5482,6 @@
             customPreferredDomains = [];
         }
     }
-
     function updateCustomPreferredFromYx() {
         const yxValue = getConfigValue('yx', '');
         if (yxValue) {
@@ -6189,23 +5489,18 @@
                 const preferredList = yxValue.split(',').map(item => item.trim()).filter(item => item);
                 customPreferredIPs = [];
                 customPreferredDomains = [];
-                
                 preferredList.forEach(item => {
                     let nodeName = '';
                     let addressPart = item;
-                    
                     if (item.includes('#')) {
                         const parts = item.split('#');
                         addressPart = parts[0].trim();
                         nodeName = parts[1].trim();
                     }
-                    
                     const { address, port } = parseAddressAndPort(addressPart);
-                    
                     if (!nodeName) {
                         nodeName = '自定义优选-' + address + (port ? ':' + port : '');
                     }
-                    
                     if (isValidIP(address)) {
                         customPreferredIPs.push({ 
                             ip: address, 
@@ -6229,30 +5524,22 @@
             customPreferredDomains = [];
         }
     }
-
     function parseYxToArray(yxValue) {
         if (!yxValue || !yxValue.trim()) return [];
-        
         const items = yxValue.split(',').map(item => item.trim()).filter(item => item);
         const result = [];
-        
         for (const item of items) {
-            
             let nodeName = '';
             let addressPart = item;
-            
             if (item.includes('#')) {
                 const parts = item.split('#');
                 addressPart = parts[0].trim();
                 nodeName = parts[1].trim();
             }
-            
             const { address, port } = parseAddressAndPort(addressPart);
-            
             if (!nodeName) {
                 nodeName = address + (port ? ':' + port : '');
             }
-            
             result.push({
                 ip: address,
                 port: port || 443,
@@ -6260,31 +5547,25 @@
                 addedAt: new Date().toISOString()
             });
         }
-        
         return result;
     }
-
     function arrayToYx(array) {
         if (!array || array.length === 0) return '';
-        
         return array.map(item => {
             const port = item.port || 443;
             return `${item.ip}:${port}#${item.name}`;
         }).join(',');
     }
-
     function isValidDomain(domain) {
         const domainRegex = /^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$/;
         return domainRegex.test(domain);
     }
-
     async function parseTextToArray(content) {
         var processed = content.replace(/[	"'\r\n]+/g, ',').replace(/,+/g, ',');
         if (processed.charAt(0) == ',') processed = processed.slice(1);
         if (processed.charAt(processed.length - 1) == ',') processed = processed.slice(0, processed.length - 1);
         return processed.split(',');
     }
-
     async function fetchPreferredAPI(urls, defaultPort = '443', timeout = 3000) {
         if (!urls?.length) return [];
         const results = new Set();
@@ -6299,12 +5580,10 @@
                     const buffer = await response.arrayBuffer();
                     const contentType = (response.headers.get('content-type') || '').toLowerCase();
                     const charset = contentType.match(/charset=([^\s;]+)/i)?.[1]?.toLowerCase() || '';
-
                     let decoders = ['utf-8', 'gb2312'];
                     if (charset.includes('gb') || charset.includes('gbk') || charset.includes('gb2312')) {
                         decoders = ['gb2312', 'utf-8'];
                     }
-
                     let decodeSuccess = false;
                     for (const decoder of decoders) {
                         try {
@@ -6320,11 +5599,9 @@
                             continue;
                         }
                     }
-
                     if (!decodeSuccess) {
                         text = await response.text();
                     }
-
                     if (!text || text.trim().length === 0) {
                         return;
                     }
