@@ -336,7 +336,7 @@ jobs:
       - name: 检测文件变更
         id: check-changes
         run: |
-          set -euo pipefill
+          set -euo pipefail
           
           echo "=== 检测文件变更 ==="
           
