@@ -295,12 +295,113 @@ jobs:
 
           console.log('文件读取成功，长度:', originalCode.length);
 
-          // 预处理：将 ES6 模块语法转换为 CommonJS
+          // 首先处理Git合并冲突标记
           let processedCode = originalCode;
-          console.log('开始预处理 ES6 模块语法...');
+          console.log('=== 检查并清理Git合并冲突标记 ===');
+
+          const conflictMarkers = ['<<<<<<<', '=======', '>>>>>>>'];
+          const lines = originalCode.split('\n');
+          let conflictSections = [];
+          let currentConflict = null;
+          let inConflict = false;
+
+          // 识别所有冲突区域
+          for (let i = 0; i < lines.length; i++) {
+              const line = lines[i].trim();
+              
+              if (line.startsWith('<<<<<<<')) {
+                  currentConflict = {
+                      start: i,
+                      startContent: line,
+                      localLines: []
+                  };
+                  inConflict = true;
+                  console.log(`发现冲突开始于第 ${i + 1} 行: ${line}`);
+                  continue;
+              }
+              
+              if (line.startsWith('=======')) {
+                  if (currentConflict) {
+                      currentConflict.separator = i;
+                      currentConflict.separatorContent = line;
+                      currentConflict.upstreamLines = [];
+                      console.log(`冲突分隔符于第 ${i + 1} 行`);
+                  }
+                  continue;
+              }
+              
+              if (line.startsWith('>>>>>>>')) {
+                  if (currentConflict) {
+                      currentConflict.end = i;
+                      currentConflict.endContent = line;
+                      conflictSections.push(currentConflict);
+                      console.log(`冲突结束于第 ${i + 1} 行`);
+                      console.log(`冲突包含 ${currentConflict.localLines.length} 行本地代码，${currentConflict.upstreamLines.length} 行上游代码`);
+                      currentConflict = null;
+                      inConflict = false;
+                  }
+                  continue;
+              }
+              
+              if (inConflict) {
+                  if (currentConflict && currentConflict.separator !== undefined) {
+                      currentConflict.upstreamLines.push(lines[i]);
+                  } else if (currentConflict) {
+                      currentConflict.localLines.push(lines[i]);
+                  }
+              }
+          }
+
+          if (conflictSections.length > 0) {
+              console.log(`发现 ${conflictSections.length} 个冲突区域，选择上游版本进行合并...`);
+              
+              // 重建代码，选择上游版本
+              let cleanedLines = [];
+              let conflictIndex = 0;
+              
+              for (let i = 0; i < lines.length; i++) {
+                  let inConflictSection = false;
+                  
+                  for (let j = 0; j < conflictSections.length; j++) {
+                      const conflict = conflictSections[j];
+                      if (i >= conflict.start && i <= conflict.end) {
+                          inConflictSection = true;
+                          if (i > conflict.separator && i < conflict.end) {
+                              // 这是上游版本，保留
+                              cleanedLines.push(lines[i]);
+                          }
+                          break;
+                      }
+                  }
+                  
+                  if (!inConflictSection) {
+                      cleanedLines.push(lines[i]);
+                  }
+              }
+              
+              processedCode = cleanedLines.join('\n');
+              console.log('冲突标记清理完成');
+              
+              // 保存清理后的代码用于调试
+              try {
+                  const cleanedFile = path.join(process.cwd(), 'conflict_cleaned_' + sourceFileName);
+                  fs.writeFileSync(cleanedFile, processedCode, 'utf8');
+                  console.log(`已保存冲突清理后的代码到: ${cleanedFile}`);
+              } catch (error) {
+                  console.error('保存冲突清理代码失败:', error.message);
+              }
+          } else {
+              console.log('未发现Git冲突标记');
+          }
+
+          // 预处理：将 ES6 模块语法转换为 CommonJS
+          console.log('\n=== 开始预处理 ES6 模块语法 ===');
+
+          let conversionCount = 0;
 
           // 转换命名导入: import { connect } from 'cloudflare:sockets';
           processedCode = processedCode.replace(/import\s*\{([^}]+)\}\s*from\s*['"]([^'"]+)['"];?/g, (match, imports, module) => {
+              conversionCount++;
               const cleanImports = imports.split(',').map(imp => imp.trim()).join(', ');
               console.log(`转换命名导入: ${match}`);
               console.log(`-> const { ${cleanImports} } = require("${module}");`);
@@ -309,96 +410,29 @@ jobs:
 
           // 转换默认导出: export default
           processedCode = processedCode.replace(/export\s+default\s+/g, () => {
+              conversionCount++;
               console.log('转换默认导出: export default -> module.exports = ');
               return 'module.exports = ';
           });
 
-          console.log('预处理完成');
+          console.log(`预处理完成，共进行了 ${conversionCount} 次转换`);
 
-          // 检查第1161行附近的内容
-          const lines = processedCode.split('\n');
-          const targetLine = 1160; // 1161在数组中是1160
-          const startLine = Math.max(0, targetLine - 5);
-          const endLine = Math.min(lines.length - 1, targetLine + 5);
-
-          console.log(`\n=== 检查第1161行附近的内容 ===`);
-          for (let i = startLine; i <= endLine; i++) {
-              const marker = i === targetLine ? '>>> ' : '    ';
-              console.log(`${marker}${i + 1}: ${lines[i]}`);
-          }
-
-          // 检查是否有特殊字符
-          const line1161 = lines[targetLine];
-          console.log(`\n第1161行内容: "${line1161}"`);
-          console.log(`第1161行字符代码: ${Array.from(line1161).map(c => c.charCodeAt(0)).join(' ')}`);
-
-          // 尝试更激进的清理 - 移除可能的问题字符
-          console.log('\n=== 尝试清理代码 ===');
-          let cleanedCode = processedCode;
-
-          // 移除可能的零宽字符
-          cleanedCode = cleanedCode.replace(/[\u200B-\u200D\uFEFF]/g, '');
-          console.log('移除了零宽字符');
-
-          // 移除可能的BOM
-          cleanedCode = cleanedCode.replace(/^\uFEFF/, '');
-          console.log('移除了BOM标记');
-
-          // 检查是否有未配对的括号或引号
-          console.log('检查语法结构...');
-          const openBrackets = (cleanedCode.match(/\{/g) || []).length;
-          const closeBrackets = (cleanedCode.match(/\}/g) || []).length;
-          const openParens = (cleanedCode.match(/\(/g) || []).length;
-          const closeParens = (cleanedCode.match(/\)/g) || []).length;
-
-          console.log(`大括号: 开 ${openBrackets}, 闭 ${closeBrackets}`);
-          console.log(`圆括号: 开 ${openParens}, 闭 ${closeParens}`);
-
-          // 如果不平衡，尝试修复
-          if (openBrackets !== closeBrackets || openParens !== closeParens) {
-              console.log('发现括号不平衡，尝试修复...');
-              // 简单的括号平衡修复
-              while ((cleanedCode.match(/\{/g) || []).length > (cleanedCode.match(/\}/g) || []).length) {
-                  cleanedCode += '}';
-              }
-              while ((cleanedCode.match(/\}/g) || []).length > (cleanedCode.match(/\{/g) || []).length) {
-                  cleanedCode = cleanedCode.replace(/\}([^}]*)$/, '$1');
-              }
-              while ((cleanedCode.match(/\(/g) || []).length > (cleanedCode.match(/\)/g) || []).length) {
-                  cleanedCode += ')';
-              }
-              while ((cleanedCode.match(/\)/g) || []).length > (cleanedCode.match(/\(/g) || []).length) {
-                  cleanedCode = cleanedCode.replace(/\)([^)]*)$/, '$1');
-              }
-              console.log('括号平衡修复完成');
-          }
-
-          // 验证语法
-          console.log('\n=== 验证预处理后的代码语法 ===');
+          // 验证预处理后的代码语法
+          console.log('\n=== 验证语法 ===');
           try {
-              const testFunction = new Function(cleanedCode);
+              const testFunction = new Function(processedCode);
               console.log('✓ 语法验证通过');
           } catch (error) {
               console.error('✗ 语法验证失败:', error.message);
+              console.error('错误位置:', error.stack);
               
-              if (error.message.includes('1161')) {
-                  console.log('错误确实在第1161行，保存调试文件...');
-                  const debugFile = path.join(process.cwd(), 'debug_line_1161.js');
-                  const debugContent = `// 原始第1161行: ${line1161}\n` +
-                                     `// 清理后第1161行: ${cleanedCode.split('\n')[1160]}\n` +
-                                     `// 附近10行:\n` +
-                                     cleanedCode.split('\n').slice(1155, 1165).map((line, i) => `${1156 + i}: ${line}`).join('\n');
-                  fs.writeFileSync(debugFile, debugContent, 'utf8');
-                  console.log(`调试信息已保存到: ${debugFile}`);
-              }
-              
-              // 保存清理后的代码
+              // 保存调试文件
               try {
-                  const cleanedFile = path.join(process.cwd(), 'cleaned_' + sourceFileName);
-                  fs.writeFileSync(cleanedFile, cleanedCode, 'utf8');
-                  console.log(`已保存清理后的代码到: ${cleanedFile}`);
-              } catch (saveError) {
-                  console.error('保存清理代码失败:', saveError.message);
+                  const debugFile = path.join(process.cwd(), 'syntax_debug_' + sourceFileName);
+                  fs.writeFileSync(debugFile, processedCode, 'utf8');
+                  console.log(`已保存调试代码到: ${debugFile}`);
+              } catch (debugError) {
+                  console.error('保存调试代码失败:', debugError.message);
               }
               
               process.exit(1);
@@ -441,7 +475,7 @@ jobs:
           };
 
           try {
-              const obfuscatedCode = JavaScriptObfuscator.obfuscate(cleanedCode, obfuscationOptions).getObfuscatedCode();
+              const obfuscatedCode = JavaScriptObfuscator.obfuscate(processedCode, obfuscationOptions).getObfuscatedCode();
               
               fs.writeFileSync(path.join(process.cwd(), outputFileName), obfuscatedCode, 'utf8');
               console.log('✓ 成功混淆并保存到:', outputFileName);
@@ -453,7 +487,7 @@ jobs:
               // 保存预处理后的代码
               try {
                   const fallbackFile = path.join(process.cwd(), 'preprocessed_' + sourceFileName);
-                  fs.writeFileSync(fallbackFile, cleanedCode, 'utf8');
+                  fs.writeFileSync(fallbackFile, processedCode, 'utf8');
                   console.log(`已保存预处理后的代码到: ${fallbackFile}`);
               } catch (fallbackError) {
                   console.error('保存预处理代码失败:', fallbackError.message);
