@@ -33,9 +33,9 @@ jobs:
           
           echo "=== 开始合并上游更新 ==="
           
-          # 下载上游文件
+          # 下载上游文件（使用URL编码处理中文字符）
           echo "正在下载上游仓库 $UPSTREAM_REPO 的文件..."
-          if ! curl -fsSL -o "upstream_${SOURCE_FILE}" "https://raw.githubusercontent.com/${UPSTREAM_REPO}/main/${SOURCE_FILE}"; then
+          if ! curl -fsSL -o "upstream_${SOURCE_FILE}" "https://raw.githubusercontent.com/${UPSTREAM_REPO}/main/%E6%98%8E%E6%96%87%E6%BA%90%E5%90%97"; then
             echo "错误：无法下载上游源文件"
             exit 1
           fi
@@ -291,19 +291,51 @@ jobs:
             process.exit(1);
           }
 
+          // 预处理：将 ES6 import 语句转换为 CommonJS require
+          let processedCode = originalCode;
+          console.log('开始预处理 ES6 模块语法...');
+          
+          // 转换 import { connect } from 'cloudflare:sockets'; 
+          processedCode = processedCode.replace(
+            /import\s*\{([^}]+)\}\s*from\s*['"]([^'"]+)['"];?/g,
+            'const { $1 } = require("$2");'
+          );
+          
+          // 转换默认导出 import connect from 'cloudflare:sockets';
+          processedCode = processedCode.replace(
+            /import\s+(\w+)\s+from\s*['"]([^'"]+)['"];?/g,
+            'const $1 = require("$2");'
+          );
+          
+          // 转换 export default
+          processedCode = processedCode.replace(
+            /export\s+default\s+/g,
+            'module.exports = '
+          );
+          
+          console.log('预处理完成，开始混淆...');
+
           const obfuscationOptions = {
               compact: true,
               controlFlowFlattening: false,
+              controlFlowFlatteningThreshold: 0,
               deadCodeInjection: false,
               stringArray: true,
               stringArrayEncoding: ['base64'],
               stringArrayThreshold: 1.0,
               stringArrayRotate: true,
               stringArrayShuffle: true,
+              stringArrayWrappersCount: 2,
+              stringArrayWrappersChainedCalls: false,
+              stringArrayWrappersParametersMaxCount: 3,
               renameGlobals: true,
               identifierNamesGenerator: 'mangled-shuffled',
+              identifierNamesCache: null,
+              identifiersPrefix: '',
               renameProperties: false,
-              target: 'browser',  // 改为 'browser' 以支持 ES6 模块
+              renamePropertiesMode: 'safe',
+              ignoreImports: false,
+              target: 'browser',
               numbersToExpressions: false,
               simplify: false,
               splitStrings: true,
@@ -314,12 +346,10 @@ jobs:
               debugProtection: false,
               debugProtectionInterval: 0,
               disableConsoleOutput: true,
-              domainLock: [],
-              es6: true,
-              babel: false
+              domainLock: []
           };
 
-          const obfuscatedCode = JavaScriptObfuscator.obfuscate(originalCode, obfuscationOptions).getObfuscatedCode();
+          const obfuscatedCode = JavaScriptObfuscator.obfuscate(processedCode, obfuscationOptions).getObfuscatedCode();
           
           fs.writeFileSync(path.join(process.cwd(), outputFileName), obfuscatedCode, 'utf8');
           console.log('成功将 \'' + sourceFileName + '\' 混淆并保存至 \'' + outputFileName + '\'。');
