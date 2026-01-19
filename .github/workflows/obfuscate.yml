@@ -274,22 +274,26 @@ jobs:
           const JavaScriptObfuscator = require('javascript-obfuscator');
           const fs = require('fs');
           const path = require('path');
-          
+
           const sourceFileName = '明文源吗';
           const outputFileName = '少年你相信光吗';
           const sourceFilePath = path.join(process.cwd(), sourceFileName);
 
+          console.log('=== 开始混淆处理 ===');
+
           if (!fs.existsSync(sourceFilePath)) {
-            console.error('错误：在路径 \'' + sourceFilePath + '\' 未找到源文件。请确保您的仓库根目录有名为 \'明文源吗\' 的文件。');
-            process.exit(1);
+              console.error('错误：在路径 \'' + sourceFilePath + '\' 未找到源文件。');
+              process.exit(1);
           }
 
           const originalCode = fs.readFileSync(sourceFilePath, 'utf8');
 
           if (!originalCode || originalCode.trim().length === 0) {
-            console.error('错误：源文件 ' + sourceFileName + ' 为空。');
-            process.exit(1);
+              console.error('错误：源文件 ' + sourceFileName + ' 为空。');
+              process.exit(1);
           }
+
+          console.log('文件读取成功，长度:', originalCode.length);
 
           // 预处理：将 ES6 模块语法转换为 CommonJS
           let processedCode = originalCode;
@@ -297,18 +301,110 @@ jobs:
 
           // 转换命名导入: import { connect } from 'cloudflare:sockets';
           processedCode = processedCode.replace(/import\s*\{([^}]+)\}\s*from\s*['"]([^'"]+)['"];?/g, (match, imports, module) => {
-            const cleanImports = imports.split(',').map(imp => imp.trim()).join(', ');
-            console.log(`转换命名导入: ${match} -> const { ${cleanImports} } = require("${module}");`);
-            return `const { ${cleanImports} } = require("${module}");`;
+              const cleanImports = imports.split(',').map(imp => imp.trim()).join(', ');
+              console.log(`转换命名导入: ${match}`);
+              console.log(`-> const { ${cleanImports} } = require("${module}");`);
+              return `const { ${cleanImports} } = require("${module}");`;
           });
 
           // 转换默认导出: export default
           processedCode = processedCode.replace(/export\s+default\s+/g, () => {
-            console.log('转换默认导出: export default -> module.exports = ');
-            return 'module.exports = ';
+              console.log('转换默认导出: export default -> module.exports = ');
+              return 'module.exports = ';
           });
 
-          console.log('预处理完成，开始混淆...');
+          console.log('预处理完成');
+
+          // 检查第1161行附近的内容
+          const lines = processedCode.split('\n');
+          const targetLine = 1160; // 1161在数组中是1160
+          const startLine = Math.max(0, targetLine - 5);
+          const endLine = Math.min(lines.length - 1, targetLine + 5);
+
+          console.log(`\n=== 检查第1161行附近的内容 ===`);
+          for (let i = startLine; i <= endLine; i++) {
+              const marker = i === targetLine ? '>>> ' : '    ';
+              console.log(`${marker}${i + 1}: ${lines[i]}`);
+          }
+
+          // 检查是否有特殊字符
+          const line1161 = lines[targetLine];
+          console.log(`\n第1161行内容: "${line1161}"`);
+          console.log(`第1161行字符代码: ${Array.from(line1161).map(c => c.charCodeAt(0)).join(' ')}`);
+
+          // 尝试更激进的清理 - 移除可能的问题字符
+          console.log('\n=== 尝试清理代码 ===');
+          let cleanedCode = processedCode;
+
+          // 移除可能的零宽字符
+          cleanedCode = cleanedCode.replace(/[\u200B-\u200D\uFEFF]/g, '');
+          console.log('移除了零宽字符');
+
+          // 移除可能的BOM
+          cleanedCode = cleanedCode.replace(/^\uFEFF/, '');
+          console.log('移除了BOM标记');
+
+          // 检查是否有未配对的括号或引号
+          console.log('检查语法结构...');
+          const openBrackets = (cleanedCode.match(/\{/g) || []).length;
+          const closeBrackets = (cleanedCode.match(/\}/g) || []).length;
+          const openParens = (cleanedCode.match(/\(/g) || []).length;
+          const closeParens = (cleanedCode.match(/\)/g) || []).length;
+
+          console.log(`大括号: 开 ${openBrackets}, 闭 ${closeBrackets}`);
+          console.log(`圆括号: 开 ${openParens}, 闭 ${closeParens}`);
+
+          // 如果不平衡，尝试修复
+          if (openBrackets !== closeBrackets || openParens !== closeParens) {
+              console.log('发现括号不平衡，尝试修复...');
+              // 简单的括号平衡修复
+              while ((cleanedCode.match(/\{/g) || []).length > (cleanedCode.match(/\}/g) || []).length) {
+                  cleanedCode += '}';
+              }
+              while ((cleanedCode.match(/\}/g) || []).length > (cleanedCode.match(/\{/g) || []).length) {
+                  cleanedCode = cleanedCode.replace(/\}([^}]*)$/, '$1');
+              }
+              while ((cleanedCode.match(/\(/g) || []).length > (cleanedCode.match(/\)/g) || []).length) {
+                  cleanedCode += ')';
+              }
+              while ((cleanedCode.match(/\)/g) || []).length > (cleanedCode.match(/\(/g) || []).length) {
+                  cleanedCode = cleanedCode.replace(/\)([^)]*)$/, '$1');
+              }
+              console.log('括号平衡修复完成');
+          }
+
+          // 验证语法
+          console.log('\n=== 验证预处理后的代码语法 ===');
+          try {
+              const testFunction = new Function(cleanedCode);
+              console.log('✓ 语法验证通过');
+          } catch (error) {
+              console.error('✗ 语法验证失败:', error.message);
+              
+              if (error.message.includes('1161')) {
+                  console.log('错误确实在第1161行，保存调试文件...');
+                  const debugFile = path.join(process.cwd(), 'debug_line_1161.js');
+                  const debugContent = `// 原始第1161行: ${line1161}\n` +
+                                     `// 清理后第1161行: ${cleanedCode.split('\n')[1160]}\n` +
+                                     `// 附近10行:\n` +
+                                     cleanedCode.split('\n').slice(1155, 1165).map((line, i) => `${1156 + i}: ${line}`).join('\n');
+                  fs.writeFileSync(debugFile, debugContent, 'utf8');
+                  console.log(`调试信息已保存到: ${debugFile}`);
+              }
+              
+              // 保存清理后的代码
+              try {
+                  const cleanedFile = path.join(process.cwd(), 'cleaned_' + sourceFileName);
+                  fs.writeFileSync(cleanedFile, cleanedCode, 'utf8');
+                  console.log(`已保存清理后的代码到: ${cleanedFile}`);
+              } catch (saveError) {
+                  console.error('保存清理代码失败:', saveError.message);
+              }
+              
+              process.exit(1);
+          }
+
+          console.log('\n=== 开始混淆处理 ===');
 
           const obfuscationOptions = {
               compact: true,
@@ -345,25 +441,25 @@ jobs:
           };
 
           try {
-            const obfuscatedCode = JavaScriptObfuscator.obfuscate(processedCode, obfuscationOptions).getObfuscatedCode();
-            
-            fs.writeFileSync(path.join(process.cwd(), outputFileName), obfuscatedCode, 'utf8');
-            console.log('成功将 \'' + sourceFileName + '\' 混淆并保存至 \'' + outputFileName + '\'。');
-            console.log('混淆后文件长度:', obfuscatedCode.length);
+              const obfuscatedCode = JavaScriptObfuscator.obfuscate(cleanedCode, obfuscationOptions).getObfuscatedCode();
+              
+              fs.writeFileSync(path.join(process.cwd(), outputFileName), obfuscatedCode, 'utf8');
+              console.log('✓ 成功混淆并保存到:', outputFileName);
+              console.log('混淆后文件长度:', obfuscatedCode.length);
           } catch (error) {
-            console.error('混淆过程中发生错误:', error.message);
-            console.error('错误详情:', error.stack);
-            
-            // 如果混淆失败，保存预处理后的代码作为备选
-            try {
-              const fallbackFile = path.join(process.cwd(), 'preprocessed_' + sourceFileName);
-              fs.writeFileSync(fallbackFile, processedCode, 'utf8');
-              console.log(`已保存预处理后的代码到: ${fallbackFile}`);
-            } catch (fallbackError) {
-              console.error('保存预处理代码失败:', fallbackError.message);
-            }
-            
-            process.exit(1);
+              console.error('✗ 混淆过程中发生错误:', error.message);
+              console.error('错误详情:', error.stack);
+              
+              // 保存预处理后的代码
+              try {
+                  const fallbackFile = path.join(process.cwd(), 'preprocessed_' + sourceFileName);
+                  fs.writeFileSync(fallbackFile, cleanedCode, 'utf8');
+                  console.log(`已保存预处理后的代码到: ${fallbackFile}`);
+              } catch (fallbackError) {
+                  console.error('保存预处理代码失败:', fallbackError.message);
+              }
+              
+              process.exit(1);
           }
           EOF
           node obfuscate.js
