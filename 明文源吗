@@ -1158,7 +1158,6 @@
     }
     // 生成 Clash 配置
     async function generateClashConfig(links, request, user) {
-<<<<<<< 明文源吗
         // 如果 ECH 未开启，使用订阅转换服务
         if (!enableECH) {
             // 返回一个重定向 URL，让前端使用订阅转换服务
@@ -1297,7 +1296,6 @@
                             dnsEndIndex = insertIndex + 1 + dnsEndMatch.index;
                         } else {
                             dnsEndIndex = template.length;
-=======
         // 先通过订阅转换服务获取 Clash 配置
         const subscriptionUrl = new URL(request.url);
         subscriptionUrl.pathname = subscriptionUrl.pathname.replace(/\/sub$/, '') + '/sub';
@@ -1335,7 +1333,6 @@
                                 const needsComma = !beforeBrace.endsWith(',') && !beforeBrace.endsWith('{');
                                 return line.substring(0, lastBraceIndex) + (needsComma ? ', ' : ' ') + 'ech-opts: {enable: true}' + line.substring(lastBraceIndex);
                             }
->>>>>>> upstream_明文源吗
                         }
                     }
                     return line;
@@ -1345,7 +1342,6 @@
                 // 只处理单行格式，多行格式由订阅转换服务处理，不需要额外修改
                 // 如果订阅转换服务返回多行格式，通常已经是正确的格式
             }
-<<<<<<< 明文源吗
             return template;
         } catch (error) {
             // 如果本地生成失败，fallback 到订阅转换服务
@@ -1361,8 +1357,7 @@
                 }
             }
             throw error;
-=======
-            
+
             // 替换 DNS nameserver 为阿里的加密 DNS
             clashConfig = clashConfig.replace(/^(\s*nameserver:\s*\n)((?:\s*-\s*[^\n]+\n)*)/m, (match, header, items) => {
                 // 替换所有 nameserver 项为阿里的加密 DNS
@@ -1373,7 +1368,6 @@
         } catch (e) {
             // 如果订阅转换失败，返回错误
             throw new Error('无法获取 Clash 配置: ' + e.message);
->>>>>>> upstream_明文源吗
         }
     }
     // 全局变量存储ECH调试信息
@@ -3785,9 +3779,6 @@
                 checkSystemStatus();
                 checkKVStatus();
                 checkECHStatus();
-<<<<<<< 明文源吗
-=======
-                
                 // ECH 开启时自动联动开启仅TLS
                 const echCheckbox = document.getElementById('ech');
                 const portControl = document.getElementById('portControl');
