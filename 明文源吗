@@ -1228,7 +1228,7 @@
                 const path = params.get('path') || '/?ed=2560';
                 const host = params.get('host') || server;
                 const servername = params.get('sni') || host;
-                const alpn = params.get('alpn') || 'h3,h2,http/1.1';
+                const alpn = params.get('alpn') || 'h3';
                 const fingerprint = params.get('fp') || params.get('client-fingerprint') || 'firefox';
                 const ech = params.get('ech');
                 
@@ -1280,7 +1280,7 @@
                 const path = params.get('path') || '/?ed=2560';
                 const host = params.get('host') || server;
                 const sni = params.get('sni') || host;
-                const alpn = params.get('alpn') || 'h3,h2,http/1.1';
+                const alpn = params.get('alpn') || 'h3';
                 const ech = params.get('ech');
                 
                 const node = {
@@ -1770,7 +1770,7 @@
                     
                     // 如果启用了ECH，添加ech参数（ECH需要伪装成firefox浏览器）
                     if (enableECH) {
-                        wsParams.set('alpn', 'h3,h2');
+                        wsParams.set('alpn', 'h3');
                         wsParams.set('ech', `cloudflare-ech.com+https://dns.alidns.com/dns-query`);
                     }
                     
@@ -1849,7 +1849,7 @@
                     
                     // 如果启用了ECH，添加ech参数（ECH需要伪装成firefox浏览器）
                     if (enableECH) {
-                        wsParams.set('alpn', 'h3,h2');
+                        wsParams.set('alpn', 'h3');
                         wsParams.set('ech', `cloudflare-ech.com+https://dns.alidns.com/dns-query`);
                     }
                     
