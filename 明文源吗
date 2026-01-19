@@ -1158,6 +1158,7 @@
     }
     // 生成 Clash 配置
     async function generateClashConfig(links, request, user) {
+<<<<<<< 明文源吗
         // 如果 ECH 未开启，使用订阅转换服务
         if (!enableECH) {
             // 返回一个重定向 URL，让前端使用订阅转换服务
@@ -1308,6 +1309,20 @@
             if (!response.ok) {
                 throw new Error('订阅转换服务失败');
             }
+=======
+        // 先通过订阅转换服务获取 Clash 配置
+        const subscriptionUrl = new URL(request.url);
+        subscriptionUrl.pathname = subscriptionUrl.pathname.replace(/\/sub$/, '') + '/sub';
+        subscriptionUrl.searchParams.set('target', 'base64');
+        const encodedUrl = encodeURIComponent(subscriptionUrl.toString());
+        const converterUrl = `${scu}?target=clash&url=${encodedUrl}&insert=false&emoji=true&list=false&xudp=false&udp=false&tfo=false&expand=true&scv=false&fdn=false&new_name=true`;
+        
+        try {
+            const response = await fetch(converterUrl);
+            if (!response.ok) {
+                throw new Error('订阅转换服务失败');
+            }
+>>>>>>> upstream_明文源吗
             
             let clashConfig = await response.text();
             
@@ -1342,6 +1357,7 @@
                 // 只处理单行格式，多行格式由订阅转换服务处理，不需要额外修改
                 // 如果订阅转换服务返回多行格式，通常已经是正确的格式
             }
+<<<<<<< 明文源吗
             return template;
         } catch (error) {
             // 如果本地生成失败，fallback 到订阅转换服务
@@ -1358,6 +1374,9 @@
             }
             throw error;
 
+=======
+            
+>>>>>>> upstream_明文源吗
             // 替换 DNS nameserver 为阿里的加密 DNS
             clashConfig = clashConfig.replace(/^(\s*nameserver:\s*\n)((?:\s*-\s*[^\n]+\n)*)/m, (match, header, items) => {
                 // 替换所有 nameserver 项为阿里的加密 DNS
@@ -3779,6 +3798,26 @@
                 checkSystemStatus();
                 checkKVStatus();
                 checkECHStatus();
+                // ECH 开启时自动联动开启仅TLS
+                const echCheckbox = document.getElementById('ech');
+                const portControl = document.getElementById('portControl');
+                if (echCheckbox && portControl) {
+                    echCheckbox.addEventListener('change', function() {
+                        if (this.checked) {
+                            // ECH 开启时，自动设置仅TLS为 yes
+                            portControl.value = 'yes';
+                        }
+                    });
+                    
+                    // 页面加载时，如果 ECH 已勾选，也自动设置仅TLS
+                    if (echCheckbox.checked) {
+                        portControl.value = 'yes';
+                    }
+                }
+                
+<<<<<<< 明文源吗
+>>>>>>> upstream_明文源吗
+=======
                 // ECH 开启时自动联动开启仅TLS
                 const echCheckbox = document.getElementById('ech');
                 const portControl = document.getElementById('portControl');
