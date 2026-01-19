@@ -445,6 +445,11 @@
                 // ECH需要TLS才能工作，所以必须禁用非TLS节点
                 if (enableECH) {
                     disableNonTLS = true;
+                    // 检查 KV 中是否有 dkby: yes，没有就直接写入
+                    const currentDkby = getConfigValue('dkby', '');
+                    if (currentDkby !== 'yes') {
+                        await setConfigValue('dkby', 'yes');
+                    }
                 }
                 
                 if (!ev && !et && !ex) {
@@ -1315,181 +1320,63 @@
 
     // 生成 Clash 配置
     async function generateClashConfig(links, request, user) {
-        // 如果 ECH 未开启，使用订阅转换服务
-        if (!enableECH) {
-            // 返回一个重定向 URL，让前端使用订阅转换服务
-            // 或者直接调用订阅转换服务
-            const subscriptionUrl = new URL(request.url);
-            subscriptionUrl.pathname = subscriptionUrl.pathname.replace(/\/sub$/, '') + '/sub';
-            subscriptionUrl.searchParams.set('target', 'base64');
-            const encodedUrl = encodeURIComponent(subscriptionUrl.toString());
-            const converterUrl = `${scu}?target=clash&url=${encodedUrl}&insert=false&emoji=true&list=false&xudp=false&udp=false&tfo=false&expand=true&scv=false&fdn=false&new_name=true`;
-            
-            try {
-                const response = await fetch(converterUrl);
-                if (response.ok) {
-                    return await response.text();
-                }
-            } catch (e) {
-                // 如果订阅转换失败，fallback 到本地生成
-            }
-        }
-        
-        // ECH 开启时，使用本地模板生成
-        const templateUrl = 'https://raw.githubusercontent.com/byJoey/test/refs/heads/main/%E6%A8%A1%E6%9D%BF.yaml';
+        // 先通过订阅转换服务获取 Clash 配置
+        const subscriptionUrl = new URL(request.url);
+        subscriptionUrl.pathname = subscriptionUrl.pathname.replace(/\/sub$/, '') + '/sub';
+        subscriptionUrl.searchParams.set('target', 'base64');
+        const encodedUrl = encodeURIComponent(subscriptionUrl.toString());
+        const converterUrl = `${scu}?target=clash&url=${encodedUrl}&insert=false&emoji=true&list=false&xudp=false&udp=false&tfo=false&expand=true&scv=false&fdn=false&new_name=true`;
         
         try {
-            // 获取模板
-            const templateResponse = await fetch(templateUrl);
-            if (!templateResponse.ok) {
-                throw new Error('无法获取模板文件');
-            }
-            let template = await templateResponse.text();
-            
-            // 解析链接生成节点配置
-            const nodes = [];
-            for (const link of links) {
-                const node = parseLinkToClashNode(link);
-                if (node) {
-                    nodes.push(node);
-                }
+            const response = await fetch(converterUrl);
+            if (!response.ok) {
+                throw new Error('订阅转换服务失败');
             }
             
-            if (nodes.length === 0) {
-                throw new Error('没有有效的节点');
-            }
+            let clashConfig = await response.text();
             
-            // 确保节点名称唯一，处理重复名称
-            const usedNames = new Set();
-            nodes.forEach((node, index) => {
-                let uniqueName = node.name;
-                // 如果名称已使用，添加服务器地址和端口来区分
-                if (usedNames.has(uniqueName)) {
-                    uniqueName = `${node.name}-${node.server}:${node.port}`;
-                    // 如果添加了服务器和端口后还是重复，添加索引
-                    let counter = 1;
-                    while (usedNames.has(uniqueName)) {
-                        uniqueName = `${node.name}-${node.server}:${node.port}-${counter}`;
-                        counter++;
+            // 如果 ECH 开启，为所有节点添加 ECH 参数
+            if (enableECH) {
+                // 处理单行格式的节点：  - {name: ..., server: ..., ...}
+                // 需要正确处理嵌套的花括号（如 ws-opts: {path: "...", headers: {Host: ...}}）
+                clashConfig = clashConfig.split('\n').map(line => {
+                    // 检查是否是节点行（以 "  - {" 开头，且包含 name: 和 server:）
+                    if (/^\s*-\s*\{/.test(line) && line.includes('name:') && line.includes('server:')) {
+                        // 检查是否已经有 ech-opts
+                        if (line.includes('ech-opts')) {
+                            return line; // 已有 ech-opts，不修改
+                        }
+                        // 找到最后一个 } 的位置（从右往左查找，处理嵌套花括号）
+                        const lastBraceIndex = line.lastIndexOf('}');
+                        if (lastBraceIndex > 0) {
+                            // 检查最后一个 } 之前是否有内容，确保格式正确
+                            const beforeBrace = line.substring(0, lastBraceIndex).trim();
+                            if (beforeBrace.length > 0) {
+                                // 在最后一个 } 之前添加 , ech-opts: {enable: true}
+                                // 确保在逗号前有空格
+                                const needsComma = !beforeBrace.endsWith(',') && !beforeBrace.endsWith('{');
+                                return line.substring(0, lastBraceIndex) + (needsComma ? ', ' : ' ') + 'ech-opts: {enable: true}' + line.substring(lastBraceIndex);
+                            }
+                        }
                     }
-                }
-                usedNames.add(uniqueName);
-                node.uniqueName = uniqueName;
+                    return line;
+                }).join('\n');
+                
+                // 处理多行格式的节点（如果存在）
+                // 只处理单行格式，多行格式由订阅转换服务处理，不需要额外修改
+                // 如果订阅转换服务返回多行格式，通常已经是正确的格式
+            }
+            
+            // 替换 DNS nameserver 为阿里的加密 DNS
+            clashConfig = clashConfig.replace(/^(\s*nameserver:\s*\n)((?:\s*-\s*[^\n]+\n)*)/m, (match, header, items) => {
+                // 替换所有 nameserver 项为阿里的加密 DNS
+                return header + '    - https://dns.alidns.com/dns-query\n';
             });
             
-            // 将节点转换为 YAML 格式（单行格式，匹配模板）
-            const nodesYaml = nodes.map(node => {
-                const props = [];
-                
-                // 基本属性，使用唯一名称（匹配模板格式，不加引号）
-                props.push(`name: ${node.uniqueName}`);
-                props.push(`server: ${node.server}`);
-                props.push(`port: ${node.port}`);
-                props.push(`type: ${node.type}`);
-                
-                if (node.type === 'vless') {
-                    props.push(`uuid: ${node.uuid}`);
-                    if (node.tls) {
-                        props.push(`tls: true`);
-                        // alpn 格式：URL编码的逗号分隔值，如 h3%2Ch2%2Chttp%2F1.1
-                        const alpnStr = node.alpn.map(a => encodeURIComponent(a)).join('%2C');
-                        props.push(`alpn: [${alpnStr}]`);
-                        props.push(`tfo: false`);
-                        props.push(`skip-cert-verify: false`);
-                        props.push(`servername: ${node.servername}`);
-                        props.push(`client-fingerprint: ${node['client-fingerprint']}`);
-                    }
-                    if (node.network === 'ws') {
-                        props.push(`network: ws`);
-                        const path = node['ws-opts'].path;
-                        const host = node['ws-opts'].headers.Host;
-                        // ws-opts 格式：{path: "...", headers: {Host: "..."}}
-                        props.push(`ws-opts: {path: "${path}", headers: {Host: ${host}}}`);
-                    }
-                    if (node['ech-opts']) {
-                        props.push(`ech-opts: {enable: true}`);
-                    }
-                } else if (node.type === 'trojan') {
-                    props.push(`password: ${node.password}`);
-                    props.push(`sni: ${node.sni}`);
-                    // alpn 格式：URL编码的逗号分隔值
-                    const alpnStr = node.alpn.map(a => encodeURIComponent(a)).join('%2C');
-                    props.push(`alpn: [${alpnStr}]`);
-                    props.push(`skip-cert-verify: false`);
-                    if (node.network === 'ws') {
-                        props.push(`network: ws`);
-                        const path = node['ws-opts'].path;
-                        const host = node['ws-opts'].headers.Host;
-                        props.push(`ws-opts: {path: "${path}", headers: {Host: ${host}}}`);
-                    }
-                    if (node['ech-opts']) {
-                        props.push(`ech-opts: {enable: true}`);
-                    }
-                }
-                
-                // 生成单行格式：  - {prop1: value1, prop2: value2, ...}
-                return `  - {${props.join(', ')}}`;
-            }).join('\n');
-            
-            // 替换模板中的 proxies 部分
-            // 查找 proxies: 后面的内容，直到下一个顶级键
-            const proxiesRegex = /^proxies:\s*$/m;
-            const match = template.match(proxiesRegex);
-            
-            if (match) {
-                const startIndex = match.index + match[0].length;
-                // 查找下一个顶级键（以字母开头，后面跟冒号，前面可能有空格）
-                const nextKeyRegex = /^\s*[a-zA-Z][a-zA-Z0-9_-]*:\s*$/m;
-                const nextMatch = template.substring(startIndex).match(nextKeyRegex);
-                
-                let endIndex;
-                if (nextMatch) {
-                    endIndex = startIndex + nextMatch.index;
-                } else {
-                    endIndex = template.length;
-                }
-                
-                // 替换 proxies 部分
-                template = template.substring(0, startIndex) + '\n' + nodesYaml + '\n' + template.substring(endIndex);
-            } else {
-                // 如果没有找到 proxies，在适当位置插入
-                const insertRegex = /^proxies:\s*$/m;
-                if (!template.match(insertRegex)) {
-                    // 在 dns 部分之后插入
-                    const dnsRegex = /^dns:\s*$/m;
-                    const dnsMatch = template.match(dnsRegex);
-                    if (dnsMatch) {
-                        const insertIndex = template.indexOf('\n', dnsMatch.index + dnsMatch[0].length);
-                        const dnsEndRegex = /^[a-zA-Z]/m;
-                        const dnsEndMatch = template.substring(insertIndex + 1).match(dnsEndRegex);
-                        let dnsEndIndex;
-                        if (dnsEndMatch) {
-                            dnsEndIndex = insertIndex + 1 + dnsEndMatch.index;
-                        } else {
-                            dnsEndIndex = template.length;
-                        }
-                        template = template.substring(0, dnsEndIndex) + '\nproxies:\n' + nodesYaml + '\n' + template.substring(dnsEndIndex);
-                    }
-                }
-            }
-            
-            return template;
-        } catch (error) {
-            // 如果本地生成失败，fallback 到订阅转换服务
-            if (request) {
-                const subscriptionUrl = new URL(request.url);
-                subscriptionUrl.pathname = subscriptionUrl.pathname.replace(/\/sub$/, '') + '/sub';
-                subscriptionUrl.searchParams.set('target', 'base64');
-                const encodedUrl = encodeURIComponent(subscriptionUrl.toString());
-                const converterUrl = `${scu}?target=clash&url=${encodedUrl}&insert=false&emoji=true&list=false&xudp=false&udp=false&tfo=false&expand=true&scv=false&fdn=false&new_name=true`;
-                
-                const response = await fetch(converterUrl);
-                if (response.ok) {
-                    return await response.text();
-                }
-            }
-            
-            throw error;
+            return clashConfig;
+        } catch (e) {
+            // 如果订阅转换失败，返回错误
+            throw new Error('无法获取 Clash 配置: ' + e.message);
         }
     }
 
@@ -4139,6 +4026,23 @@
                 checkSystemStatus();
                 checkKVStatus();
                 checkECHStatus();
+                
+                // ECH 开启时自动联动开启仅TLS
+                const echCheckbox = document.getElementById('ech');
+                const portControl = document.getElementById('portControl');
+                if (echCheckbox && portControl) {
+                    echCheckbox.addEventListener('change', function() {
+                        if (this.checked) {
+                            // ECH 开启时，自动设置仅TLS为 yes
+                            portControl.value = 'yes';
+                        }
+                    });
+                    
+                    // 页面加载时，如果 ECH 已勾选，也自动设置仅TLS
+                    if (echCheckbox.checked) {
+                        portControl.value = 'yes';
+                    }
+                }
                 
                 // 监听customIP输入框变化，实时更新wk地区选择状态
                 const customIPInput = document.getElementById('customIP');
