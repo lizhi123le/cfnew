@@ -33,9 +33,9 @@ jobs:
           
           echo "=== 开始合并上游更新 ==="
           
-          # 下载上游文件（使用URL编码处理中文字符）
+          # 下载上游文件
           echo "正在下载上游仓库 $UPSTREAM_REPO 的文件..."
-          if ! curl -fsSL -o "upstream_${SOURCE_FILE}" "https://raw.githubusercontent.com/${UPSTREAM_REPO}/main/%E6%98%8E%E6%96%87%E6%BA%90%E5%90%97"; then
+          if ! curl -fsSL -o "upstream_${SOURCE_FILE}" "https://raw.githubusercontent.com/${UPSTREAM_REPO}/main/${SOURCE_FILE}"; then
             echo "错误：无法下载上游源文件"
             exit 1
           fi
@@ -127,7 +127,6 @@ jobs:
           echo "first_run=$FIRST_RUN" >> $GITHUB_OUTPUT
           echo "upstream_hash=$UPSTREAM_HASH" >> $GITHUB_OUTPUT
           echo "=== 合并上游更新完成 ==="
-
       # ==================== 读取并同步版本号 ====================
       - name: 读取并同步版本号
         id: read-version
@@ -214,7 +213,6 @@ jobs:
           
           # 保留临时文件用于调试（如果需要）
           # rm -f "$UPSTREAM_README"
-
       # ==================== 调试步骤 ====================
       - name: 调试信息输出
         if: failure() || steps.improved-merge-upstream.outputs.first_run == 'true' || steps.improved-merge-upstream.outputs.merge_status == 'conflict'
@@ -256,7 +254,6 @@ jobs:
             cat conflict_report.txt
             echo ""
           fi
-
       # ==================== 设置Node.js ====================
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -268,196 +265,25 @@ jobs:
         run: npm install javascript-obfuscator
 
       # ==================== 混淆代码 ====================
-      - name: Obfuscate from local source file
+      - name: Obfuscate from merged source file
         run: |
           cat > obfuscate.js << 'EOF'
           const JavaScriptObfuscator = require('javascript-obfuscator');
           const fs = require('fs');
           const path = require('path');
-
+          
           const sourceFileName = '明文源吗';
           const outputFileName = '少年你相信光吗';
           const sourceFilePath = path.join(process.cwd(), sourceFileName);
-
-          console.log('=== 开始混淆处理 ===');
-
           if (!fs.existsSync(sourceFilePath)) {
-              console.error('错误：在路径 \'' + sourceFilePath + '\' 未找到源文件。');
-              process.exit(1);
+            console.error('错误：在路径 \'' + sourceFilePath + '\' 未找到源文件。请确保您的仓库根目录有名为 \'明文源吗\' 的文件。');
+            process.exit(1);
           }
-
           const originalCode = fs.readFileSync(sourceFilePath, 'utf8');
-
           if (!originalCode || originalCode.trim().length === 0) {
-              console.error('错误：源文件 ' + sourceFileName + ' 为空。');
-              process.exit(1);
+            console.error('错误：源文件 ' + sourceFileName + ' 为空。');
+            process.exit(1);
           }
-
-          console.log('文件读取成功，长度:', originalCode.length);
-
-          // 首先处理Git合并冲突标记
-          let processedCode = originalCode;
-          console.log('=== 检查并清理Git合并冲突标记 ===');
-
-          const lines = originalCode.split('\n');
-          let conflictSections = [];
-          let currentConflict = null;
-          let inConflict = false;
-
-          // 识别所有冲突区域
-          for (let i = 0; i < lines.length; i++) {
-              const line = lines[i].trim();
-              
-              if (line.startsWith('<<<<<<<')) {
-                  currentConflict = {
-                      start: i,
-                      startContent: line,
-                      localLines: [],
-                      hasSeparator: false
-                  };
-                  inConflict = true;
-                  console.log(`发现冲突开始于第 ${i + 1} 行: ${line}`);
-                  continue;
-              }
-              
-              if (line.startsWith('=======')) {
-                  if (currentConflict) {
-                      currentConflict.separator = i;
-                      currentConflict.separatorContent = line;
-                      currentConflict.upstreamLines = [];
-                      currentConflict.hasSeparator = true;
-                      console.log(`冲突分隔符于第 ${i + 1} 行`);
-                  }
-                  continue;
-              }
-              
-              if (line.startsWith('>>>>>>>')) {
-                  if (currentConflict) {
-                      currentConflict.end = i;
-                      currentConflict.endContent = line;
-                      conflictSections.push(currentConflict);
-                      const localCount = currentConflict.localLines ? currentConflict.localLines.length : 0;
-                      const upstreamCount = currentConflict.upstreamLines ? currentConflict.upstreamLines.length : 0;
-                      console.log(`冲突结束于第 ${i + 1} 行`);
-                      console.log(`冲突包含 ${localCount} 行本地代码，${upstreamCount} 行上游代码`);
-                      if (!currentConflict.hasSeparator) {
-                          console.log('警告：此冲突没有分隔符，可能是不完整的冲突标记');
-                      }
-                      currentConflict = null;
-                      inConflict = false;
-                  }
-                  continue;
-              }
-              
-              if (inConflict) {
-                  if (currentConflict) {
-                      if (currentConflict.hasSeparator) {
-                          currentConflict.upstreamLines.push(lines[i]);
-                      } else {
-                          currentConflict.localLines.push(lines[i]);
-                      }
-                  }
-              }
-          }
-
-          if (conflictSections.length > 0) {
-              console.log(`发现 ${conflictSections.length} 个冲突区域，选择上游版本进行合并...`);
-              
-              // 重建代码，选择上游版本（如果没有分隔符则保留本地版本）
-              let cleanedLines = [];
-              
-              for (let i = 0; i < lines.length; i++) {
-                  let inConflictSection = false;
-                  let shouldKeepLine = false;
-                  
-                  for (let j = 0; j < conflictSections.length; j++) {
-                      const conflict = conflictSections[j];
-                      if (i >= conflict.start && i <= conflict.end) {
-                          inConflictSection = true;
-                          
-                          if (conflict.hasSeparator) {
-                              // 有分隔符，选择上游版本
-                              if (i > conflict.separator && i < conflict.end) {
-                                  shouldKeepLine = true;
-                              }
-                          } else {
-                              // 没有分隔符，保留本地版本
-                              if (i > conflict.start && i < conflict.end) {
-                                  shouldKeepLine = true;
-                              }
-                          }
-                          break;
-                      }
-                  }
-                  
-                  if (!inConflictSection) {
-                      cleanedLines.push(lines[i]);
-                  } else if (shouldKeepLine) {
-                      cleanedLines.push(lines[i]);
-                  }
-              }
-              
-              processedCode = cleanedLines.join('\n');
-              console.log('冲突标记清理完成');
-              
-              // 保存清理后的代码用于调试
-              try {
-                  const cleanedFile = path.join(process.cwd(), 'conflict_cleaned_' + sourceFileName);
-                  fs.writeFileSync(cleanedFile, processedCode, 'utf8');
-                  console.log(`已保存冲突清理后的代码到: ${cleanedFile}`);
-              } catch (error) {
-                  console.error('保存冲突清理代码失败:', error.message);
-              }
-          } else {
-              console.log('未发现Git冲突标记');
-          }
-
-          // 预处理：将 ES6 模块语法转换为 CommonJS
-          console.log('\n=== 开始预处理 ES6 模块语法 ===');
-
-          let conversionCount = 0;
-
-          // 转换命名导入: import { connect } from 'cloudflare:sockets';
-          processedCode = processedCode.replace(/import\s*\{([^}]+)\}\s*from\s*['"]([^'"]+)['"];?/g, (match, imports, module) => {
-              conversionCount++;
-              const cleanImports = imports.split(',').map(imp => imp.trim()).join(', ');
-              console.log(`转换命名导入: ${match}`);
-              console.log(`-> const { ${cleanImports} } = require("${module}");`);
-              return `const { ${cleanImports} } = require("${module}");`;
-          });
-
-          // 转换默认导出: export default
-          processedCode = processedCode.replace(/export\s+default\s+/g, () => {
-              conversionCount++;
-              console.log('转换默认导出: export default -> module.exports = ');
-              return 'module.exports = ';
-          });
-
-          console.log(`预处理完成，共进行了 ${conversionCount} 次转换`);
-
-          // 验证预处理后的代码语法
-          console.log('\n=== 验证语法 ===');
-          try {
-              const testFunction = new Function(processedCode);
-              console.log('✓ 语法验证通过');
-          } catch (error) {
-              console.error('✗ 语法验证失败:', error.message);
-              console.error('错误位置:', error.stack);
-              
-              // 保存调试文件
-              try {
-                  const debugFile = path.join(process.cwd(), 'syntax_debug_' + sourceFileName);
-                  fs.writeFileSync(debugFile, processedCode, 'utf8');
-                  console.log(`已保存调试代码到: ${debugFile}`);
-              } catch (debugError) {
-                  console.error('保存调试代码失败:', debugError.message);
-              }
-              
-              process.exit(1);
-          }
-
-          console.log('\n=== 开始混淆处理 ===');
-
           const obfuscationOptions = {
               compact: true,
               controlFlowFlattening: false,
@@ -491,31 +317,12 @@ jobs:
               disableConsoleOutput: true,
               domainLock: []
           };
-
-          try {
-              const obfuscatedCode = JavaScriptObfuscator.obfuscate(processedCode, obfuscationOptions).getObfuscatedCode();
-              
-              fs.writeFileSync(path.join(process.cwd(), outputFileName), obfuscatedCode, 'utf8');
-              console.log('✓ 成功混淆并保存到:', outputFileName);
-              console.log('混淆后文件长度:', obfuscatedCode.length);
-          } catch (error) {
-              console.error('✗ 混淆过程中发生错误:', error.message);
-              console.error('错误详情:', error.stack);
-              
-              // 保存预处理后的代码
-              try {
-                  const fallbackFile = path.join(process.cwd(), 'preprocessed_' + sourceFileName);
-                  fs.writeFileSync(fallbackFile, processedCode, 'utf8');
-                  console.log(`已保存预处理后的代码到: ${fallbackFile}`);
-              } catch (fallbackError) {
-                  console.error('保存预处理代码失败:', fallbackError.message);
-              }
-              
-              process.exit(1);
-          }
+          const obfuscatedCode = JavaScriptObfuscator.obfuscate(originalCode, obfuscationOptions).getObfuscatedCode();
+          
+          fs.writeFileSync(path.join(process.cwd(), outputFileName), obfuscatedCode, 'utf8');
+          console.log('成功将 \'' + sourceFileName + '\' 混淆并保存至 \'' + outputFileName + '\'。');
           EOF
           node obfuscate.js
-
       # ==================== 检测文件变更 ====================
       - name: 检测文件变更
         id: check-changes
@@ -571,7 +378,6 @@ jobs:
           
           echo "has_changes=$HAS_CHANGES" >> $GITHUB_OUTPUT
           echo "=== 文件变更检测完成 ==="
-
       # ==================== 准备发布文件 ====================
       - name: 准备发布文件
         if: steps.check-changes.outputs.has_changes == 'true' || github.event_name == 'workflow_dispatch'
@@ -608,7 +414,6 @@ jobs:
           ls -la _worker.js Pages.zip mingwenyuanma.js
           
           echo "=== 发布文件准备完成 ==="
-
       # ==================== 提交和推送 ====================
       - name: Commit and push changes
         if: steps.check-changes.outputs.has_changes == 'true' || github.event_name == 'workflow_dispatch'
@@ -649,7 +454,6 @@ jobs:
           fi
           
           echo "=== 提交和推送完成 ==="
-
       # ==================== 创建GitHub Release ====================
       - name: Create GitHub Release
         if: steps.check-changes.outputs.has_changes == 'true' || github.event_name == 'workflow_dispatch'
@@ -682,7 +486,6 @@ jobs:
             curl -X DELETE -H "Authorization: Bearer $GITHUB_TOKEN" \
               "https://api.github.com/repos/${{ github.repository }}/git/refs/tags/$VERSION"
           fi
-
           # 创建Release描述
           RELEASE_BODY=$(cat << EOF
           ## 部署信息
