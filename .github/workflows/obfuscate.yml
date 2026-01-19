@@ -268,161 +268,28 @@ jobs:
         run: npm install javascript-obfuscator
 
       # ==================== 混淆代码 ====================
-      - name: Obfuscate from merged source file
+      - name: Obfuscate from local source file
         run: |
           cat > obfuscate.js << 'EOF'
           const JavaScriptObfuscator = require('javascript-obfuscator');
           const fs = require('fs');
           const path = require('path');
-
+          
           const sourceFileName = '明文源吗';
           const outputFileName = '少年你相信光吗';
           const sourceFilePath = path.join(process.cwd(), sourceFileName);
 
-          console.log('开始混淆处理...');
-
           if (!fs.existsSync(sourceFilePath)) {
-              console.error('错误：在路径 \'' + sourceFilePath + '\' 未找到源文件。');
-              process.exit(1);
+            console.error('错误：在路径 \'' + sourceFilePath + '\' 未找到源文件。请确保您的仓库根目录有名为 \'明文源吗\' 的文件。');
+            process.exit(1);
           }
 
           const originalCode = fs.readFileSync(sourceFilePath, 'utf8');
 
           if (!originalCode || originalCode.trim().length === 0) {
-              console.error('错误：源文件 ' + sourceFileName + ' 为空。');
-              process.exit(1);
+            console.error('错误：源文件 ' + sourceFileName + ' 为空。');
+            process.exit(1);
           }
-
-          console.log('文件读取成功，长度:', originalCode.length);
-
-          // 检查并处理 Git 合并冲突标记
-          let processedCode = originalCode;
-          console.log('检查 Git 合并冲突标记...');
-
-          const conflictMarkers = ['<<<<<<<', '=======', '>>>>>>>'];
-          let hasConflicts = false;
-          let conflictLines = [];
-
-          const lines = processedCode.split('\n');
-          lines.forEach((line, index) => {
-              if (conflictMarkers.some(marker => line.trim().startsWith(marker))) {
-                  hasConflicts = true;
-                  conflictLines.push(index + 1);
-                  console.log(`发现冲突标记在第 ${index + 1} 行: ${line.trim()}`);
-              }
-          });
-
-          if (hasConflicts) {
-              console.log(`发现 ${conflictLines.length} 个冲突标记，正在处理...`);
-              
-              // 移除冲突标记之间的内容，选择上游版本
-              let cleanedLines = [];
-              let inConflict = false;
-              let conflictStart = -1;
-              
-              for (let i = 0; i < lines.length; i++) {
-                  const line = lines[i];
-                  const trimmedLine = line.trim();
-                  
-                  if (trimmedLine.startsWith('<<<<<<<')) {
-                      inConflict = true;
-                      conflictStart = i + 1;
-                      console.log(`冲突开始于第 ${conflictStart} 行`);
-                      continue;
-                  }
-                  
-                  if (trimmedLine.startsWith('>>>>>>>')) {
-                      inConflict = false;
-                      console.log(`冲突结束于第 ${i + 1} 行`);
-                      continue;
-                  }
-                  
-                  if (trimmedLine.startsWith('=======')) {
-                      // 跳过分隔符，接下来的内容是上游版本
-                      continue;
-                  }
-                  
-                  if (!inConflict) {
-                      cleanedLines.push(line);
-                  }
-              }
-              
-              processedCode = cleanedLines.join('\n');
-              console.log('冲突标记已清理，继续处理...');
-              
-              // 保存清理后的代码用于调试
-              try {
-                  const cleanedFile = path.join(process.cwd(), 'cleaned_' + sourceFileName);
-                  fs.writeFileSync(cleanedFile, processedCode, 'utf8');
-                  console.log(`已保存清理后的代码到: ${cleanedFile}`);
-              } catch (error) {
-                  console.error('保存清理代码失败:', error.message);
-              }
-          } else {
-              console.log('未发现冲突标记，继续处理...');
-          }
-
-          // 预处理：将 ES6 模块语法转换为 CommonJS
-          console.log('开始预处理 ES6 模块语法...');
-
-          // 记录转换次数
-          let conversionCount = 0;
-
-          // 转换命名导入: import { connect } from 'cloudflare:sockets';
-          const namedImportRegex = /import\s*\{([^}]+)\}\s*from\s*['"]([^'"]+)['"];?/g;
-          processedCode = processedCode.replace(namedImportRegex, (match, imports, module) => {
-              conversionCount++;
-              console.log(`转换命名导入: ${match} -> const { ${imports.trim()} } = require("${module}");`);
-              return `const { ${imports.trim()} } = require("${module}");`;
-          });
-
-          // 转换默认导入: import connect from 'cloudflare:sockets';
-          const defaultImportRegex = /import\s+(\w+)\s+from\s*['"]([^'"]+)['"];?/g;
-          processedCode = processedCode.replace(defaultImportRegex, (match, name, module) => {
-              conversionCount++;
-              console.log(`转换默认导入: ${match} -> const ${name} = require("${module}");`);
-              return `const ${name} = require("${module}");`;
-          });
-
-          // 转换默认导出: export default
-          const defaultExportRegex = /export\s+default\s+/g;
-          processedCode = processedCode.replace(defaultExportRegex, (match) => {
-              conversionCount++;
-              console.log(`转换默认导出: ${match} -> module.exports = `);
-              return 'module.exports = ';
-          });
-
-          // 转换命名导出: export { name1, name2 }
-          const namedExportRegex = /export\s*\{([^}]+)\}/g;
-          processedCode = processedCode.replace(namedExportRegex, (match, exports) => {
-              conversionCount++;
-              console.log(`转换命名导出: ${match} -> module.exports = { ${exports} }`);
-              return `module.exports = { ${exports} }`;
-          });
-
-          console.log(`预处理完成，共进行了 ${conversionCount} 次转换`);
-
-          // 验证预处理后的代码语法
-          try {
-              new Function(processedCode);
-              console.log('预处理后的代码语法验证通过');
-          } catch (error) {
-              console.error('预处理后的代码语法验证失败:', error.message);
-              console.error('错误位置:', error.stack);
-              
-              // 保存预处理后的代码用于调试
-              try {
-                  const debugFile = path.join(process.cwd(), 'debug_' + sourceFileName);
-                  fs.writeFileSync(debugFile, processedCode, 'utf8');
-                  console.log(`已保存预处理后的代码到: ${debugFile}`);
-              } catch (debugError) {
-                  console.error('保存调试代码失败:', debugError.message);
-              }
-              
-              process.exit(1);
-          }
-
-          console.log('开始混淆处理...');
 
           const obfuscationOptions = {
               compact: true,
@@ -458,27 +325,10 @@ jobs:
               domainLock: []
           };
 
-          try {
-              const obfuscatedCode = JavaScriptObfuscator.obfuscate(processedCode, obfuscationOptions).getObfuscatedCode();
-              
-              fs.writeFileSync(path.join(process.cwd(), outputFileName), obfuscatedCode, 'utf8');
-              console.log('成功将 \'' + sourceFileName + '\' 混淆并保存至 \'' + outputFileName + '\'。');
-              console.log('混淆后文件长度:', obfuscatedCode.length);
-          } catch (error) {
-              console.error('混淆过程中发生错误:', error.message);
-              console.error('错误详情:', error.stack);
-              
-              // 如果混淆失败，尝试保存预处理后的代码
-              try {
-                  const fallbackFile = path.join(process.cwd(), 'preprocessed_' + sourceFileName);
-                  fs.writeFileSync(fallbackFile, processedCode, 'utf8');
-                  console.log(`已保存预处理后的代码到: ${fallbackFile}`);
-              } catch (fallbackError) {
-                  console.error('保存预处理代码失败:', fallbackError.message);
-              }
-              
-              process.exit(1);
-          }
+          const obfuscatedCode = JavaScriptObfuscator.obfuscate(originalCode, obfuscationOptions).getObfuscatedCode();
+          
+          fs.writeFileSync(path.join(process.cwd(), outputFileName), obfuscatedCode, 'utf8');
+          console.log('成功将 \'' + sourceFileName + '\' 混淆并保存至 \'' + outputFileName + '\'。');
           EOF
           node obfuscate.js
 
