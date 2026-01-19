@@ -299,7 +299,6 @@ jobs:
           let processedCode = originalCode;
           console.log('=== 检查并清理Git合并冲突标记 ===');
 
-          const conflictMarkers = ['<<<<<<<', '=======', '>>>>>>>'];
           const lines = originalCode.split('\n');
           let conflictSections = [];
           let currentConflict = null;
@@ -313,7 +312,8 @@ jobs:
                   currentConflict = {
                       start: i,
                       startContent: line,
-                      localLines: []
+                      localLines: [],
+                      hasSeparator: false
                   };
                   inConflict = true;
                   console.log(`发现冲突开始于第 ${i + 1} 行: ${line}`);
@@ -325,6 +325,7 @@ jobs:
                       currentConflict.separator = i;
                       currentConflict.separatorContent = line;
                       currentConflict.upstreamLines = [];
+                      currentConflict.hasSeparator = true;
                       console.log(`冲突分隔符于第 ${i + 1} 行`);
                   }
                   continue;
@@ -335,8 +336,13 @@ jobs:
                       currentConflict.end = i;
                       currentConflict.endContent = line;
                       conflictSections.push(currentConflict);
+                      const localCount = currentConflict.localLines ? currentConflict.localLines.length : 0;
+                      const upstreamCount = currentConflict.upstreamLines ? currentConflict.upstreamLines.length : 0;
                       console.log(`冲突结束于第 ${i + 1} 行`);
-                      console.log(`冲突包含 ${currentConflict.localLines.length} 行本地代码，${currentConflict.upstreamLines.length} 行上游代码`);
+                      console.log(`冲突包含 ${localCount} 行本地代码，${upstreamCount} 行上游代码`);
+                      if (!currentConflict.hasSeparator) {
+                          console.log('警告：此冲突没有分隔符，可能是不完整的冲突标记');
+                      }
                       currentConflict = null;
                       inConflict = false;
                   }
@@ -344,10 +350,12 @@ jobs:
               }
               
               if (inConflict) {
-                  if (currentConflict && currentConflict.separator !== undefined) {
-                      currentConflict.upstreamLines.push(lines[i]);
-                  } else if (currentConflict) {
-                      currentConflict.localLines.push(lines[i]);
+                  if (currentConflict) {
+                      if (currentConflict.hasSeparator) {
+                          currentConflict.upstreamLines.push(lines[i]);
+                      } else {
+                          currentConflict.localLines.push(lines[i]);
+                      }
                   }
               }
           }
@@ -355,26 +363,36 @@ jobs:
           if (conflictSections.length > 0) {
               console.log(`发现 ${conflictSections.length} 个冲突区域，选择上游版本进行合并...`);
               
-              // 重建代码，选择上游版本
+              // 重建代码，选择上游版本（如果没有分隔符则保留本地版本）
               let cleanedLines = [];
-              let conflictIndex = 0;
               
               for (let i = 0; i < lines.length; i++) {
                   let inConflictSection = false;
+                  let shouldKeepLine = false;
                   
                   for (let j = 0; j < conflictSections.length; j++) {
                       const conflict = conflictSections[j];
                       if (i >= conflict.start && i <= conflict.end) {
                           inConflictSection = true;
-                          if (i > conflict.separator && i < conflict.end) {
-                              // 这是上游版本，保留
-                              cleanedLines.push(lines[i]);
+                          
+                          if (conflict.hasSeparator) {
+                              // 有分隔符，选择上游版本
+                              if (i > conflict.separator && i < conflict.end) {
+                                  shouldKeepLine = true;
+                              }
+                          } else {
+                              // 没有分隔符，保留本地版本
+                              if (i > conflict.start && i < conflict.end) {
+                                  shouldKeepLine = true;
+                              }
                           }
                           break;
                       }
                   }
                   
                   if (!inConflictSection) {
+                      cleanedLines.push(lines[i]);
+                  } else if (shouldKeepLine) {
                       cleanedLines.push(lines[i]);
                   }
               }
