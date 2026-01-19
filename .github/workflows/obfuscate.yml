@@ -294,24 +294,16 @@ jobs:
           const obfuscationOptions = {
               compact: true,
               controlFlowFlattening: false,
-              controlFlowFlatteningThreshold: 0,
               deadCodeInjection: false,
               stringArray: true,
               stringArrayEncoding: ['base64'],
               stringArrayThreshold: 1.0,
               stringArrayRotate: true,
               stringArrayShuffle: true,
-              stringArrayWrappersCount: 2,
-              stringArrayWrappersChainedCalls: false,
-              stringArrayWrappersParametersMaxCount: 3,
               renameGlobals: true,
               identifierNamesGenerator: 'mangled-shuffled',
-              identifierNamesCache: null,
-              identifiersPrefix: '',
               renameProperties: false,
-              renamePropertiesMode: 'safe',
-              ignoreImports: false,
-              target: 'browser',
+              target: 'browser',  // 改为 'browser' 以支持 ES6 模块
               numbersToExpressions: false,
               simplify: false,
               splitStrings: true,
@@ -322,7 +314,9 @@ jobs:
               debugProtection: false,
               debugProtectionInterval: 0,
               disableConsoleOutput: true,
-              domainLock: []
+              domainLock: [],
+              es6: true,
+              babel: false
           };
 
           const obfuscatedCode = JavaScriptObfuscator.obfuscate(originalCode, obfuscationOptions).getObfuscatedCode();
