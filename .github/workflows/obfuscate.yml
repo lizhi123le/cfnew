@@ -291,6 +291,25 @@ jobs:
             process.exit(1);
           }
 
+          // 预处理：将 ES6 模块语法转换为 CommonJS
+          let processedCode = originalCode;
+          console.log('开始预处理 ES6 模块语法...');
+
+          // 转换命名导入: import { connect } from 'cloudflare:sockets';
+          processedCode = processedCode.replace(/import\s*\{([^}]+)\}\s*from\s*['"]([^'"]+)['"];?/g, (match, imports, module) => {
+            const cleanImports = imports.split(',').map(imp => imp.trim()).join(', ');
+            console.log(`转换命名导入: ${match} -> const { ${cleanImports} } = require("${module}");`);
+            return `const { ${cleanImports} } = require("${module}");`;
+          });
+
+          // 转换默认导出: export default
+          processedCode = processedCode.replace(/export\s+default\s+/g, () => {
+            console.log('转换默认导出: export default -> module.exports = ');
+            return 'module.exports = ';
+          });
+
+          console.log('预处理完成，开始混淆...');
+
           const obfuscationOptions = {
               compact: true,
               controlFlowFlattening: false,
@@ -325,10 +344,27 @@ jobs:
               domainLock: []
           };
 
-          const obfuscatedCode = JavaScriptObfuscator.obfuscate(originalCode, obfuscationOptions).getObfuscatedCode();
-          
-          fs.writeFileSync(path.join(process.cwd(), outputFileName), obfuscatedCode, 'utf8');
-          console.log('成功将 \'' + sourceFileName + '\' 混淆并保存至 \'' + outputFileName + '\'。');
+          try {
+            const obfuscatedCode = JavaScriptObfuscator.obfuscate(processedCode, obfuscationOptions).getObfuscatedCode();
+            
+            fs.writeFileSync(path.join(process.cwd(), outputFileName), obfuscatedCode, 'utf8');
+            console.log('成功将 \'' + sourceFileName + '\' 混淆并保存至 \'' + outputFileName + '\'。');
+            console.log('混淆后文件长度:', obfuscatedCode.length);
+          } catch (error) {
+            console.error('混淆过程中发生错误:', error.message);
+            console.error('错误详情:', error.stack);
+            
+            // 如果混淆失败，保存预处理后的代码作为备选
+            try {
+              const fallbackFile = path.join(process.cwd(), 'preprocessed_' + sourceFileName);
+              fs.writeFileSync(fallbackFile, processedCode, 'utf8');
+              console.log(`已保存预处理后的代码到: ${fallbackFile}`);
+            } catch (fallbackError) {
+              console.error('保存预处理代码失败:', fallbackError.message);
+            }
+            
+            process.exit(1);
+          }
           EOF
           node obfuscate.js
 
