@@ -41,6 +41,7 @@ jobs:
           OLD_MD_HASH=$(cat "$MD_HASH_FILE" 2>/dev/null || echo "")
 
           HAS_UPDATE="false"
+          MERGE_STATUS="none"
 
           # ========== 处理 明文源吗（真正的三方合并） ==========
           if [ "$NEW_WORKER_HASH" != "$OLD_WORKER_HASH" ]; then
@@ -57,6 +58,7 @@ jobs:
               else
                 echo "发现现有工作文件，保留用户修改"
               fi
+              MERGE_STATUS="initialized"
             else
               echo "执行三方合并：working(local) vs base vs upstream"
               
@@ -80,10 +82,10 @@ jobs:
               echo "开始三方合并..."
               if git merge-file local_明文源吗 base_明文源吗 upstream_明文源吗; then
                 echo "三方合并成功"
-                MERGE_SUCCESS="true"
+                MERGE_STATUS="success"
               else
                 echo "三方合并存在冲突，尝试自动解决..."
-                MERGE_SUCCESS="false"
+                MERGE_STATUS="conflict"
                 
                 # 检查冲突标记
                 if grep -q "<<<<<<" local_明文源吗; then
@@ -105,7 +107,7 @@ jobs:
                   cp "明文源吗" "明文源吗.old"
                 else
                   echo "合并成功（无冲突标记）"
-                  MERGE_SUCCESS="true"
+                  MERGE_STATUS="success"
                 fi
               fi
 
@@ -137,6 +139,7 @@ jobs:
           fi
 
           echo "has_update=$HAS_UPDATE" >> $GITHUB_OUTPUT
+          echo "merge_status=$MERGE_STATUS" >> $GITHUB_OUTPUT
 
       # ==================== 读取README.md版本号 ====================
       - name: 读取README.md版本号
@@ -228,8 +231,39 @@ jobs:
             echo "✅ 压缩包创建成功"
           fi
 
-      - name: 提交并推送更改（仅推送必要文件）
+      - name: 检查文件变更
+        id: check-changes
         if: steps.check-update.outputs.has_update == 'true' || github.event_name == 'workflow_dispatch'
+        run: |
+          # 检查是否有需要提交的变更
+          CHANGES_EXIST="false"
+          
+          echo "=== 检查 Git 状态 ==="
+          git status --porcelain
+          
+          # 检查工作文件是否有变更
+          if git status --porcelain | grep -E "(明文源吗|少年你相信光吗|README.md)" >/dev/null; then
+            echo "检测到工作文件变更"
+            CHANGES_EXIST="true"
+          fi
+          
+          # 检查状态文件是否有变更
+          if git status --porcelain | grep -E "(明文源吗\.upstream|\.worker_hash|\.md_hash)" >/dev/null; then
+            echo "检测到状态文件变更"
+            CHANGES_EXIST="true"
+          fi
+          
+          # 检查是否有冲突文件
+          if [ -f "merge_conflict.md" ] || [ -f "明文源吗.old" ]; then
+            echo "检测到冲突文件"
+            CHANGES_EXIST="true"
+          fi
+          
+          echo "has_changes=$CHANGES_EXIST" >> $GITHUB_OUTPUT
+          echo "文件变更状态: $CHANGES_EXIST"
+
+      - name: 提交并推送更改（仅推送必要文件）
+        if: steps.check-changes.outputs.has_changes == 'true'
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
@@ -244,7 +278,7 @@ jobs:
           # 仅推送必要的文件
           echo "添加工作文件和状态文件..."
           git add 明文源吗 || echo "警告：明文源吗 未找到或已跟踪"
-          git add 少年你相信光吗 明文源吗.upstream README.md .worker_hash .md_hash || true
+          git add 明文源吗.upstream README.md .worker_hash .md_hash || true
           
           # 如果有冲突报告，也添加
           git add merge_conflict.md || true
@@ -255,12 +289,13 @@ jobs:
           echo "=== 添加后的 Git 状态 ==="
           git status
           
+          # 再次检查确保有变更
           if git diff --cached --quiet; then
-            echo "无文件变更，跳过提交"
+            echo "⚠️ 无文件变更，跳过提交"
             exit 0
           fi
           
-          VERSION="${{ steps.generate-version.outputs.version }}"
+          VERSION="${{ steps.read-version.outputs.version }}"
           COMMIT_MSG="自动更新：工作文件 + 基线（版本 $VERSION）"
           
           # 如果有冲突，在提交信息中说明
@@ -274,7 +309,7 @@ jobs:
           git log --oneline -1
 
       - name: Push changes
-        if: steps.check-update.outputs.has_update == 'true' || github.event_name == 'workflow_dispatch'
+        if: steps.check-changes.outputs.has_changes == 'true'
         uses: ad-m/github-push-action@master
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
@@ -282,13 +317,13 @@ jobs:
 
       # ==================== 创建GitHub Release ====================
       - name: Create GitHub Release
-        if: steps.check-changes.outputs.has_changes == 'true' || github.event_name == 'workflow_dispatch'
+        if: steps.check-update.outputs.has_update == 'true' || github.event_name == 'workflow_dispatch'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           VERSION="${{ steps.read-version.outputs.version }}"
-          MERGE_STATUS="${{ steps.improved-merge-upstream.outputs.merge_status }}"
+          MERGE_STATUS="${{ steps.check-update.outputs.merge_status }}"
           TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
           
           echo "=== 创建 GitHub Release ==="
@@ -312,6 +347,7 @@ jobs:
             curl -X DELETE -H "Authorization: Bearer $GITHUB_TOKEN" \
               "https://api.github.com/repos/${{ github.repository }}/git/refs/tags/$VERSION"
           fi
+          
           # 创建Release描述
           RELEASE_BODY=$(cat << EOF
           ## 部署信息
@@ -340,7 +376,7 @@ jobs:
           ## ⚠️ 冲突警告
           
           本次合并存在冲突，请检查仓库中的冲突标记并手动解决。
-          冲突报告文件: \`conflict_report.txt\`
+          冲突报告文件: \`merge_conflict.md\`
           "
           fi
           
@@ -378,3 +414,11 @@ jobs:
           
           echo "Release $VERSION 及所有资产上传完成"
           echo "=== GitHub Release 创建完成 ==="
+
+      # ==================== 清理临时文件 ====================
+      - name: 清理临时文件
+        if: steps.check-update.outputs.has_update == 'true' || github.event_name == 'workflow_dispatch'
+        run: |
+          echo "清理临时文件..."
+          rm -f 明文源吗_temp 少年你相信光吗 _worker.js Pages.zip mingwenyuanma.js
+          echo "临时文件清理完成"
