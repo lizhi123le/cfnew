@@ -5,7 +5,7 @@ on:
       - main
   workflow_dispatch:
   schedule:
-    - cron: '0 *9 * * *'
+    - cron: '0 */9 * * *'
 
 jobs:
   obfuscate-and-release:
@@ -16,7 +16,7 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actionscheckout@v4
+        uses: actions/checkout@v4
         with:
           persist-credentials: true
 
@@ -25,8 +25,8 @@ jobs:
         id: check-update
         run: |
           set -euo pipefail
-          WORKER_URL="https:raw.githubusercontent.combyJoeycfnewrefsheadsmain明文源吗"
-          MD_URL="https:raw.githubusercontent.combyJoeycfnewrefsheadsmainREADME.md"
+          WORKER_URL="https://raw.githubusercontent.com/byJoey/cfnew/refs/heads/main/明文源吗"
+          MD_URL="https://raw.githubusercontent.com/byJoey/cfnew/refs/heads/main/README.md"
           BASE_FILE="明文源吗.upstream"
           MD_FILE="README.md"
           WORKER_HASH_FILE=".worker_hash"
@@ -38,8 +38,8 @@ jobs:
 
           NEW_WORKER_HASH=$(sha256sum temp_明文源吗 | cut -d' ' -f1)
           NEW_MD_HASH=$(sha256sum temp_md.md | cut -d' ' -f1)
-          OLD_WORKER_HASH=$(cat "$WORKER_HASH_FILE" 2>devnull || echo "")
-          OLD_MD_HASH=$(cat "$MD_HASH_FILE" 2>devnull || echo "")
+          OLD_WORKER_HASH=$(cat "$WORKER_HASH_FILE" 2>/dev/null || echo "")
+          OLD_MD_HASH=$(cat "$MD_HASH_FILE" 2>/dev/null || echo "")
 
           HAS_UPDATE="false"
           MERGE_STATUS="none"
@@ -168,9 +168,9 @@ jobs:
           # 如果本地没找到或文件不存在，从上游读取
           if [ -z "$VERSION" ]; then
             echo "本地未找到版本号，从上游读取..."
-            UPSTREAM_MD_URL="https:raw.githubusercontent.combyJoeycfnewmainREADME.md"
+            UPSTREAM_MD_URL="https://raw.githubusercontent.com/byJoey/cfnew/main/README.md"
             curl -fsSL "$UPSTREAM_MD_URL" | grep -E "v[0-9]+\.[0-9]+\.[0-9]+" | head -1 | grep -oE "v[0-9]+\.[0-9]+\.[0-9]+" > upstream_version.txt || echo ""
-            VERSION=$(cat upstream_version.txt 2>devnull || echo "")
+            VERSION=$(cat upstream_version.txt 2>/dev/null || echo "")
             rm -f upstream_version.txt
           fi
           
@@ -190,7 +190,7 @@ jobs:
 
       - name: Set up Node.js
         if: steps.check-update.outputs.has_update == 'true' || github.event_name == 'workflow_dispatch'
-        uses: actionssetup-node@v4
+        uses: actions/setup-node@v4
         with:
           node-version: 'latest'
 
@@ -206,6 +206,7 @@ jobs:
         run: cp 明文源吗 明文源吗_temp
 
       - name: 混淆代码
+        id: obfuscate
         if: steps.check-update.outputs.has_update == 'true' || github.event_name == 'workflow_dispatch'
         run: |
           npm run build
@@ -214,7 +215,7 @@ jobs:
           
           # 计算混淆文件的哈希值
           OBFUSCATED_HASH=$(sha256sum 少年你相信光吗 | cut -d' ' -f1)
-          OLD_OBFUSCATED_HASH=$(cat ".obfuscated_hash" 2>devnull || echo "")
+          OLD_OBFUSCATED_HASH=$(cat ".obfuscated_hash" 2>/dev/null || echo "")
           
           if [ "$OBFUSCATED_HASH" != "$OLD_OBFUSCATED_HASH" ]; then
             echo "混淆文件已更改"
@@ -257,13 +258,13 @@ jobs:
           git status --porcelain
           
           # 检查工作文件是否有变更
-          if git status --porcelain | grep -E "(明文源吗|少年你相信光吗|README.md)" >devnull; then
+          if git status --porcelain | grep -E "(明文源吗|少年你相信光吗|README.md)" >/dev/null; then
             echo "检测到工作文件变更"
             CHANGES_EXIST="true"
           fi
           
           # 检查状态文件是否有变更
-          if git status --porcelain | grep -E "(明文源吗\.upstream|\.worker_hash|\.md_hash|\.obfuscated_hash)" >devnull; then
+          if git status --porcelain | grep -E "(明文源吗\.upstream|\.worker_hash|\.md_hash|\.obfuscated_hash)" >/dev/null; then
             echo "检测到状态文件变更"
             CHANGES_EXIST="true"
           fi
@@ -275,7 +276,7 @@ jobs:
           fi
           
           # 检查混淆文件是否变更
-          OBFUSCATED_CHANGED="${{ steps.混淆代码.outputs.obfuscated_changed }}"
+          OBFUSCATED_CHANGED="${{ steps.obfuscate.outputs.obfuscated_changed }}"
           if [ "$OBFUSCATED_CHANGED" = "true" ]; then
             echo "混淆文件已变更，需要提交"
             CHANGES_EXIST="true"
@@ -333,7 +334,7 @@ jobs:
 
       - name: Push changes
         if: steps.check-changes.outputs.has_changes == 'true'
-        uses: ad-mgithub-push-action@master
+        uses: ad-m/github-push-action@master
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           branch: main
@@ -355,20 +356,20 @@ jobs:
           
           # 检查是否已存在该版本的Release
           RELEASE_ID=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
-            "https:api.github.comrepos${{ github.repository }}releasestags$VERSION" | jq -r '.id  ""')
+            "https://api.github.com/repos/${{ github.repository }}/releases/tags/$VERSION" | jq -r '.id // ""')
           
           # 如果存在，删除旧的Release
           if [ -n "$RELEASE_ID" ] && [ "$RELEASE_ID" != "null" ]; then
             echo "删除旧 Release $RELEASE_ID"
             curl -X DELETE -H "Authorization: Bearer $GITHUB_TOKEN" \
-              "https:api.github.comrepos${{ github.repository }}releases$RELEASE_ID"
+              "https://api.github.com/repos/${{ github.repository }}/releases/$RELEASE_ID"
           fi
           
           # 删除旧的标签（如果存在）
           if curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
-            "https:api.github.comrepos${{ github.repository }}gitrefstags$VERSION" | jq -e .ref >devnull 2>&1; then
+            "https://api.github.com/repos/${{ github.repository }}/git/refs/tags/$VERSION" | jq -e .ref >/dev/null 2>&1; then
             curl -X DELETE -H "Authorization: Bearer $GITHUB_TOKEN" \
-              "https:api.github.comrepos${{ github.repository }}gitrefstags$VERSION"
+              "https://api.github.com/repos/${{ github.repository }}/git/refs/tags/$VERSION"
           fi
           
           # 创建Release描述
@@ -410,9 +411,9 @@ jobs:
           
           RESPONSE=$(curl -s -X POST \
             -H "Authorization: Bearer $GITHUB_TOKEN" \
-            -H "Content-Type: applicationjson" \
+            -H "Content-Type: application/json" \
             --data "$PAYLOAD" \
-            "https:api.github.comrepos${{ github.repository }}releases")
+            "https://api.github.com/repos/${{ github.repository }}/releases")
           
           RELEASE_ID=$(echo "$RESPONSE" | jq -r '.id')
           
@@ -432,7 +433,7 @@ jobs:
                 -H "Authorization: Bearer $GITHUB_TOKEN" \
                 -H "Content-Type: $(file -b --mime-type $asset)" \
                 --data-binary "@$asset" \
-                "https:uploads.github.comrepos${{ github.repository }}releases$RELEASE_IDassets?name=$asset"
+                "https://uploads.github.com/repos/${{ github.repository }}/releases/$RELEASE_ID/assets?name=$asset"
             fi
           done
           
