@@ -4,7 +4,7 @@ const JavaScriptObfuscator = require('javascript-obfuscator');
 
 // 输入和输出文件路径
 const inputFile = path.join(__dirname, './明文源吗_temp.js');
-const outputFile = path.join(__dirname, './少年你相信光吗.js');
+const outputFile = path.join(__dirname, './少年你相信光吗');
 
 // 确保输出目录存在
 const outputDir = path.dirname(outputFile);
