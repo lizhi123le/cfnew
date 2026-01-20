@@ -138,21 +138,45 @@ jobs:
 
           echo "has_update=$HAS_UPDATE" >> $GITHUB_OUTPUT
 
-      # ==================== 计算版本号 ====================
-      - name: 计算本地 明文源吗 的哈希并设为 Release 版本号
-        id: generate-version
-        if: steps.check-update.outputs.has_update == 'true' || github.event_name == 'workflow_dispatch'
+      # ==================== 读取README.md版本号 ====================
+      - name: 读取README.md版本号
+        id: read-version
         run: |
           set -euo pipefail
-          if [ -f "明文源吗" ]; then
-            LOCAL_HASH=$(sha256sum "明文源吗" | cut -d' ' -f1)
-            VERSION="${LOCAL_HASH:0:12}"
-            echo "version=$VERSION" >> $GITHUB_OUTPUT
-            echo "当前仓库 明文源吗 的 SHA256 前12位：$VERSION"
-          else
-            echo "错误：工作文件不存在"
-            exit 1
+          
+          # 从本地 README.md 读取版本号
+          if [ -f "README.md" ]; then
+            # 尝试多种常见的版本号格式
+            VERSION=$(grep -E "v[0-9]+\.[0-9]+\.[0-9]+" README.md | head -1 | grep -oE "v[0-9]+\.[0-9]+\.[0-9]+" || echo "")
+            
+            # 如果没找到，尝试其他格式
+            if [ -z "$VERSION" ]; then
+              VERSION=$(grep -E "[0-9]+\.[0-9]+\.[0-9]+" README.md | head -1 | grep -oE "[0-9]+\.[0-9]+\.[0-9]+" || echo "")
+            fi
+            
+            # 如果还没找到，尝试从标题中提取
+            if [ -z "$VERSION" ]; then
+              VERSION=$(grep -E "^#+.*v[0-9]" README.md | head -1 | grep -oE "v[0-9]+\.[0-9]+\.[0-9]+" || echo "")
+            fi
           fi
+          
+          # 如果本地没找到或文件不存在，从上游读取
+          if [ -z "$VERSION" ]; then
+            echo "本地未找到版本号，从上游读取..."
+            UPSTREAM_MD_URL="https://raw.githubusercontent.com/byJoey/cfnew/main/README.md"
+            curl -fsSL "$UPSTREAM_MD_URL" | grep -E "v[0-9]+\.[0-9]+\.[0-9]+" | head -1 | grep -oE "v[0-9]+\.[0-9]+\.[0-9]+" > upstream_version.txt || echo ""
+            VERSION=$(cat upstream_version.txt 2>/dev/null || echo "")
+            rm -f upstream_version.txt
+          fi
+          
+          # 如果仍然没找到，使用时间戳作为版本
+          if [ -z "$VERSION" ]; then
+            VERSION="v$(date -u +"%Y.%m.%d")"
+            echo "警告：未找到版本号，使用时间戳作为版本: $VERSION"
+          fi
+          
+          echo "检测到的版本号: $VERSION"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
 
       # ==================== 以下步骤仅在需要时执行 ====================
       - name: 执行后续构建（仅在必要时）
