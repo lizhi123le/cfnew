@@ -21,203 +21,113 @@ jobs:
           persist-credentials: true
 
       # ==================== 检查上游更新 ====================
-      - name: 检查上游仓库更新并执行正确的三方合并
+      - name: 检查上游仓库更新并同步备份文件（正确的三方合并）
         id: check-update
         run: |
           set -euo pipefail
-          
-          # 文件路径定义
           WORKER_URL="https://raw.githubusercontent.com/byJoey/cfnew/refs/heads/main/明文源吗"
           MD_URL="https://raw.githubusercontent.com/byJoey/cfnew/refs/heads/main/README.md"
-          
-          WORKING_FILE="明文源吗"           # 当前工作文件
-          BACKUP_FILE="明文源吗.local"      # 本地修改备份
-          BASE_FILE="明文源吗.base"         # 上次上游版本（基线）
-          UPSTREAM_FILE="明文源吗.upstream" # 新的上游版本
+          BASE_FILE="明文源吗.upstream"
           MD_FILE="README.md"
-          
-          # 哈希文件
           WORKER_HASH_FILE=".worker_hash"
           MD_HASH_FILE=".md_hash"
-          
-          # 状态文件
-          MERGE_STATE_FILE=".merge_state"
-          CONFLICT_FILE="merge_conflict.md"
-          
-          echo "=== 开始上游更新检查 ==="
-          
-          # 下载上游文件
-          curl -fsSL -o "$UPSTREAM_FILE" "$WORKER_URL"
+
+          curl -fsSL -o temp_明文源吗 "$WORKER_URL"
           curl -fsSL -o temp_md.md "$MD_URL"
-          
-          # 验证下载成功
-          if [ ! -f "$UPSTREAM_FILE" ]; then
-            echo "错误：无法下载上游工作文件"
-            exit 1
-          fi
-          
-          # 计算哈希值
-          NEW_WORKER_HASH=$(sha256sum "$UPSTREAM_FILE" | cut -d' ' -f1)
+
+          NEW_WORKER_HASH=$(sha256sum temp_明文源吗 | cut -d' ' -f1)
           NEW_MD_HASH=$(sha256sum temp_md.md | cut -d' ' -f1)
           OLD_WORKER_HASH=$(cat "$WORKER_HASH_FILE" 2>/dev/null || echo "")
           OLD_MD_HASH=$(cat "$MD_HASH_FILE" 2>/dev/null || echo "")
-          
-          echo "上游工作文件哈希: $NEW_WORKER_HASH"
-          echo "本地工作文件哈希: $OLD_WORKER_HASH"
-          echo "上游README哈希: $NEW_MD_HASH"
-          echo "本地README哈希: $OLD_MD_HASH"
-          
+
           HAS_UPDATE="false"
-          MERGE_STATUS="none"
-          
-          # ==================== 处理工作文件的三方合并 ====================
+
+          # ========== 处理 明文源吗（真正的三方合并） ==========
           if [ "$NEW_WORKER_HASH" != "$OLD_WORKER_HASH" ]; then
-            echo "检测到上游工作文件更新，开始合并流程..."
-            HAS_UPDATE="true"
-            
-            # 验证文件完整性
-            if [ ! -s "$UPSTREAM_FILE" ]; then
-              echo "错误：上游文件为空"
-              exit 1
-            fi
-            
-            # 初始化或验证合并状态
-            if [ ! -f "$MERGE_STATE_FILE" ]; then
-              echo "首次运行，初始化合并状态"
-              echo "initialized=$(date -u +"%Y-%m-%dT%H:%M:%SZ")" > "$MERGE_STATE_FILE"
-              
-              # 初始化基线文件
-              if [ ! -f "$BASE_FILE" ]; then
-                echo "创建基线文件"
-                cp "$UPSTREAM_FILE" "$BASE_FILE"
-              fi
-              
-              # 处理本地修改
-              if [ -f "$WORKING_FILE" ]; then
-                if ! cmp -s "$WORKING_FILE" "$BASE_FILE" 2>/dev/null; then
-                  echo "检测到本地修改，创建备份"
-                  cp "$WORKING_FILE" "$BACKUP_FILE"
-                  echo "has_local_changes=true" >> "$MERGE_STATE_FILE"
-                else
-                  echo "无本地修改"
-                  echo "has_local_changes=false" >> "$MERGE_STATE_FILE"
-                fi
+            echo "上游 明文源吗 有更新"
+
+            # 首次运行：初始化基线
+            if [ ! -f "$BASE_FILE" ]; then
+              echo "首次运行，初始化基线文件"
+              cp temp_明文源吗 "$BASE_FILE"
+              # 如果没有工作文件，用上游作为工作文件
+              if [ ! -f "明文源吗" ]; then
+                cp temp_明文源吗 "明文源吗"
+                echo "创建工作文件"
               else
-                echo "工作文件不存在，使用上游版本"
-                cp "$UPSTREAM_FILE" "$WORKING_FILE"
-                echo "has_local_changes=false" >> "$MERGE_STATE_FILE"
+                echo "发现现有工作文件，保留用户修改"
               fi
             else
-              echo "已初始化状态，继续合并流程"
-            fi
-            
-            # 读取合并状态
-            HAS_LOCAL_CHANGES=$(grep "has_local_changes=" "$MERGE_STATE_FILE" | cut -d'=' -f2 || echo "false")
-            echo "本地修改状态: $HAS_LOCAL_CHANGES"
-            
-            # 执行三方合并
-            if [ "$HAS_LOCAL_CHANGES" = "true" ] && [ -f "$BACKUP_FILE" ] && [ -f "$BASE_FILE" ]; then
-              echo "=== 执行三方合并 ==="
-              echo "本地版本: $BACKUP_FILE"
-              echo "基线版本: $BASE_FILE"
-              echo "上游版本: $UPSTREAM_FILE"
+              echo "执行三方合并：working(local) vs base vs upstream"
               
-              # 创建合并临时文件
-              MERGE_RESULT="$WORKING_FILE.merge"
-              
-              # 执行git三方合并
-              if git merge-file "$BACKUP_FILE" "$BASE_FILE" "$UPSTREAM_FILE" > /dev/null 2>&1; then
-                echo "✅ 三方合并成功"
-                
-                # 验证合并结果
-                if [ -f "$BACKUP_FILE" ] && [ -s "$BACKUP_FILE" ]; then
-                  cp "$BACKUP_FILE" "$WORKING_FILE"
-                  MERGE_STATUS="success"
-                  echo "合并状态: 成功"
-                  
-                  # 更新基线文件为新的上游版本
-                  cp "$UPSTREAM_FILE" "$BASE_FILE"
-                  
-                  # 清理本地备份（已合并到工作文件）
-                  rm -f "$BACKUP_FILE"
-                  echo "has_local_changes=false" > "$MERGE_STATE_FILE"
-                  
-                else
-                  echo "❌ 合并结果验证失败"
-                  MERGE_STATUS="failed"
-                fi
+              # 准备三个文件进行合并
+              # local: 当前的用户修改（工作文件）
+              if [ -f "明文源吗" ]; then
+                cp "明文源吗" local_明文源吗
+                echo "使用工作文件作为 local（用户修改）"
               else
-                echo "⚠️ 三方合并存在冲突"
-                MERGE_STATUS="conflict"
-                
-                # 保留冲突文件供手动处理
-                cp "$BACKUP_FILE" "$WORKING_FILE.conflict"
-                
-                # 创建冲突报告
-                cat > "$CONFLICT_FILE" << EOF
-          # 合并冲突报告
-          
-          ## 冲突时间
-          $(date -u +"%Y-%m-%dT%H:%M:%SZ")
-          
-          ## 上游更新哈希
-          $NEW_WORKER_HASH
-          
-          ## 冲突说明
-          三方合并过程中检测到冲突，需要手动解决。
-          
-          ## 文件状态
-          - 工作文件: $WORKING_FILE
-          - 冲突文件: $WORKING_FILE.conflict
-          - 本地备份: $BACKUP_FILE
-          - 基线版本: $BASE_FILE
-          - 上游版本: $UPSTREAM_FILE
-          
-          ## 解决步骤
-          1. 检查冲突文件中的冲突标记 (<<<<<<<, =======, >>>>>>>)
-          2. 手动编辑冲突文件，保留需要的修改
-          3. 解决冲突后，将结果复制到工作文件
-          4. 提交修改并重新运行工作流
-          
-          ## 冲突内容预览
-          \`\`\`
-          $(head -50 "$WORKING_FILE.conflict" || echo "文件过大，无法预览")
-          \`\`\`
-          EOF
-                
-                echo "❌ 冲突已保存，需要手动处理"
-                echo "冲突报告: $CONFLICT_FILE"
-                echo "冲突文件: $WORKING_FILE.conflict"
-                
-                # 作为后备方案，使用上游版本但保留本地修改
-                cp "$UPSTREAM_FILE" "$WORKING_FILE"
-                cp "$BACKUP_FILE" "${BACKUP_FILE}.manual_merge_required"
+                echo "警告：工作文件不存在，使用上游版本作为 local"
+                cp "$BASE_FILE" local_明文源吗
               fi
-            else
-              echo "=== 无本地修改，直接使用上游版本 ==="
-              cp "$UPSTREAM_FILE" "$WORKING_FILE"
-              cp "$UPSTREAM_FILE" "$BASE_FILE"
-              MERGE_STATUS="no_local_changes"
               
-              # 清理可能存在的备份
-              rm -f "$BACKUP_FILE"
-              echo "has_local_changes=false" > "$MERGE_STATE_FILE"
+              # base: 上次的上游版本
+              cp "$BASE_FILE" base_明文源吗
+              
+              # upstream: 新的上游版本
+              cp temp_明文源吗 upstream_明文源吗
+
+              # 执行三方合并
+              echo "开始三方合并..."
+              if git merge-file local_明文源吗 base_明文源吗 upstream_明文源吗; then
+                echo "三方合并成功"
+                MERGE_SUCCESS="true"
+              else
+                echo "三方合并存在冲突，尝试自动解决..."
+                MERGE_SUCCESS="false"
+                
+                # 检查冲突标记
+                if grep -q "<<<<<<" local_明文源吗; then
+                  echo "发现合并冲突，创建冲突报告文件"
+                  echo "# 合并冲突报告" > merge_conflict.md
+                  echo "## 冲突时间: $(date)" >> merge_conflict.md
+                  echo "## 上游更新哈希: $NEW_WORKER_HASH" >> merge_conflict.md
+                  echo "" >> merge_conflict.md
+                  echo "以下文件包含冲突标记，需要手动解决：" >> merge_conflict.md
+                  echo "" >> merge_conflict.md
+                  echo '```' >> merge_conflict.md
+                  cat local_明文源吗 >> merge_conflict.md
+                  echo '```' >> merge_conflict.md
+                  
+                  # 作为后备方案，使用上游版本但保留原工作文件供手动处理
+                  echo "使用上游版本作为基础，保留原工作文件供后续手动合并"
+                  cp temp_明文源吗 local_明文源吗
+                  # 保存原工作文件为 .old 版本
+                  cp "明文源吗" "明文源吗.old"
+                else
+                  echo "合并成功（无冲突标记）"
+                  MERGE_SUCCESS="true"
+                fi
+              fi
+
+              # 更新基线文件为新的上游版本
+              echo "更新基线文件为新的上游版本"
+              mv -f temp_明文源吗 "$BASE_FILE"
+              
+              # 保存合并结果作为工作文件
+              echo "保存合并结果作为工作文件"
+              mv -f local_明文源吗 "明文源吗"
             fi
-            
-            # 清理临时文件
-            rm -f "$UPSTREAM_FILE"
-            
-            # 更新哈希记录
+
             echo "$NEW_WORKER_HASH" > "$WORKER_HASH_FILE"
-            
+            HAS_UPDATE="true"
           else
-            echo "上游工作文件无更新"
-            rm -f "$UPSTREAM_FILE"
+            echo "上游 明文源吗 无更新"
+            rm -f temp_明文源吗
           fi
-          
-          # ==================== 处理 README.md ====================
+
+          # ========== 处理 README.md（覆盖方式） ==========
           if [ ! -f "$MD_FILE" ] || [ "$NEW_MD_HASH" != "$OLD_MD_HASH" ]; then
-            echo "README.md 需要更新"
+            echo "README.md 需要更新或初次创建"
             mv -f temp_md.md "$MD_FILE"
             echo "$NEW_MD_HASH" > "$MD_HASH_FILE"
             HAS_UPDATE="true"
@@ -225,68 +135,29 @@ jobs:
             echo "README.md 无更新"
             rm -f temp_md.md
           fi
-          
-          # 输出结果
-          echo "has_update=$HAS_UPDATE" >> $GITHUB_OUTPUT
-          echo "merge_status=$MERGE_STATUS" >> $GITHUB_OUTPUT
-          echo "worker_hash=$NEW_WORKER_HASH" >> $GITHUB_OUTPUT
-          
-          echo "=== 更新检查完成 ==="
-          echo "是否有更新: $HAS_UPDATE"
-          echo "合并状态: $MERGE_STATUS"
 
-      # ==================== 读取README.md版本号 ====================
-      - name: 读取README.md版本号
-        id: read-version
+          echo "has_update=$HAS_UPDATE" >> $GITHUB_OUTPUT
+
+      # ==================== 计算版本号 ====================
+      - name: 计算本地 明文源吗 的哈希并设为 Release 版本号
+        id: generate-version
+        if: steps.check-update.outputs.has_update == 'true' || github.event_name == 'workflow_dispatch'
         run: |
           set -euo pipefail
-          
-          # 从本地 README.md 读取版本号
-          if [ -f "README.md" ]; then
-            # 尝试多种常见的版本号格式
-            VERSION=$(grep -E "v[0-9]+\.[0-9]+\.[0-9]+" README.md | head -1 | grep -oE "v[0-9]+\.[0-9]+\.[0-9]+" || echo "")
-            
-            # 如果没找到，尝试其他格式
-            if [ -z "$VERSION" ]; then
-              VERSION=$(grep -E "[0-9]+\.[0-9]+\.[0-9]+" README.md | head -1 | grep -oE "[0-9]+\.[0-9]+\.[0-9]+" || echo "")
-            fi
-            
-            # 如果还没找到，尝试从标题中提取
-            if [ -z "$VERSION" ]; then
-              VERSION=$(grep -E "^#+.*v[0-9]" README.md | head -1 | grep -oE "v[0-9]+\.[0-9]+\.[0-9]+" || echo "")
-            fi
+          if [ -f "明文源吗" ]; then
+            LOCAL_HASH=$(sha256sum "明文源吗" | cut -d' ' -f1)
+            VERSION="${LOCAL_HASH:0:12}"
+            echo "version=$VERSION" >> $GITHUB_OUTPUT
+            echo "当前仓库 明文源吗 的 SHA256 前12位：$VERSION"
+          else
+            echo "错误：工作文件不存在"
+            exit 1
           fi
-          
-          # 如果本地没找到或文件不存在，从上游读取
-          if [ -z "$VERSION" ]; then
-            echo "本地未找到版本号，从上游读取..."
-            UPSTREAM_MD_URL="https://raw.githubusercontent.com/byJoey/cfnew/main/README.md"
-            curl -fsSL "$UPSTREAM_MD_URL" | grep -E "v[0-9]+\.[0-9]+\.[0-9]+" | head -1 | grep -oE "v[0-9]+\.[0-9]+\.[0-9]+" > upstream_version.txt || echo ""
-            VERSION=$(cat upstream_version.txt 2>/dev/null || echo "")
-            rm -f upstream_version.txt
-          fi
-          
-          # 如果仍然没找到，使用时间戳作为版本
-          if [ -z "$VERSION" ]; then
-            VERSION="v$(date -u +"%Y.%m.%d")"
-            echo "警告：未找到版本号，使用时间戳作为版本: $VERSION"
-          fi
-          
-          echo "检测到的版本号: $VERSION"
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
 
       # ==================== 以下步骤仅在需要时执行 ====================
       - name: 执行后续构建（仅在必要时）
         if: steps.check-update.outputs.has_update == 'true' || github.event_name == 'workflow_dispatch'
-        run: |
-          echo "开始执行混淆、提交、发布流程..."
-          echo "合并状态: ${{ steps.check-update.outputs.merge_status }}"
-          
-          # 如果有冲突，提醒用户
-          if [ "${{ steps.check-update.outputs.merge_status }}" = "conflict" ]; then
-            echo "⚠️ 警告：存在合并冲突，请检查冲突文件并手动处理"
-            echo "冲突报告: merge_conflict.md"
-          fi
+        run: echo "开始执行混淆、提交、发布流程..."
 
       - name: Set up Node.js
         if: steps.check-update.outputs.has_update == 'true' || github.event_name == 'workflow_dispatch'
@@ -301,39 +172,23 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y jq zip
 
-      - name: 创建工作文件副本用于混淆
+      - name: 创建 明文源吗_temp 用于混淆
         if: steps.check-update.outputs.has_update == 'true' || github.event_name == 'workflow_dispatch'
-        run: |
-          # 验证工作文件存在
-          if [ ! -f "明文源吗" ]; then
-            echo "错误：工作文件不存在"
-            exit 1
-          fi
-          
-          # 创建副本用于混淆
-          cp "明文源吗" "明文源吗_temp"
-          echo "工作文件副本创建完成"
+        run: cp 明文源吗 明文源吗_temp
 
       - name: 混淆代码
         if: steps.check-update.outputs.has_update == 'true' || github.event_name == 'workflow_dispatch'
         run: |
           npm run build
-          
           # 验证混淆文件是否创建成功
-          if [ ! -f "少年你相信光吗" ]; then
-            echo "❌ 混淆失败 - _worker.js 未创建"
-            exit 1
-          else
-            echo "✅ 混淆成功"
-            ls -la "少年你相信光吗"
-          fi
+          ls -la 少年你相信光吗 || (echo "混淆失败 - _worker.js 未创建" && exit 1)
 
-      - name: 压缩为 Pages.zip 并创建明文发布文件
+      - name: 压缩为 Pages.zip 并创建明文发布文件（不推送）
         if: steps.check-update.outputs.has_update == 'true' || github.event_name == 'workflow_dispatch'
         run: |
-          # 创建发布文件
-          cp "明文源吗" "mingwenyuanma.js"
-          cp "少年你相信光吗" "_worker.js"
+          # 创建发布文件（仅用于Release，不推送到仓库）
+          cp 明文源吗 mingwenyuanma.js
+          cp 少年你相信光吗 _worker.js
           
           # 压缩为 Pages.zip
           zip Pages.zip _worker.js
@@ -349,70 +204,49 @@ jobs:
             echo "✅ 压缩包创建成功"
           fi
 
-      - name: 提交并推送更改
+      - name: 提交并推送更改（仅推送必要文件）
         if: steps.check-update.outputs.has_update == 'true' || github.event_name == 'workflow_dispatch'
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
           
-          echo "=== 提交前状态检查 ==="
-          echo "目录中的文件:"
+          # 检查添加前存在的文件
+          echo "=== 目录中的文件 ==="
           ls -la
           
-          echo "Git 状态:"
+          echo "=== 添加前的 Git 状态 ==="
           git status
           
-          # 分步添加文件
-          echo "添加混淆文件..."
-          git add "少年你相信光吗" || echo "警告：混淆文件未找到"
+          # 仅推送必要的文件
+          echo "添加工作文件和状态文件..."
+          git add 明文源吗 || echo "警告：明文源吗 未找到或已跟踪"
+          git add 少年你相信光吗 明文源吗.upstream README.md .worker_hash .md_hash || true
           
-          echo "添加压缩包..."
-          git add Pages.zip || echo "警告：压缩包未找到"
+          # 如果有冲突报告，也添加
+          git add merge_conflict.md || true
           
-          echo "添加源文件和状态文件..."
-          git add "明文源吗" "明文源吗.base" "明文源吗.local" "README.md" || true
-          git add ".worker_hash" ".md_hash" ".merge_state" || true
+          # 如果有旧工作文件，也添加（用于冲突时手动处理）
+          git add 明文源吗.old || true
           
-          # 添加可能的冲突相关文件
-          git add "merge_conflict.md" || true
-          git add "明文源吗.conflict" || true
-          git add "明文源吗.local.manual_merge_required" || true
-          
-          echo "添加后的 Git 状态:"
+          echo "=== 添加后的 Git 状态 ==="
           git status
           
-          # 检查是否有变更
           if git diff --cached --quiet; then
             echo "无文件变更，跳过提交"
             exit 0
           fi
           
-          # 创建提交信息
-          VERSION="${{ steps.read-version.outputs.version }}"
-          MERGE_STATUS="${{ steps.check-update.outputs.merge_status }}"
+          VERSION="${{ steps.generate-version.outputs.version }}"
+          COMMIT_MSG="自动更新：工作文件 + 基线（版本 $VERSION）"
           
-          COMMIT_MSG="自动更新：混淆版 + 备份（版本 $VERSION）"
+          # 如果有冲突，在提交信息中说明
+          if [ -f "merge_conflict.md" ]; then
+            COMMIT_MSG="$COMMIT_MSG [注意：存在合并冲突，请检查]"
+          fi
           
-          # 根据合并状态添加说明
-          case "$MERGE_STATUS" in
-            "success")
-              COMMIT_MSG="$COMMIT_MSG [✅ 合并成功]"
-              ;;
-            "conflict")
-              COMMIT_MSG="$COMMIT_MSG [⚠️ 存在合并冲突，需手动处理]"
-              ;;
-            "no_local_changes")
-              COMMIT_MSG="$COMMIT_MSG [📥 仅上游更新]"
-              ;;
-            "failed")
-              COMMIT_MSG="$COMMIT_MSG [❌ 合并失败]"
-              ;;
-          esac
-          
-          echo "提交信息: $COMMIT_MSG"
           git commit -m "$COMMIT_MSG"
           
-          echo "=== 提交完成 ==="
+          echo "=== 提交后的 Git 日志 ==="
           git log --oneline -1
 
       - name: Push changes
