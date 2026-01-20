@@ -5,7 +5,7 @@ on:
       - main
   workflow_dispatch:
   schedule:
-    - cron: '0 *9 * * *'
+    - cron: '0 */9 * * *'
 
 jobs:
   obfuscate-and-release:
@@ -16,7 +16,7 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actionscheckout@v4
+        uses: actions/checkout@v4
         with:
           persist-credentials: true
 
@@ -25,8 +25,8 @@ jobs:
         id: check-update
         run: |
           set -euo pipefail
-          WORKER_URL="https:raw.githubusercontent.combyJoeycfnewmain明文源吗.js"
-          MD_URL="https:raw.githubusercontent.combyJoeycfnewmainREADME.md"
+          WORKER_URL="https://raw.githubusercontent.com/byJoey/cfnew/main/明文源吗.js"
+          MD_URL="https://raw.githubusercontent.com/byJoey/cfnew/main/README.md"
           BACKUP_FILE="明文源吗"
           BASE_FILE="明文源吗.js.upstream"
           MD_FILE="README.md"
@@ -38,8 +38,8 @@ jobs:
 
           NEW_WORKER_HASH=$(sha256sum temp明文源吗.js | cut -d' ' -f1)
           NEW_MD_HASH=$(sha256sum temp_md.md | cut -d' ' -f1)
-          OLD_WORKER_HASH=$(cat "$WORKER_HASH_FILE" 2>devnull || echo "")
-          OLD_MD_HASH=$(cat "$MD_HASH_FILE" 2>devnull || echo "")
+          OLD_WORKER_HASH=$(cat "$WORKER_HASH_FILE" 2>/dev/null || echo "")
+          OLD_MD_HASH=$(cat "$MD_HASH_FILE" 2>/dev/null || echo "")
 
           HAS_UPDATE="false"
 
@@ -164,9 +164,9 @@ jobs:
           # 如果本地没找到或文件不存在，从上游读取
           if [ -z "$VERSION" ]; then
             echo "本地未找到版本号，从上游读取..."
-            UPSTREAM_MD_URL="https:raw.githubusercontent.combyJoeycfnewmainREADME.md"
+            UPSTREAM_MD_URL="https://raw.githubusercontent.com/byJoey/cfnew/main/README.md"
             curl -fsSL "$UPSTREAM_MD_URL" | grep -E "v[0-9]+\.[0-9]+\.[0-9]+" | head -1 | grep -oE "v[0-9]+\.[0-9]+\.[0-9]+" > upstream_version.txt || echo ""
-            VERSION=$(cat upstream_version.txt 2>devnull || echo "")
+            VERSION=$(cat upstream_version.txt 2>/dev/null || echo "")
             rm -f upstream_version.txt
           fi
           
@@ -186,7 +186,7 @@ jobs:
 
       - name: Set up Node.js
         if: steps.check-update.outputs.has_update == 'true' || github.event_name == 'workflow_dispatch'
-        uses: actionssetup-node@v4
+        uses: actions/setup-node@v4
         with:
           node-version: 'latest'
 
@@ -265,12 +265,12 @@ jobs:
 
       - name: Push changes
         if: steps.check-update.outputs.has_update == 'true' || github.event_name == 'workflow_dispatch'
-        uses: ad-mgithub-push-action@master
+        uses: ad-m/github-push-action@master
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           branch: main
 
-      # ==================== 创建覆盖 Release ====================
+      # ==================== 创建/覆盖 Release ====================
       - name: Create GitHub Release
         if: steps.check-update.outputs.has_update == 'true' || github.event_name == 'workflow_dispatch'
         env:
@@ -287,20 +287,20 @@ jobs:
           
           # 检查是否已存在该版本的Release
           RELEASE_ID=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
-            "https:api.github.comrepos${{ github.repository }}releasestags$VERSION" | jq -r '.id  ""')
+            "https://api.github.com/repos/${{ github.repository }}/releases/tags/$VERSION" | jq -r '.id // ""')
           
           # 如果存在，删除旧的Release
           if [ -n "$RELEASE_ID" ] && [ "$RELEASE_ID" != "null" ]; then
             echo "删除旧 Release $RELEASE_ID"
             curl -X DELETE -H "Authorization: Bearer $GITHUB_TOKEN" \
-              "https:api.github.comrepos${{ github.repository }}releases$RELEASE_ID"
+              "https://api.github.com/repos/${{ github.repository }}/releases/$RELEASE_ID"
           fi
           
           # 删除旧的标签（如果存在）
           if curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
-            "https:api.github.comrepos${{ github.repository }}gitrefstags$VERSION" | jq -e .ref >devnull 2>&1; then
+            "https://api.github.com/repos/${{ github.repository }}/git/refs/tags/$VERSION" | jq -e .ref >/dev/null 2>&1; then
             curl -X DELETE -H "Authorization: Bearer $GITHUB_TOKEN" \
-              "https:api.github.comrepos${{ github.repository }}gitrefstags$VERSION"
+              "https://api.github.com/repos/${{ github.repository }}/git/refs/tags/$VERSION"
           fi
           
           # 创建Release描述
@@ -341,9 +341,9 @@ jobs:
           
           RESPONSE=$(curl -s -X POST \
             -H "Authorization: Bearer $GITHUB_TOKEN" \
-            -H "Content-Type: applicationjson" \
+            -H "Content-Type: application/json" \
             --data "$PAYLOAD" \
-            "https:api.github.comrepos${{ github.repository }}releases")
+            "https://api.github.com/repos/${{ github.repository }}/releases")
           
           RELEASE_ID=$(echo "$RESPONSE" | jq -r '.id')
           
@@ -363,7 +363,7 @@ jobs:
                 -H "Authorization: Bearer $GITHUB_TOKEN" \
                 -H "Content-Type: $(file -b --mime-type $asset)" \
                 --data-binary "@$asset" \
-                "https:uploads.github.comrepos${{ github.repository }}releases$RELEASE_IDassets?name=$asset"
+                "https://uploads.github.com/repos/${{ github.repository }}/releases/$RELEASE_ID/assets?name=$asset"
             fi
           done
           
