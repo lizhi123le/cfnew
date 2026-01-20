@@ -25,8 +25,8 @@ jobs:
         id: check-update
         run: |
           set -euo pipefail
-          WORKER_URL="https://raw.githubusercontent.com/byJoey/cfnew/main/明文源吗.js"
-          MD_URL="https://raw.githubusercontent.com/byJoey/cfnew/main/README.md"
+          WORKER_URL="https://raw.githubusercontent.com/byJoey/cfnew/refs/heads/main/明文源吗"
+          MD_URL="https://raw.githubusercontent.com/byJoey/cfnew/refs/heads/main/README.md"
           BACKUP_FILE="明文源吗"
           BASE_FILE="明文源吗.js.upstream"
           MD_FILE="README.md"
