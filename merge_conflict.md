@@ -1,3 +1,10 @@
+# 合并冲突报告
+## 冲突时间: Tue Jan 20 09:17:25 UTC 2026
+## 上游更新哈希: 75a37dc5b6cb3bf8e6fefa21a563606ab5b0ae3720348c0e55a7943de0a336c2
+
+以下文件包含冲突标记，需要手动解决：
+
+```
     import { connect } from 'cloudflare:sockets';
     let at = '351c9981-04b6-4103-aa4b-864aa9c91469';
     let fallbackAddress = '';
@@ -27,7 +34,7 @@
 
     let scu = 'https://url.v1.mk/sub';  
     // 远程配置URL（硬编码）
-    const remoteConfigUrl = 'https://raw.githubusercontent.com/byJoey/test/refs/heads/main/tist.ini';
+    const remoteConfigUrl = 'https://raw.githubusercontent.com/lizhi123le/ACL4SSR/master/Clash/config/ACL4SSR_Online_Full_MultiMode.ini';
 
     let epd = false;   // 优选域名默认关闭
     let epi = true;       
@@ -1240,11 +1247,11 @@
                 
                 const tls = params.get('security') === 'tls' || params.get('tls') === 'true';
                 const network = params.get('type') || 'ws';
-                const path = params.get('path') || '/?ed=2048';
+                const path = params.get('path') || '/?ed=2560';
                 const host = params.get('host') || server;
                 const servername = params.get('sni') || host;
-                const alpn = params.get('alpn') || 'h3,h2,http/1.1';
-                const fingerprint = params.get('fp') || params.get('client-fingerprint') || 'chrome';
+                const alpn = params.get('alpn') || 'h3';
+                const fingerprint = params.get('fp') || params.get('client-fingerprint') || 'firefox';
                 const ech = params.get('ech');
                 
                 const node = {
@@ -1292,10 +1299,10 @@
                 const params = new URLSearchParams(url.search);
                 
                 const network = params.get('type') || 'ws';
-                const path = params.get('path') || '/?ed=2048';
+                const path = params.get('path') || '/?ed=2560';
                 const host = params.get('host') || server;
                 const sni = params.get('sni') || host;
-                const alpn = params.get('alpn') || 'h3,h2,http/1.1';
+                const alpn = params.get('alpn') || 'h3';
                 const ech = params.get('ech');
                 
                 const node = {
@@ -1601,13 +1608,13 @@
         if (disablePreferred) {
         } else if (hasCustomPreferred) {
             
-            if (customPreferredIPs.length > 0 && epi) {
-                await addNodesFromList(customPreferredIPs);
-            }
-            
             if (customPreferredDomains.length > 0 && epd) {
                 const customDomainList = customPreferredDomains.map(d => ({ ip: d.domain, isp: d.name || d.domain }));
                 await addNodesFromList(customDomainList);
+            }
+            
+            if (customPreferredIPs.length > 0 && epi) {
+                await addNodesFromList(customPreferredIPs);
             }
         } else {
             
@@ -1734,7 +1741,7 @@
         const defaultHttpsPorts = [443];
         const defaultHttpPorts = disableNonTLS ? [] : [80];
         const links = [];
-        const wsPath = '/?ed=2048';
+        const wsPath = '/?ed=2560';
         const proto = atob('dmxlc3M=');
 
         list.forEach(item => {
@@ -1780,18 +1787,23 @@
                         encryption: 'none', 
                         security: 'tls', 
                         sni: workerDomain, 
-                        fp: enableECH ? 'chrome' : 'randomized',
+                        fp: enableECH ? 'firefox' : 'randomized',
                         type: 'ws', 
                         host: workerDomain, 
                         path: wsPath
                     });
                     
-                    // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
+                    // 如果启用了ECH，添加ech参数（ECH需要伪装成firefox浏览器）
                     if (enableECH) {
+<<<<<<< local_明文源吗
+                        wsParams.set('alpn', 'h3');
+                        wsParams.set('ech', `cloudflare-ech.com+https://dns.alidns.com/dns-query`);
+=======
                         const dnsServer = customDNS || 'https://dns.alidns.com/dns-query';
                         const echDomain = customECHDomain || 'cloudflare-ech.com';
                         wsParams.set('alpn', 'h3,h2,http/1.1');
                         wsParams.set('ech', `${echDomain}+${dnsServer}`);
+>>>>>>> upstream_明文源吗
                     }
                     
                     links.push(`${proto}://${user}@${safeIP}:${port}?${wsParams.toString()}#${encodeURIComponent(wsNodeName)}`);
@@ -1820,7 +1832,7 @@
         const defaultHttpsPorts = [443];
         const defaultHttpPorts = disableNonTLS ? [] : [80];
         const links = [];
-        const wsPath = '/?ed=2048';
+        const wsPath = '/?ed=2560';
         
         const password = tp || user;
 
@@ -1861,18 +1873,23 @@
                     const wsParams = new URLSearchParams({ 
                         security: 'tls', 
                         sni: workerDomain, 
-                        fp: 'chrome',
+                        fp: 'firefox',
                         type: 'ws', 
                         host: workerDomain, 
                         path: wsPath
                     });
                     
-                    // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
+                    // 如果启用了ECH，添加ech参数（ECH需要伪装成firefox浏览器）
                     if (enableECH) {
+<<<<<<< local_明文源吗
+                        wsParams.set('alpn', 'h3');
+                        wsParams.set('ech', `cloudflare-ech.com+https://dns.alidns.com/dns-query`);
+=======
                         const dnsServer = customDNS || 'https://dns.alidns.com/dns-query';
                         const echDomain = customECHDomain || 'cloudflare-ech.com';
                         wsParams.set('alpn', 'h3,h2,http/1.1');
                         wsParams.set('ech', `${echDomain}+${dnsServer}`);
+>>>>>>> upstream_明文源吗
                     }
                     
                     links.push(`${atob('dHJvamFuOi8v')}${password}@${safeIP}:${port}?${wsParams.toString()}#${encodeURIComponent(wsNodeName)}`);
@@ -5567,7 +5584,7 @@
         const CF_HTTPS_PORTS = [443, 2053, 2083, 2087, 2096, 8443];
         
         const links = [];
-        const wsPath = '/?ed=2048';
+        const wsPath = '/?ed=2560';
         const proto = atob('dmxlc3M=');
         
         list.forEach(item => {
@@ -5577,13 +5594,17 @@
             if (CF_HTTPS_PORTS.includes(port)) {
                 
                 const wsNodeName = `${nodeName}-${port}-WS-TLS`;
-                let link = `${proto}://${user}@${item.ip}:${port}?encryption=none&security=tls&sni=${workerDomain}&fp=${enableECH ? 'chrome' : 'randomized'}&type=ws&host=${workerDomain}&path=${wsPath}`;
+                let link = `${proto}://${user}@${item.ip}:${port}?encryption=none&security=tls&sni=${workerDomain}&fp=${enableECH ? 'firefox' : 'randomized'}&type=ws&host=${workerDomain}&path=${wsPath}`;
                 
-                // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
+                // 如果启用了ECH，添加ech参数（ECH需要伪装成firefox浏览器）
                 if (enableECH) {
+<<<<<<< local_明文源吗
+                    link += `&alpn=h3&ech=${encodeURIComponent('cloudflare-ech.com+https://dns.alidns.com/dns-query')}`;
+=======
                     const dnsServer = customDNS || 'https://dns.alidns.com/dns-query';
                     const echDomain = customECHDomain || 'cloudflare-ech.com';
                     link += `&alpn=h3%2Ch2%2Chttp%2F1.1&ech=${encodeURIComponent(`${echDomain}+${dnsServer}`)}`;
+>>>>>>> upstream_明文源吗
                 }
                 
                 link += `#${encodeURIComponent(wsNodeName)}`;
@@ -5598,13 +5619,17 @@
             } else {
                 
                 const wsNodeName = `${nodeName}-${port}-WS-TLS`;
-                let link = `${proto}://${user}@${item.ip}:${port}?encryption=none&security=tls&sni=${workerDomain}&fp=${enableECH ? 'chrome' : 'randomized'}&type=ws&host=${workerDomain}&path=${wsPath}`;
+                let link = `${proto}://${user}@${item.ip}:${port}?encryption=none&security=tls&sni=${workerDomain}&fp=${enableECH ? 'firefox' : 'randomized'}&type=ws&host=${workerDomain}&path=${wsPath}`;
                 
-                // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
+                // 如果启用了ECH，添加ech参数（ECH需要伪装成firefox浏览器）
                 if (enableECH) {
+<<<<<<< local_明文源吗
+                    link += `&alpn=h3&ech=${encodeURIComponent('cloudflare-ech.com+https://dns.alidns.com/dns-query')}`;
+=======
                     const dnsServer = customDNS || 'https://dns.alidns.com/dns-query';
                     const echDomain = customECHDomain || 'cloudflare-ech.com';
                     link += `&alpn=h3%2Ch2%2Chttp%2F1.1&ech=${encodeURIComponent(`${echDomain}+${dnsServer}`)}`;
+>>>>>>> upstream_明文源吗
                 }
                 
                 link += `#${encodeURIComponent(wsNodeName)}`;
@@ -5631,19 +5656,24 @@
                 encryption: 'none',
                 security: 'tls',
                 sni: workerDomain,
-                fp: 'chrome',
+                fp: 'firefox',
                 type: 'xhttp',
                 host: workerDomain,
                 path: `/${nodePath}`,
                 mode: 'stream-one'
             });
             
-            // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
+            // 如果启用了ECH，添加ech参数（ECH需要伪装成firefox浏览器）
             if (enableECH) {
+<<<<<<< local_明文源吗
+                params.set('alpn', 'h3,h2');
+                params.set('ech', `cloudflare-ech.com+https://dns.alidns.com/dns-query`);
+=======
                 const dnsServer = customDNS || 'https://dns.alidns.com/dns-query';
                 const echDomain = customECHDomain || 'cloudflare-ech.com';
                 params.set('alpn', 'h3,h2,http/1.1');
                 params.set('ech', `${echDomain}+${dnsServer}`);
+>>>>>>> upstream_明文源吗
             }
             
             links.push(`vless://${user}@${safeIP}:${port}?${params.toString()}#${encodeURIComponent(wsNodeName)}`);
@@ -5658,7 +5688,7 @@
         const CF_HTTPS_PORTS = [443, 2053, 2083, 2087, 2096, 8443];
         
         const links = [];
-        const wsPath = '/?ed=2048';
+        const wsPath = '/?ed=2560';
         
         const password = tp || user;
         
@@ -5669,13 +5699,17 @@
             if (CF_HTTPS_PORTS.includes(port)) {
                 
                 const wsNodeName = `${nodeName}-${port}-${atob('VHJvamFu')}-WS-TLS`;
-                let link = `${atob('dHJvamFuOi8v')}${password}@${item.ip}:${port}?security=tls&sni=${workerDomain}&fp=chrome&type=ws&host=${workerDomain}&path=${wsPath}`;
+                let link = `${atob('dHJvamFuOi8v')}${password}@${item.ip}:${port}?security=tls&sni=${workerDomain}&fp=firefox&type=ws&host=${workerDomain}&path=${wsPath}`;
                 
-                // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
+                // 如果启用了ECH，添加ech参数（ECH需要伪装成firefox浏览器）
                 if (enableECH) {
+<<<<<<< local_明文源吗
+                    link += `&alpn=h3&ech=${encodeURIComponent('cloudflare-ech.com+https://dns.alidns.com/dns-query')}`;
+=======
                     const dnsServer = customDNS || 'https://dns.alidns.com/dns-query';
                     const echDomain = customECHDomain || 'cloudflare-ech.com';
                     link += `&alpn=h3%2Ch2%2Chttp%2F1.1&ech=${encodeURIComponent(`${echDomain}+${dnsServer}`)}`;
+>>>>>>> upstream_明文源吗
                 }
                 
                 link += `#${encodeURIComponent(wsNodeName)}`;
@@ -5690,13 +5724,17 @@
             } else {
                 
                 const wsNodeName = `${nodeName}-${port}-${atob('VHJvamFu')}-WS-TLS`;
-                let link = `${atob('dHJvamFuOi8v')}${password}@${item.ip}:${port}?security=tls&sni=${workerDomain}&fp=chrome&type=ws&host=${workerDomain}&path=${wsPath}`;
+                let link = `${atob('dHJvamFuOi8v')}${password}@${item.ip}:${port}?security=tls&sni=${workerDomain}&fp=firefox&type=ws&host=${workerDomain}&path=${wsPath}`;
                 
-                // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
+                // 如果启用了ECH，添加ech参数（ECH需要伪装成firefox浏览器）
                 if (enableECH) {
+<<<<<<< local_明文源吗
+                    link += `&alpn=h3&ech=${encodeURIComponent('cloudflare-ech.com+https://dns.alidns.com/dns-query')}`;
+=======
                     const dnsServer = customDNS || 'https://dns.alidns.com/dns-query';
                     const echDomain = customECHDomain || 'cloudflare-ech.com';
                     link += `&alpn=h3%2Ch2%2Chttp%2F1.1&ech=${encodeURIComponent(`${echDomain}+${dnsServer}`)}`;
+>>>>>>> upstream_明文源吗
                 }
                 
                 link += `#${encodeURIComponent(wsNodeName)}`;
@@ -6361,3 +6399,4 @@
         }));
         return Array.from(results);
     }
+```
