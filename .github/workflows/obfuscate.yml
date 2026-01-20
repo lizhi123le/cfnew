@@ -204,7 +204,7 @@ jobs:
       - name: 混淆代码
         if: steps.check-update.outputs.has_update == 'true' || github.event_name == 'workflow_dispatch'
         run: |
-          npm run build -- --input 明文源吗_temp.js --output _worker.js
+          npm run build
           # 验证混淆文件是否创建成功
           ls -la _worker.js || (echo "混淆失败 - _worker.js 未创建" && exit 1)
 
