@@ -27,7 +27,7 @@
 
     let scu = 'https://url.v1.mk/sub';  
     // 远程配置URL（硬编码）
-    const remoteConfigUrl = 'https://raw.githubusercontent.com/byJoey/test/refs/heads/main/tist.ini';
+    const remoteConfigUrl = 'https://raw.githubusercontent.com/lizhi123le/ACL4SSR/master/Clash/config/ACL4SSR_Online_Full_MultiMode.ini';
 
     let epd = false;   // 优选域名默认关闭
     let epi = true;       
@@ -1240,10 +1240,10 @@
                 
                 const tls = params.get('security') === 'tls' || params.get('tls') === 'true';
                 const network = params.get('type') || 'ws';
-                const path = params.get('path') || '/?ed=2048';
+                const path = params.get('path') || '/?ed=2560';
                 const host = params.get('host') || server;
                 const servername = params.get('sni') || host;
-                const alpn = params.get('alpn') || 'h3,h2,http/1.1';
+                const alpn = params.get('alpn') || 'h3';
                 const fingerprint = params.get('fp') || params.get('client-fingerprint') || 'chrome';
                 const ech = params.get('ech');
                 
@@ -1292,10 +1292,10 @@
                 const params = new URLSearchParams(url.search);
                 
                 const network = params.get('type') || 'ws';
-                const path = params.get('path') || '/?ed=2048';
+                const path = params.get('path') || '/?ed=2560';
                 const host = params.get('host') || server;
                 const sni = params.get('sni') || host;
-                const alpn = params.get('alpn') || 'h3,h2,http/1.1';
+                const alpn = params.get('alpn') || 'h3';
                 const ech = params.get('ech');
                 
                 const node = {
@@ -1601,13 +1601,13 @@
         if (disablePreferred) {
         } else if (hasCustomPreferred) {
             
-            if (customPreferredIPs.length > 0 && epi) {
-                await addNodesFromList(customPreferredIPs);
-            }
-            
             if (customPreferredDomains.length > 0 && epd) {
                 const customDomainList = customPreferredDomains.map(d => ({ ip: d.domain, isp: d.name || d.domain }));
                 await addNodesFromList(customDomainList);
+            } 
+			
+            if (customPreferredIPs.length > 0 && epi) {
+                await addNodesFromList(customPreferredIPs);
             }
         } else {
             
@@ -1734,7 +1734,7 @@
         const defaultHttpsPorts = [443];
         const defaultHttpPorts = disableNonTLS ? [] : [80];
         const links = [];
-        const wsPath = '/?ed=2048';
+        const wsPath = '/?ed=2560';
         const proto = atob('dmxlc3M=');
 
         list.forEach(item => {
@@ -1790,7 +1790,7 @@
                     if (enableECH) {
                         const dnsServer = customDNS || 'https://dns.alidns.com/dns-query';
                         const echDomain = customECHDomain || 'cloudflare-ech.com';
-                        wsParams.set('alpn', 'h3,h2,http/1.1');
+                        wsParams.set('alpn', 'h3');
                         wsParams.set('ech', `${echDomain}+${dnsServer}`);
                     }
                     
@@ -1820,7 +1820,7 @@
         const defaultHttpsPorts = [443];
         const defaultHttpPorts = disableNonTLS ? [] : [80];
         const links = [];
-        const wsPath = '/?ed=2048';
+        const wsPath = '/?ed=2560';
         
         const password = tp || user;
 
@@ -1871,7 +1871,7 @@
                     if (enableECH) {
                         const dnsServer = customDNS || 'https://dns.alidns.com/dns-query';
                         const echDomain = customECHDomain || 'cloudflare-ech.com';
-                        wsParams.set('alpn', 'h3,h2,http/1.1');
+                        wsParams.set('alpn', 'h3');
                         wsParams.set('ech', `${echDomain}+${dnsServer}`);
                     }
                     
@@ -5567,7 +5567,7 @@
         const CF_HTTPS_PORTS = [443, 2053, 2083, 2087, 2096, 8443];
         
         const links = [];
-        const wsPath = '/?ed=2048';
+        const wsPath = '/?ed=2560';
         const proto = atob('dmxlc3M=');
         
         list.forEach(item => {
@@ -5583,7 +5583,7 @@
                 if (enableECH) {
                     const dnsServer = customDNS || 'https://dns.alidns.com/dns-query';
                     const echDomain = customECHDomain || 'cloudflare-ech.com';
-                    link += `&alpn=h3%2Ch2%2Chttp%2F1.1&ech=${encodeURIComponent(`${echDomain}+${dnsServer}`)}`;
+                    link += `&alpn=h3&ech=${encodeURIComponent(`${echDomain}+${dnsServer}`)}`;
                 }
                 
                 link += `#${encodeURIComponent(wsNodeName)}`;
@@ -5604,7 +5604,7 @@
                 if (enableECH) {
                     const dnsServer = customDNS || 'https://dns.alidns.com/dns-query';
                     const echDomain = customECHDomain || 'cloudflare-ech.com';
-                    link += `&alpn=h3%2Ch2%2Chttp%2F1.1&ech=${encodeURIComponent(`${echDomain}+${dnsServer}`)}`;
+                    link += `&alpn=h3&ech=${encodeURIComponent(`${echDomain}+${dnsServer}`)}`;
                 }
                 
                 link += `#${encodeURIComponent(wsNodeName)}`;
@@ -5642,7 +5642,7 @@
             if (enableECH) {
                 const dnsServer = customDNS || 'https://dns.alidns.com/dns-query';
                 const echDomain = customECHDomain || 'cloudflare-ech.com';
-                params.set('alpn', 'h3,h2,http/1.1');
+                params.set('alpn', 'h3,h2');
                 params.set('ech', `${echDomain}+${dnsServer}`);
             }
             
@@ -5658,7 +5658,7 @@
         const CF_HTTPS_PORTS = [443, 2053, 2083, 2087, 2096, 8443];
         
         const links = [];
-        const wsPath = '/?ed=2048';
+        const wsPath = '/?ed=2560';
         
         const password = tp || user;
         
@@ -5675,7 +5675,7 @@
                 if (enableECH) {
                     const dnsServer = customDNS || 'https://dns.alidns.com/dns-query';
                     const echDomain = customECHDomain || 'cloudflare-ech.com';
-                    link += `&alpn=h3%2Ch2%2Chttp%2F1.1&ech=${encodeURIComponent(`${echDomain}+${dnsServer}`)}`;
+                    link += `&alpn=h3&ech=${encodeURIComponent(`${echDomain}+${dnsServer}`)}`;
                 }
                 
                 link += `#${encodeURIComponent(wsNodeName)}`;
@@ -5696,7 +5696,7 @@
                 if (enableECH) {
                     const dnsServer = customDNS || 'https://dns.alidns.com/dns-query';
                     const echDomain = customECHDomain || 'cloudflare-ech.com';
-                    link += `&alpn=h3%2Ch2%2Chttp%2F1.1&ech=${encodeURIComponent(`${echDomain}+${dnsServer}`)}`;
+                    link += `&alpn=h3&ech=${encodeURIComponent(`${echDomain}+${dnsServer}`)}`;
                 }
                 
                 link += `#${encodeURIComponent(wsNodeName)}`;
