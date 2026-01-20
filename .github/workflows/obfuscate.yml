@@ -28,7 +28,7 @@ jobs:
           WORKER_URL="https://raw.githubusercontent.com/byJoey/cfnew/refs/heads/main/明文源吗"
           MD_URL="https://raw.githubusercontent.com/byJoey/cfnew/refs/heads/main/README.md"
           BACKUP_FILE="明文源吗"
-          BASE_FILE="明文源吗.js.upstream"
+          BASE_FILE="明文源吗.upstream"
           MD_FILE="README.md"
           WORKER_HASH_FILE=".明文源吗_hash"
           MD_HASH_FILE=".md_hash"
@@ -63,22 +63,22 @@ jobs:
               # 准备三个文件进行合并
               # local: 当前的用户修改（backup文件）
               if [ -f "$BACKUP_FILE" ]; then
-                cp "$BACKUP_FILE" local明文源吗.js
+                cp "$BACKUP_FILE" local明文源吗
                 echo "使用备份文件作为 local（用户修改）"
               else
                 echo "警告：备份文件不存在，使用上游版本作为 local"
-                cp "$BASE_FILE" local明文源吗.js
+                cp "$BASE_FILE" local明文源吗
               fi
               
               # base: 上次的上游版本
               cp "$BASE_FILE" base明文源吗
               
               # upstream: 新的上游版本
-              cp temp明文源吗 upstream明文源吗.js
+              cp temp明文源吗 upstream明文源吗
 
               # 执行三方合并
               echo "开始三方合并..."
-              if git merge-file local明文源吗.js base明文源吗 upstream明文源吗.js; then
+              if git merge-file local明文源吗 base明文源吗 upstream明文源吗; then
                 echo "三方合并成功"
                 MERGE_SUCCESS="true"
               else
@@ -86,7 +86,7 @@ jobs:
                 MERGE_SUCCESS="false"
                 
                 # 检查冲突标记
-                if grep -q "<<<<<<" local明文源吗.js; then
+                if grep -q "<<<<<<" local明文源吗; then
                   echo "发现合并冲突，创建冲突报告文件"
                   echo "# 合并冲突报告" > merge_conflict.md
                   echo "## 冲突时间: $(date)" >> merge_conflict.md
@@ -95,12 +95,12 @@ jobs:
                   echo "以下文件包含冲突标记，需要手动解决：" >> merge_conflict.md
                   echo "" >> merge_conflict.md
                   echo '```' >> merge_conflict.md
-                  cat local明文源吗.js >> merge_conflict.md
+                  cat local明文源吗 >> merge_conflict.md
                   echo '```' >> merge_conflict.md
                   
                   # 作为后备方案，使用上游版本但保留原备份供手动处理
                   echo "使用上游版本作为基础，保留原备份文件供后续手动合并"
-                  cp temp明文源吗 local明文源吗.js
+                  cp temp明文源吗 local明文源吗
                   # 保存原备份为 .old 版本
                   cp "$BACKUP_FILE" "${BACKUP_FILE}.old"
                 else
@@ -115,7 +115,7 @@ jobs:
               
               # 保存合并结果作为备份
               echo "保存合并结果作为备份文件"
-              mv -f local明文源吗.js "$BACKUP_FILE"
+              mv -f local明文源吗 "$BACKUP_FILE"
             fi
 
             echo "$NEW_WORKER_HASH" > "$WORKER_HASH_FILE"
@@ -197,9 +197,9 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y jq zip
 
-      - name: 创建 明文源吗_temp.js 用于混淆
+      - name: 创建 明文源吗_temp 用于混淆
         if: steps.check-update.outputs.has_update == 'true' || github.event_name == 'workflow_dispatch'
-        run: cp 明文源吗 明文源吗_temp.js
+        run: cp 明文源吗 明文源吗_temp
 
       - name: 混淆代码
         if: steps.check-update.outputs.has_update == 'true' || github.event_name == 'workflow_dispatch'
@@ -233,7 +233,7 @@ jobs:
           # 分步添加文件并验证
           git add 少年你相信光吗 || echo "警告：少年你相信光吗 未找到或已跟踪"
           git add Pages.zip || echo "警告：Pages.zip 未找到或已跟踪"
-          git add 明文源吗 明文源吗.js.upstream README.md .明文源吗_hash .md_hash || true
+          git add 明文源吗 明文源吗.upstream README.md .明文源吗_hash .md_hash || true
           
           # 如果有冲突报告，也添加
           git add merge_conflict.md || true
