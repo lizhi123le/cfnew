@@ -5,7 +5,7 @@ on:
       - main
   workflow_dispatch:
   schedule:
-    - cron: '0 */9 * * *'
+    - cron: '0 *9 * * *'
 
 jobs:
   obfuscate-and-release:
@@ -16,7 +16,7 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actionscheckout@v4
         with:
           persist-credentials: true
 
@@ -25,23 +25,25 @@ jobs:
         id: check-update
         run: |
           set -euo pipefail
-          WORKER_URL="https://raw.githubusercontent.com/byJoey/cfnew/refs/heads/main/明文源吗"
-          MD_URL="https://raw.githubusercontent.com/byJoey/cfnew/refs/heads/main/README.md"
+          WORKER_URL="https:raw.githubusercontent.combyJoeycfnewrefsheadsmain明文源吗"
+          MD_URL="https:raw.githubusercontent.combyJoeycfnewrefsheadsmainREADME.md"
           BASE_FILE="明文源吗.upstream"
           MD_FILE="README.md"
           WORKER_HASH_FILE=".worker_hash"
           MD_HASH_FILE=".md_hash"
+          OBFUSCATED_HASH_FILE=".obfuscated_hash"
 
           curl -fsSL -o temp_明文源吗 "$WORKER_URL"
           curl -fsSL -o temp_md.md "$MD_URL"
 
           NEW_WORKER_HASH=$(sha256sum temp_明文源吗 | cut -d' ' -f1)
           NEW_MD_HASH=$(sha256sum temp_md.md | cut -d' ' -f1)
-          OLD_WORKER_HASH=$(cat "$WORKER_HASH_FILE" 2>/dev/null || echo "")
-          OLD_MD_HASH=$(cat "$MD_HASH_FILE" 2>/dev/null || echo "")
+          OLD_WORKER_HASH=$(cat "$WORKER_HASH_FILE" 2>devnull || echo "")
+          OLD_MD_HASH=$(cat "$MD_HASH_FILE" 2>devnull || echo "")
 
           HAS_UPDATE="false"
           MERGE_STATUS="none"
+          OBFUSCATED_CHANGED="false"
 
           # ========== 处理 明文源吗（真正的三方合并） ==========
           if [ "$NEW_WORKER_HASH" != "$OLD_WORKER_HASH" ]; then
@@ -166,9 +168,9 @@ jobs:
           # 如果本地没找到或文件不存在，从上游读取
           if [ -z "$VERSION" ]; then
             echo "本地未找到版本号，从上游读取..."
-            UPSTREAM_MD_URL="https://raw.githubusercontent.com/byJoey/cfnew/main/README.md"
+            UPSTREAM_MD_URL="https:raw.githubusercontent.combyJoeycfnewmainREADME.md"
             curl -fsSL "$UPSTREAM_MD_URL" | grep -E "v[0-9]+\.[0-9]+\.[0-9]+" | head -1 | grep -oE "v[0-9]+\.[0-9]+\.[0-9]+" > upstream_version.txt || echo ""
-            VERSION=$(cat upstream_version.txt 2>/dev/null || echo "")
+            VERSION=$(cat upstream_version.txt 2>devnull || echo "")
             rm -f upstream_version.txt
           fi
           
@@ -188,7 +190,7 @@ jobs:
 
       - name: Set up Node.js
         if: steps.check-update.outputs.has_update == 'true' || github.event_name == 'workflow_dispatch'
-        uses: actions/setup-node@v4
+        uses: actionssetup-node@v4
         with:
           node-version: 'latest'
 
@@ -208,9 +210,22 @@ jobs:
         run: |
           npm run build
           # 验证混淆文件是否创建成功
-          ls -la 少年你相信光吗 || (echo "混淆失败 - _worker.js 未创建" && exit 1)
+          ls -la 少年你相信光吗 || (echo "混淆失败 - 少年你相信光吗 未创建" && exit 1)
+          
+          # 计算混淆文件的哈希值
+          OBFUSCATED_HASH=$(sha256sum 少年你相信光吗 | cut -d' ' -f1)
+          OLD_OBFUSCATED_HASH=$(cat ".obfuscated_hash" 2>devnull || echo "")
+          
+          if [ "$OBFUSCATED_HASH" != "$OLD_OBFUSCATED_HASH" ]; then
+            echo "混淆文件已更改"
+            echo "$OBFUSCATED_HASH" > ".obfuscated_hash"
+            echo "obfuscated_changed=true" >> $GITHUB_OUTPUT
+          else
+            echo "混淆文件未更改"
+            echo "obfuscated_changed=false" >> $GITHUB_OUTPUT
+          fi
 
-      - name: 压缩为 Pages.zip 并创建明文发布文件（不推送）
+      - name: 压缩为 Pages.zip 并创建明文发布文件
         if: steps.check-update.outputs.has_update == 'true' || github.event_name == 'workflow_dispatch'
         run: |
           # 创建发布文件（仅用于Release，不推送到仓库）
@@ -242,13 +257,13 @@ jobs:
           git status --porcelain
           
           # 检查工作文件是否有变更
-          if git status --porcelain | grep -E "(明文源吗|少年你相信光吗|README.md)" >/dev/null; then
+          if git status --porcelain | grep -E "(明文源吗|少年你相信光吗|README.md)" >devnull; then
             echo "检测到工作文件变更"
             CHANGES_EXIST="true"
           fi
           
           # 检查状态文件是否有变更
-          if git status --porcelain | grep -E "(明文源吗\.upstream|\.worker_hash|\.md_hash)" >/dev/null; then
+          if git status --porcelain | grep -E "(明文源吗\.upstream|\.worker_hash|\.md_hash|\.obfuscated_hash)" >devnull; then
             echo "检测到状态文件变更"
             CHANGES_EXIST="true"
           fi
@@ -259,10 +274,17 @@ jobs:
             CHANGES_EXIST="true"
           fi
           
+          # 检查混淆文件是否变更
+          OBFUSCATED_CHANGED="${{ steps.混淆代码.outputs.obfuscated_changed }}"
+          if [ "$OBFUSCATED_CHANGED" = "true" ]; then
+            echo "混淆文件已变更，需要提交"
+            CHANGES_EXIST="true"
+          fi
+          
           echo "has_changes=$CHANGES_EXIST" >> $GITHUB_OUTPUT
           echo "文件变更状态: $CHANGES_EXIST"
 
-      - name: 提交并推送更改（仅推送必要文件）
+      - name: 提交并推送更改（包含混淆文件）
         if: steps.check-changes.outputs.has_changes == 'true'
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
@@ -275,10 +297,11 @@ jobs:
           echo "=== 添加前的 Git 状态 ==="
           git status
           
-          # 仅推送必要的文件
-          echo "添加工作文件和状态文件..."
+          # 添加所有必要的文件，包括混淆后的文件
+          echo "添加工作文件、状态文件和混淆文件..."
           git add 明文源吗 || echo "警告：明文源吗 未找到或已跟踪"
-          git add 明文源吗.upstream README.md .worker_hash .md_hash || true
+          git add 少年你相信光吗 || echo "警告：少年你相信光吗 未找到"
+          git add 明文源吗.upstream README.md .worker_hash .md_hash .obfuscated_hash || true
           
           # 如果有冲突报告，也添加
           git add merge_conflict.md || true
@@ -296,7 +319,7 @@ jobs:
           fi
           
           VERSION="${{ steps.read-version.outputs.version }}"
-          COMMIT_MSG="自动更新：工作文件 + 基线（版本 $VERSION）"
+          COMMIT_MSG="自动更新：源文件 + 混淆文件 + 基线（版本 $VERSION）"
           
           # 如果有冲突，在提交信息中说明
           if [ -f "merge_conflict.md" ]; then
@@ -310,7 +333,7 @@ jobs:
 
       - name: Push changes
         if: steps.check-changes.outputs.has_changes == 'true'
-        uses: ad-m/github-push-action@master
+        uses: ad-mgithub-push-action@master
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           branch: main
@@ -332,28 +355,28 @@ jobs:
           
           # 检查是否已存在该版本的Release
           RELEASE_ID=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
-            "https://api.github.com/repos/${{ github.repository }}/releases/tags/$VERSION" | jq -r '.id // ""')
+            "https:api.github.comrepos${{ github.repository }}releasestags$VERSION" | jq -r '.id  ""')
           
           # 如果存在，删除旧的Release
           if [ -n "$RELEASE_ID" ] && [ "$RELEASE_ID" != "null" ]; then
             echo "删除旧 Release $RELEASE_ID"
             curl -X DELETE -H "Authorization: Bearer $GITHUB_TOKEN" \
-              "https://api.github.com/repos/${{ github.repository }}/releases/$RELEASE_ID"
+              "https:api.github.comrepos${{ github.repository }}releases$RELEASE_ID"
           fi
           
           # 删除旧的标签（如果存在）
           if curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
-            "https://api.github.com/repos/${{ github.repository }}/git/refs/tags/$VERSION" | jq -e .ref >/dev/null 2>&1; then
+            "https:api.github.comrepos${{ github.repository }}gitrefstags$VERSION" | jq -e .ref >devnull 2>&1; then
             curl -X DELETE -H "Authorization: Bearer $GITHUB_TOKEN" \
-              "https://api.github.com/repos/${{ github.repository }}/git/refs/tags/$VERSION"
+              "https:api.github.comrepos${{ github.repository }}gitrefstags$VERSION"
           fi
           
           # 创建Release描述
           RELEASE_BODY=$(cat << EOF
           ## 部署信息
           
-          - **源文件**: 少年你相信光吗
-          - **明文源文件**: 明文源吗
+          - **源文件**: 明文源吗
+          - **混淆文件**: 少年你相信光吗
           - **目标文件**: _worker.js
           - **压缩文件**: Pages.zip
           - **明文发布文件**: mingwenyuanma.js
@@ -363,8 +386,9 @@ jobs:
           
           ## 文件变更
           
-          已从 \`少年你相信光吗\` 生成 \`_worker.js\` 文件，并压缩为 \`Pages.zip\`。
+          已从 \`明文源吗\` 生成 \`少年你相信光吗\` 混淆文件，并复制为 \`_worker.js\` 文件压缩为 \`Pages.zip\`。
           已从 \`明文源吗\` 复制为 \`mingwenyuanma.js\` 以供发布。
+          混淆文件 \`少年你相信光吗\` 已推送到仓库。
           
           EOF
           )
@@ -386,9 +410,9 @@ jobs:
           
           RESPONSE=$(curl -s -X POST \
             -H "Authorization: Bearer $GITHUB_TOKEN" \
-            -H "Content-Type: application/json" \
+            -H "Content-Type: applicationjson" \
             --data "$PAYLOAD" \
-            "https://api.github.com/repos/${{ github.repository }}/releases")
+            "https:api.github.comrepos${{ github.repository }}releases")
           
           RELEASE_ID=$(echo "$RESPONSE" | jq -r '.id')
           
@@ -408,7 +432,7 @@ jobs:
                 -H "Authorization: Bearer $GITHUB_TOKEN" \
                 -H "Content-Type: $(file -b --mime-type $asset)" \
                 --data-binary "@$asset" \
-                "https://uploads.github.com/repos/${{ github.repository }}/releases/$RELEASE_ID/assets?name=$asset"
+                "https:uploads.github.comrepos${{ github.repository }}releases$RELEASE_IDassets?name=$asset"
             fi
           done
           
@@ -416,9 +440,12 @@ jobs:
           echo "=== GitHub Release 创建完成 ==="
 
       # ==================== 清理临时文件 ====================
-      - name: 清理临时文件
+      - name: 清理临时文件（保留混淆文件）
         if: steps.check-update.outputs.has_update == 'true' || github.event_name == 'workflow_dispatch'
         run: |
           echo "清理临时文件..."
-          rm -f 明文源吗_temp 少年你相信光吗 _worker.js Pages.zip mingwenyuanma.js
-          echo "临时文件清理完成"
+          # 只清理临时文件，保留混淆文件和状态文件
+          rm -f 明文源吗_temp _worker.js Pages.zip mingwenyuanma.js
+          # 清理合并临时文件
+          rm -f local_明文源吗 base_明文源吗 upstream_明文源吗 temp_明文源吗 temp_md.md
+          echo "临时文件清理完成（混淆文件已保留）"
