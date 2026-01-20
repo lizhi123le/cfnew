@@ -33,10 +33,10 @@ jobs:
           WORKER_HASH_FILE=".明文源吗_hash"
           MD_HASH_FILE=".md_hash"
 
-          curl -fsSL -o temp明文源吗.js "$WORKER_URL"
+          curl -fsSL -o temp明文源吗 "$WORKER_URL"
           curl -fsSL -o temp_md.md "$MD_URL"
 
-          NEW_WORKER_HASH=$(sha256sum temp明文源吗.js | cut -d' ' -f1)
+          NEW_WORKER_HASH=$(sha256sum temp明文源吗 | cut -d' ' -f1)
           NEW_MD_HASH=$(sha256sum temp_md.md | cut -d' ' -f1)
           OLD_WORKER_HASH=$(cat "$WORKER_HASH_FILE" 2>/dev/null || echo "")
           OLD_MD_HASH=$(cat "$MD_HASH_FILE" 2>/dev/null || echo "")
@@ -50,10 +50,10 @@ jobs:
             # 首次运行：初始化基线
             if [ ! -f "$BASE_FILE" ]; then
               echo "首次运行，初始化基线文件"
-              cp temp明文源吗.js "$BASE_FILE"
+              cp temp明文源吗 "$BASE_FILE"
               # 如果没有备份文件，用上游作为备份
               if [ ! -f "$BACKUP_FILE" ]; then
-                cp temp明文源吗.js "$BACKUP_FILE"
+                cp temp明文源吗 "$BACKUP_FILE"
               else
                 echo "发现现有备份文件，保留用户修改"
               fi
@@ -74,7 +74,7 @@ jobs:
               cp "$BASE_FILE" base明文源吗
               
               # upstream: 新的上游版本
-              cp temp明文源吗.js upstream明文源吗.js
+              cp temp明文源吗 upstream明文源吗.js
 
               # 执行三方合并
               echo "开始三方合并..."
@@ -100,7 +100,7 @@ jobs:
                   
                   # 作为后备方案，使用上游版本但保留原备份供手动处理
                   echo "使用上游版本作为基础，保留原备份文件供后续手动合并"
-                  cp temp明文源吗.js local明文源吗.js
+                  cp temp明文源吗 local明文源吗.js
                   # 保存原备份为 .old 版本
                   cp "$BACKUP_FILE" "${BACKUP_FILE}.old"
                 else
@@ -111,7 +111,7 @@ jobs:
 
               # 更新基线文件为新的上游版本
               echo "更新基线文件为新的上游版本"
-              mv -f temp明文源吗.js "$BASE_FILE"
+              mv -f temp明文源吗 "$BASE_FILE"
               
               # 保存合并结果作为备份
               echo "保存合并结果作为备份文件"
@@ -122,7 +122,7 @@ jobs:
             HAS_UPDATE="true"
           else
             echo "上游 明文源吗 无更新"
-            rm -f temp明文源吗.js
+            rm -f temp明文源吗
           fi
 
           # ========== 处理 README.md（覆盖方式） ==========
