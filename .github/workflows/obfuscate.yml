@@ -211,8 +211,8 @@ jobs:
       - name: 压缩为 Pages.zip 并创建明文发布文件
         if: steps.check-update.outputs.has_update == 'true' || github.event_name == 'workflow_dispatch'
         run: |
-          cp _worker.js 少年你相信光吗
           cp 明文源吗 mingwenyuanma.js
+          cp 少年你相信光吗 _worker.js
           zip Pages.zip _worker.js
           # 验证压缩包是否创建成功
           ls -la Pages.zip || (echo "压缩包创建失败" && exit 1)
