@@ -233,7 +233,6 @@ jobs:
           # 分步添加文件并验证
           git add 少年你相信光吗 || echo "警告：少年你相信光吗 未找到或已跟踪"
           git add Pages.zip || echo "警告：Pages.zip 未找到或已跟踪"
-          git add mingwenyuanma.js || echo "警告：mingwenyuanma.js 未找到或已跟踪"
           git add 明文源吗 明文源吗.js.upstream README.md .明文源吗_hash .md_hash || true
           
           # 如果有冲突报告，也添加
