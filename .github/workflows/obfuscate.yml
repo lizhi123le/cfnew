@@ -280,22 +280,20 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           branch: main
 
-      # ==================== 创建/覆盖 Release ====================
+      # ==================== 创建GitHub Release ====================
       - name: Create GitHub Release
-        if: steps.check-update.outputs.has_update == 'true' || github.event_name == 'workflow_dispatch'
+        if: steps.check-changes.outputs.has_changes == 'true' || github.event_name == 'workflow_dispatch'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           VERSION="${{ steps.read-version.outputs.version }}"
-          MERGE_STATUS="${{ steps.check-update.outputs.merge_status }}"
-          WORKER_HASH="${{ steps.check-update.outputs.worker_hash }}"
+          MERGE_STATUS="${{ steps.improved-merge-upstream.outputs.merge_status }}"
           TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
           
           echo "=== 创建 GitHub Release ==="
           echo "版本：$VERSION"
           echo "合并状态：$MERGE_STATUS"
-          echo "工作文件哈希：$WORKER_HASH"
           
           # 检查是否已存在该版本的Release
           RELEASE_ID=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
@@ -314,7 +312,6 @@ jobs:
             curl -X DELETE -H "Authorization: Bearer $GITHUB_TOKEN" \
               "https://api.github.com/repos/${{ github.repository }}/git/refs/tags/$VERSION"
           fi
-          
           # 创建Release描述
           RELEASE_BODY=$(cat << EOF
           ## 部署信息
@@ -327,42 +324,25 @@ jobs:
           - **标签**: $VERSION
           - **部署时间**: $TIMESTAMP
           - **合并状态**: $MERGE_STATUS
-          - **文件哈希**: $WORKER_HASH
           
           ## 文件变更
           
           已从 \`少年你相信光吗\` 生成 \`_worker.js\` 文件，并压缩为 \`Pages.zip\`。
           已从 \`明文源吗\` 复制为 \`mingwenyuanma.js\` 以供发布。
           
-          ## 合并状态说明
-          
           EOF
           )
           
-          # 根据合并状态添加详细说明
-          case "$MERGE_STATUS" in
-            "success")
-              RELEASE_BODY="$RELEASE_BODY
-          ✅ **合并成功**: 本地修改已成功与上游更新合并"
-              ;;
-            "conflict")
-              RELEASE_BODY="$RELEASE_BODY
-          ⚠️ **存在冲突**: 检测到合并冲突，需要手动处理
+          # 如果有冲突，添加冲突信息
+          if [ "$MERGE_STATUS" = "conflict" ]; then
+            RELEASE_BODY="$RELEASE_BODY
           
-          冲突文件: \`明文源吗.conflict\`
-          冲突报告: \`merge_conflict.md\`
+          ## ⚠️ 冲突警告
           
-          请手动解决冲突后重新运行工作流。"
-              ;;
-            "no_local_changes")
-              RELEASE_BODY="$RELEASE_BODY
-          📥 **仅上游更新**: 无本地修改，直接应用上游更新"
-              ;;
-            "failed")
-              RELEASE_BODY="$RELEASE_BODY
-          ❌ **合并失败**: 合并过程中出现错误，请检查日志"
-              ;;
-          esac
+          本次合并存在冲突，请检查仓库中的冲突标记并手动解决。
+          冲突报告文件: \`conflict_report.txt\`
+          "
+          fi
           
           # 创建Release
           PAYLOAD=$(jq -n --arg v "$VERSION" --arg body "$RELEASE_BODY" \
@@ -377,36 +357,24 @@ jobs:
           RELEASE_ID=$(echo "$RESPONSE" | jq -r '.id')
           
           if [ -z "$RELEASE_ID" ] || [ "$RELEASE_ID" = "null" ]; then
-            echo "❌ 创建 Release 失败"
+            echo "创建 Release 失败"
             echo "$RESPONSE"
             exit 1
           fi
           
-          echo "✅ Release 创建成功：$VERSION (ID: $RELEASE_ID)"
+          echo "Release 创建成功：$VERSION (ID: $RELEASE_ID)"
           
           # 上传文件
           for asset in Pages.zip mingwenyuanma.js; do
             if [ -f "$asset" ]; then
               echo "正在上传 $asset ..."
-              UPLOAD_RESPONSE=$(curl -s -X POST \
+              curl -s -X POST \
                 -H "Authorization: Bearer $GITHUB_TOKEN" \
                 -H "Content-Type: $(file -b --mime-type $asset)" \
                 --data-binary "@$asset" \
-                "https://uploads.github.com/repos/${{ github.repository }}/releases/$RELEASE_ID/assets?name=$asset")
-              
-              # 检查上传结果
-              ASSET_ID=$(echo "$UPLOAD_RESPONSE" | jq -r '.id // ""')
-              if [ -n "$ASSET_ID" ] && [ "$ASSET_ID" != "null" ]; then
-                echo "✅ $asset 上传成功 (ID: $ASSET_ID)"
-              else
-                echo "❌ $asset 上传失败"
-                echo "$UPLOAD_RESPONSE"
-              fi
-            else
-              echo "⚠️ 文件 $asset 不存在，跳过上传"
+                "https://uploads.github.com/repos/${{ github.repository }}/releases/$RELEASE_ID/assets?name=$asset"
             fi
           done
           
+          echo "Release $VERSION 及所有资产上传完成"
           echo "=== GitHub Release 创建完成 ==="
-          echo "Release: $VERSION"
-          echo "状态: $MERGE_STATUS"
