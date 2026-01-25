@@ -4813,10 +4813,28 @@
                         
                         resultItems.forEach(item => {
                             const colo = item.dataset.colo || '';
+                            const checkbox = item.querySelector('input[type="checkbox"]');
                             if (allChecked || noneChecked || selectedCities.has(colo)) {
                                 item.style.display = 'flex';
+                                // 同步更新结果项复选框的选中状态
+                                if (checkbox) {
+                                    if (allChecked) {
+                                        // 所有城市都选中时，所有结果项复选框都选中
+                                        checkbox.checked = true;
+                                    } else if (noneChecked) {
+                                        // 没有选中任何城市时，所有结果项复选框都取消选中
+                                        checkbox.checked = false;
+                                    } else {
+                                        // 根据城市选择状态同步复选框
+                                        checkbox.checked = selectedCities.has(colo);
+                                    }
+                                }
                             } else {
                                 item.style.display = 'none';
+                                // 取消选中隐藏的结果项复选框
+                                if (checkbox) {
+                                    checkbox.checked = false;
+                                }
                             }
                         });
                         
