@@ -5569,7 +5569,7 @@
         const url = piu || "https://raw.githubusercontent.com/qwer-search/bestip/refs/heads/main/kejilandbestip.txt";
         try {
             const urls = url.includes(',') ? url.split(',').map(u => u.trim()).filter(u => u) : [url];
-            const apiResults = await fetchPreferredAPI(urls, '443', 5000);
+            const apiResults = await fetchPreferredAPI(urls, '443', 8000);
             
             if (apiResults.length > 0) {
                 const results = [];
@@ -6320,7 +6320,7 @@
         return processed.split(',');
     }
 
-    async function fetchPreferredAPI(urls, defaultPort = '443', timeout = 3000) {
+    async function fetchPreferredAPI(urls, defaultPort = '443', timeout = 10000) {
         if (!urls?.length) return [];
         const results = new Set();
         await Promise.allSettled(urls.map(async (url) => {
