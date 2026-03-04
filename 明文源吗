@@ -200,7 +200,7 @@
         }
     }
 
-    async function checkIPAvailability(domain, port = 443, timeout = 2000) {
+    async function checkIPAvailability(domain, port = 443, timeout = 8000) {
         try {
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), timeout);
@@ -4012,7 +4012,7 @@
                 
                 setTimeout(function() {
                     statusDiv.style.display = 'none';
-                }, 3000);
+                }, 5000);
             }
             
             async function resetAllConfig() {
@@ -5133,7 +5133,7 @@
 
     let ACTIVE_CONNECTIONS = 0;
     const XHTTP_BUFFER_SIZE = 128 * 1024;
-    const CONNECT_TIMEOUT_MS = 5000;
+    const CONNECT_TIMEOUT_MS = 8000;
     const IDLE_TIMEOUT_MS = 45000;
     const MAX_RETRIES = 2;
     const MAX_CONCURRENT = 32;
@@ -5391,7 +5391,7 @@
                     clearInterval(idleTimer);
                     reject('idle timeout');
                 }
-            }, 5000);
+            }, 8000);
 
             const reader = remote_readable.getReader();
             const writer = stream.writable.getWriter();
