@@ -3349,8 +3349,12 @@
                     } else {
                         // 其他情况使用订阅转换服务
                         var encodedUrl = encodeURIComponent(subscriptionUrl);
-                        finalUrl = SUB_CONVERTER_URL + "?target=" + clientType + "&url=" + encodedUrl + "&insert=false&config=" + encodeURIComponent(REMOTE_CONFIG_URL) + "&emoji=true&list=false&xudp=false&udp=false&tfo=false&expand=true&scv=false&fdn=false&new_name=true";
-                        var urlElement = document.getElementById("clientSubscriptionUrl");
+                        if (clientType === atob('c3VyZ2U=')) {
+                        	finalUrl = SUB_CONVERTER_URL + "?target=" + clientType + "&ver=4" + "&url=" + encodedUrl + "&insert=false&config=" + encodeURIComponent(REMOTE_CONFIG_URL) + "&emoji=true&list=false&xudp=false&udp=false&tfo=false&expand=true&scv=false&fdn=false&new_name=true";
+                        else {
+							finalUrl = SUB_CONVERTER_URL + "?target=" + clientType + "&url=" + encodedUrl + "&insert=false&config=" + encodeURIComponent(REMOTE_CONFIG_URL) + "&emoji=true&list=false&xudp=false&udp=false&tfo=false&expand=true&scv=false&fdn=false&new_name=true";
+						}
+						var urlElement = document.getElementById("clientSubscriptionUrl");
                         urlElement.textContent = finalUrl;
                         urlElement.style.display = "block";
                         urlElement.style.overflowWrap = "break-word";
@@ -3368,7 +3372,7 @@
                                 displayName = 'CLASH';
                             }
                         } else if (clientType === atob('c3VyZ2U=')) {
-                            schemeUrl = 'surge:///install-config?url=' + encodeURIComponent(finalUrl + "&ver=4");
+                            schemeUrl = 'surge:///install-config?url=' + encodeURIComponent(finalUrl");
                             displayName = 'SURGE';
                         } else if (clientType === atob('c2luZ2JveA==')) {
                             schemeUrl = 'sing-box://install-config?url=' + encodeURIComponent(finalUrl);
