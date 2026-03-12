@@ -3368,7 +3368,7 @@
                                 displayName = 'CLASH';
                             }
                         } else if (clientType === atob('c3VyZ2U=')) {
-                            schemeUrl = 'surge:///install-config?url=' + encodeURIComponent(finalUrl);
+                            schemeUrl = 'surge:///install-config?url=' + encodeURIComponent(finalUrl) + '&ver=4';
                             displayName = 'SURGE';
                         } else if (clientType === atob('c2luZ2JveA==')) {
                             schemeUrl = 'sing-box://install-config?url=' + encodeURIComponent(finalUrl);
