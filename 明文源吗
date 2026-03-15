@@ -42,6 +42,7 @@
     // KV配置缓存
     let kvConfigCache = null;
     let kvConfigCacheTime = 0;
+    let kvConfigVersion = ''; // 配置版本号
     const CACHE_TTL = 60000; // 1分钟缓存（平衡性能和一致性）
 
     const regionMapping = {
@@ -144,10 +145,19 @@
             return;
         }
         
-        // 检查内存缓存
+        // 检查内存缓存（包括版本号验证）
         if (kvConfigCache && Date.now() - kvConfigCacheTime < CACHE_TTL) {
-            kvConfig = kvConfigCache;
-            return;
+            try {
+                // 验证版本号是否匹配
+                const currentVersion = await kvStore.get('c_version');
+                if (currentVersion === kvConfigVersion) {
+                    kvConfig = kvConfigCache;
+                    return;
+                }
+                // 版本不匹配，清除缓存并重新加载
+            } catch (error) {
+                // 版本检查失败，继续重新加载
+            }
         }
         
         try {
@@ -155,9 +165,10 @@
             
             if (configData) {
                 kvConfig = JSON.parse(configData);
-                // 更新内存缓存
+                // 更新内存缓存和版本号
                 kvConfigCache = kvConfig;
                 kvConfigCacheTime = Date.now();
+                kvConfigVersion = await kvStore.get('c_version') || '';
             } else {
             }
         } catch (error) {
@@ -172,7 +183,26 @@
         
         try {
             const configString = JSON.stringify(kvConfig);
+            
+            // 生成新版本号
+            const newVersion = Date.now().toString();
+            
+            // 先写入版本号（作为锁机制）
+            await kvStore.put('c_version', newVersion);
+            
+            // 写入配置
             await kvStore.put('c', configString);
+            
+            // 写后验证（解决最终一致性问题）
+            const verifyData = await kvStore.get('c');
+            if (verifyData !== configString) {
+                console.error('KV写入验证失败，配置可能未同步');
+                // 可以选择重试或抛出错误
+            }
+            
+            // 更新本地版本号
+            kvConfigVersion = newVersion;
+            
         } catch (error) {
             throw error; 
         }
@@ -192,6 +222,7 @@
         // 清除内存缓存，强制下次读取最新配置
         kvConfigCache = null;
         kvConfigCacheTime = 0;
+        // 版本号已在saveKVConfig中更新
     }
 
     async function detectWorkerRegion(request) {
@@ -5858,6 +5889,7 @@
                 // 清除内存缓存，强制下次读取最新配置
                 kvConfigCache = null;
                 kvConfigCacheTime = 0;
+                // 版本号已在saveKVConfig中更新
                 
                 updateConfigVariables();
                 
