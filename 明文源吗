@@ -1421,29 +1421,6 @@
         }
     }
 
-    // 生成 Surge 配置
-    async function generateSurgeConfig(links, request, user) {
-        // 先通过订阅转换服务获取 Surge 配置
-        const subscriptionUrl = new URL(request.url);
-        subscriptionUrl.pathname = subscriptionUrl.pathname.replace(/\/sub$/, '') + '/sub';
-        subscriptionUrl.searchParams.set('target', 'base64');
-        const encodedUrl = encodeURIComponent(subscriptionUrl.toString());
-        const converterUrl = `${scu}?target=surge&ver=4&url=${encodedUrl}&insert=false&emoji=true&list=false&xudp=false&udp=false&tfo=false&expand=true&scv=false&fdn=false&new_name=true`;
-        
-        try {
-            const response = await fetch(converterUrl);
-            if (!response.ok) {
-                throw new Error('订阅转换服务失败');
-            }
-            
-            let surgeConfig = await response.text();
-            return surgeConfig;
-        } catch (e) {
-            // 如果订阅转换失败，返回错误
-            throw new Error('无法获取 Surge 配置: ' + e.message);
-        }
-    }
-
     // 全局变量存储ECH调试信息
     let echDebugInfo = '';
     
@@ -1735,7 +1712,7 @@
             case atob('c3VyZ2Uy'):
             case atob('c3VyZ2Uz'):
             case atob('c3VyZ2U0'):
-                subscriptionContent = await generateSurgeConfig(finalLinks, request, user);
+                subscriptionContent = generateSurgeConfig(finalLinks);
                 break;
             case atob('cXVhbnR1bXVsdA=='):
             case atob('cXVhbng='):
