@@ -38,6 +38,11 @@
     let kvStore = null;
     let kvConfig = {};
     let enableRandomPath = false; // 随机路径开关
+    
+    // KV配置缓存
+    let kvConfigCache = null;
+    let kvConfigCacheTime = 0;
+    const CACHE_TTL = 300000; // 5分钟缓存
 
     const regionMapping = {
         'US': ['🇺🇸 美国', 'US', 'United States'],
@@ -139,11 +144,20 @@
             return;
         }
         
+        // 检查内存缓存
+        if (kvConfigCache && Date.now() - kvConfigCacheTime < CACHE_TTL) {
+            kvConfig = kvConfigCache;
+            return;
+        }
+        
         try {
             const configData = await kvStore.get('c');
             
             if (configData) {
                 kvConfig = JSON.parse(configData);
+                // 更新内存缓存
+                kvConfigCache = kvConfig;
+                kvConfigCacheTime = Date.now();
             } else {
             }
         } catch (error) {
@@ -175,6 +189,9 @@
     async function setConfigValue(key, value) {
         kvConfig[key] = value;
         await saveKVConfig();
+        // 清除内存缓存，强制下次读取最新配置
+        kvConfigCache = null;
+        kvConfigCacheTime = 0;
     }
 
     async function detectWorkerRegion(request) {
@@ -5837,6 +5854,10 @@
                 }
                 
                 await saveKVConfig();
+                
+                // 清除内存缓存，强制下次读取最新配置
+                kvConfigCache = null;
+                kvConfigCacheTime = 0;
                 
                 updateConfigVariables();
                 
