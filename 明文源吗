@@ -170,9 +170,15 @@
                 kvConfigCacheTime = Date.now();
                 kvConfigVersion = await kvStore.get('c_version') || '';
             } else {
+                // FIX: KV为空时也要更新缓存，避免每次请求都重新读取
+                kvConfig = kvConfig || {};
+                kvConfigCache = kvConfig; // 缓存空对象
+                kvConfigCacheTime = Date.now();
+                kvConfigVersion = await kvStore.get('c_version') || '';
             }
         } catch (error) {
             kvConfig = {};
+            // 错误时不缓存，允许下次重试
         }
     }
 
