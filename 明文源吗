@@ -37,6 +37,7 @@
 
     let kvStore = null;
     let kvConfig = {};
+    let enableRandomPath = false; // 随机路径开关
 
     const regionMapping = {
         'US': ['🇺🇸 美国', 'US', 'United States'],
@@ -1225,6 +1226,15 @@
         },
     };
 
+    // 随机路径函数：生成随机路径用于混淆节点路径
+    function randomPath(fullNodePath = "/") {
+        const commonPathDirs = ["#","about","account","acg","act","activity","ad","admin","ads","ajax","album","albums","anime","api","app","apps","archive","archives","article","articles","ask","auth","avatar","bbs","bd","blog","blogs","book","books","bt","buy","cart","category","categories","cb","channel","channels","chat","china","city","class","classify","clip","clips","club","cn","code","collect","collection","comic","comics","community","company","config","contact","content","course","courses","cp","data","detail","details","dh","directory","discount","discuss","dl","dload","doc","docs","document","documents","doujin","download","downloads","drama","edu","en","ep","episode","episodes","event","events","f","faq","favorite","favourites","favs","feedback","file","files","film","films","forum","forums","friend","friends","game","games","gif","go","go.html","go.php","group","groups","help","home","hot","htm","html","image","images","img","index","info","intro","item","items","ja","jp","jump","jump.html","jump.php","jumping","knowledge","lang","lesson","lessons","lib","library","link","links","list","live","lives","login","logout","m","mag","magnet","mall","manhua","map","member","members","message","messages","mobile","movie","movies","music","my","new","news","note","novel","novels","online","order","out","out.html","out.php","outbound","p","page","pages","pay","payment","pdf","photo","photos","pic","pics","picture","pictures","play","player","playlist","post","posts","product","products","program","programs","project","qa","question","rank","ranking","read","readme","redirect","redirect.html","redirect.php","reg","register","res","resource","retrieve","sale","search","season","seasons","section","seller","series","service","services","setting","settings","share","shop","show","shows","site","soft","sort","source","special","star","stars","static","stock","store","stream","streaming","streams","student","study","tag","tags","task","teacher","team","tech","temp","test","thread","tickets","time","tips","title","tools","top","tour","track","trade","train","travel","trend","trip","tv","typography","update","upload","user","users","v","video","videos","view","vip","watch","web","website","wiki","win","world","write","www","x","xml","you","zone"];
+        const randomCount = Math.floor(Math.random() * 3 + 1);
+        const randomPath = commonPathDirs.sort(() => 0.5 - Math.random()).slice(0, randomCount).join('/');
+        if (fullNodePath === "/") return `/${randomPath}`;
+        else return `/${randomPath + fullNodePath.replace('/?', '?')}`;
+    }
+
     function generateQuantumultConfig(links) {
         return btoa(links.join('\n'));
     }
@@ -1742,7 +1752,7 @@
         const defaultHttpsPorts = [443];
         const defaultHttpPorts = disableNonTLS ? [] : [80];
         const links = [];
-        const wsPath = '/?ed=2560';
+        const wsPath = enableRandomPath ? randomPath('/?ed=2560') : '/?ed=2560';
         const proto = atob('dmxlc3M=');
 
         list.forEach(item => {
@@ -1828,7 +1838,7 @@
         const defaultHttpsPorts = [443];
         const defaultHttpPorts = disableNonTLS ? [] : [80];
         const links = [];
-        const wsPath = '/?ed=2560';
+        const wsPath = enableRandomPath ? randomPath('/?ed=2560') : '/?ed=2560';
         
         const password = tp || user;
 
@@ -2382,6 +2392,8 @@
                     protocolHint: '可以同时启用多个协议。订阅将生成选中协议的节点。<br>• VLESS WS: 基于 WebSocket 的标准协议<br>• Trojan: 使用 SHA224 密码认证<br>• xhttp: 基于 HTTP POST 的伪装协议（需要绑定自定义域名并开启 gRPC）',
                     enableECH: '启用 ECH (Encrypted Client Hello)',
                     enableECHHint: '启用后，每次刷新订阅时会自动从 DoH 获取最新的 ECH 配置并添加到链接中',
+                    enableRandomPath: '启用随机路径',
+                    enableRandomPathHint: '启用后，节点路径将随机生成，增加混淆性',
                     customDNS: '自定义 DNS 服务器',
                     customDNSPlaceholder: '例如: https://dns.joeyblog.eu.org/joeyblog',
                     customDNSHint: '用于ECH配置查询的DNS服务器地址（DoH格式）',
@@ -2466,6 +2478,8 @@
                     enableXhttp: 'فعال‌سازی پروتکل xhttp',
                     enableECH: 'فعال‌سازی ECH (Encrypted Client Hello)',
                     enableECHHint: 'پس از فعال‌سازی، در هر بار تازه‌سازی اشتراک، پیکربندی ECH به‌روز به‌طور خودکار از DoH دریافت شده و به لینک‌ها اضافه می‌شود',
+                    enableRandomPath: 'فعال‌سازی مسیر تصادفی',
+                    enableRandomPathHint: 'پس از فعال‌سازی، مسیر گره به صورت تصادفی تولید می‌شود تا ابهام بیشتری ایجاد شود',
                     customDNS: 'سرور DNS سفارشی',
                     customDNSPlaceholder: 'مثال: https://dns.joeyblog.eu.org/joeyblog',
                     customDNSHint: 'آدرس سرور DNS برای جستجوی پیکربندی ECH (فرمت DoH)',
@@ -2888,6 +2902,13 @@
                                                 <span style="font-size: 1.1rem;">${t.enableECH}</span>
                                         </label>
                                         <small style="color: #00aa00; font-size: 0.8rem; display: block; margin-top: 5px; margin-left: 26px;">${t.enableECHHint}</small>
+                                    </div>
+                                    <div style="margin-bottom: 10px;">
+                                        <label style="display: inline-flex; align-items: center; cursor: pointer; color: #00ff00;">
+                                            <input type="checkbox" id="randomPath" style="margin-right: 8px; width: 18px; height: 18px; cursor: pointer;">
+                                                <span style="font-size: 1.1rem;">${t.enableRandomPath}</span>
+                                        </label>
+                                        <small style="color: #00aa00; font-size: 0.8rem; display: block; margin-top: 5px; margin-left: 26px;">${t.enableRandomPathHint}</small>
                                     </div>
                                     <div style="margin-top: 15px; margin-bottom: 10px;">
                                         <label style="display: block; margin-bottom: 8px; color: #00ff00; font-size: 0.95rem;">${t.customDNS}</label>
@@ -3866,6 +3887,7 @@
                     document.getElementById('et').checked = config.et === 'yes';
                     document.getElementById('ex').checked = config.ex === 'yes';
                     document.getElementById('ech').checked = config.ech === 'yes';
+                    document.getElementById('randomPath').checked = config.randomPath === 'yes';
                     document.getElementById('tp').value = config.tp || '';
                     if (document.getElementById('customDNS')) {
                         document.getElementById('customDNS').value = config.customDNS || '';
@@ -4159,6 +4181,7 @@
                             et: document.getElementById('et').checked ? 'yes' : 'no', 
                             ex: document.getElementById('ex').checked ? 'yes' : 'no', 
                             ech: document.getElementById('ech').checked ? 'yes' : 'no',
+                            randomPath: document.getElementById('randomPath').checked ? 'yes' : 'no',
                             tp: document.getElementById('tp').value,
                             customDNS: document.getElementById('customDNS').value,
                             customECHDomain: document.getElementById('customECHDomain').value
@@ -4179,7 +4202,7 @@
                 if (otherConfigForm) {
                     otherConfigForm.addEventListener('submit', async function(e) {
                         e.preventDefault();
-                        const configData = { ev: document.getElementById('ev').checked ? 'yes' : 'no', et: document.getElementById('et').checked ? 'yes' : 'no', ex: document.getElementById('ex').checked ? 'yes' : 'no', ech: document.getElementById('ech').checked ? 'yes' : 'no', tp: document.getElementById('tp').value,
+                        const configData = { ev: document.getElementById('ev').checked ? 'yes' : 'no', et: document.getElementById('et').checked ? 'yes' : 'no', ex: document.getElementById('ex').checked ? 'yes' : 'no', ech: document.getElementById('ech').checked ? 'yes' : 'no', randomPath: document.getElementById('randomPath').checked ? 'yes' : 'no', tp: document.getElementById('tp').value,
                             d: document.getElementById('customPath').value,
                             p: document.getElementById('customIP').value,
                             yx: document.getElementById('yx').value,
@@ -5623,7 +5646,7 @@
         const CF_HTTPS_PORTS = [443, 2053, 2083, 2087, 2096, 8443];
         
         const links = [];
-        const wsPath = '/?ed=2560';
+        const wsPath = enableRandomPath ? randomPath('/?ed=2560') : '/?ed=2560';
         const proto = atob('dmxlc3M=');
         
         list.forEach(item => {
@@ -5690,7 +5713,7 @@
                 fp: 'chrome',
                 type: 'xhttp',
                 host: workerDomain,
-                path: `/${nodePath}`,
+                path: enableRandomPath ? randomPath(`/${nodePath}`) : `/${nodePath}`,
                 mode: 'stream-one'
             });
             
@@ -5714,7 +5737,7 @@
         const CF_HTTPS_PORTS = [443, 2053, 2083, 2087, 2096, 8443];
         
         const links = [];
-        const wsPath = '/?ed=2560';
+        const wsPath = enableRandomPath ? randomPath('/?ed=2560') : '/?ed=2560';
         
         const password = tp || user;
         
@@ -6154,6 +6177,11 @@
         const echControl = getConfigValue('ech', '');
         if (echControl !== undefined && echControl !== '') {
             enableECH = echControl === 'yes' || echControl === true || echControl === 'true';
+        }
+        
+        const randomPathControl = getConfigValue('randomPath', '');
+        if (randomPathControl !== undefined && randomPathControl !== '') {
+            enableRandomPath = randomPathControl === 'yes' || randomPathControl === true || randomPathControl === 'true';
         }
         
         // 更新自定义DNS和ECH域名
