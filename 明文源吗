@@ -28,8 +28,8 @@
     let customECHDomain = 'cloudflare-ech.com';
 
     let scu = 'https://url.v1.mk/sub';  
-    // 远程配置URL（硬编码）
-    const remoteConfigUrl = 'https://raw.githubusercontent.com/lizhi123le/ACL4SSR/master/Clash/config/ACL4SSR_Online_Full_MultiMode.ini';
+    // 远程配置URL（可配置）
+    let remoteConfigUrl = 'https://raw.githubusercontent.com/lizhi123le/ACL4SSR/master/Clash/config/ACL4SSR_Online_Full_MultiMode.ini';
 
     let epd = false;   // 优选域名默认关闭
     let epi = true;       
@@ -460,6 +460,9 @@
                 }
                 
                 scu = getConfigValue('scu', env.scu) || 'https://url.v1.mk/sub';
+                
+                // 从KV配置中读取远程配置URL
+                remoteConfigUrl = getConfigValue('remoteConfigUrl', env.remoteConfigUrl) || 'https://raw.githubusercontent.com/lizhi123le/ACL4SSR/master/Clash/config/ACL4SSR_Online_Full_MultiMode.ini';
                 
                 const preferredDomainsControl = getConfigValue('epd', env.epd || 'no');
                 if (preferredDomainsControl !== undefined && preferredDomainsControl !== '') {
@@ -1409,7 +1412,7 @@
         subscriptionUrl.pathname = subscriptionUrl.pathname.replace(/\/sub$/, '') + '/sub';
         subscriptionUrl.searchParams.set('target', 'base64');
         const encodedUrl = encodeURIComponent(subscriptionUrl.toString());
-        const converterUrl = `${scu}?target=clash&url=${encodedUrl}&insert=false&emoji=true&list=false&xudp=false&udp=false&tfo=false&expand=true&scv=false&fdn=false&new_name=true`;
+        const converterUrl = `${scu}?target=clash&url=${encodedUrl}&insert=false&config=${encodeURIComponent(remoteConfigUrl)}&emoji=true&list=false&xudp=false&udp=false&tfo=false&expand=true&scv=false&fdn=false&new_name=true`;
         
         try {
             const response = await fetch(converterUrl);
@@ -1471,7 +1474,7 @@
         subscriptionUrl.pathname = subscriptionUrl.pathname.replace(/\/sub$/, '') + '/sub';
         subscriptionUrl.searchParams.set('target', 'base64');
         const encodedUrl = encodeURIComponent(subscriptionUrl.toString());
-        const converterUrl = `${scu}?target=singbox&url=${encodedUrl}&insert=false&emoji=true&list=false&xudp=false&udp=false&tfo=false&expand=true&scv=false&fdn=false&new_name=true`;
+        const converterUrl = `${scu}?target=singbox&url=${encodedUrl}&insert=false&config=${encodeURIComponent(remoteConfigUrl)}&emoji=true&list=false&xudp=false&udp=false&tfo=false&expand=true&scv=false&fdn=false&new_name=true`;
 
         try {
             const response = await fetch(converterUrl);
@@ -2485,6 +2488,9 @@
                     saveConfig: '保存配置',
                     advancedControl: '高级控制',
                     subscriptionConverter: '订阅转换地址:',
+                    remoteConfigUrl: '远程配置URL:',
+                    remoteConfigUrlPlaceholder: '例如: https://raw.githubusercontent.com/lizhi123le/ACL4SSR/master/Clash/config/ACL4SSR_Online_Full_MultiMode.ini',
+                    remoteConfigUrlHint: '自定义远程配置文件URL，用于订阅转换服务。留空则使用默认配置。',
                     builtinPreferred: '内置优选类型:',
                     enablePreferredDomain: '启用优选域名',
                     enablePreferredIP: '启用优选 IP',
@@ -2636,6 +2642,9 @@
                     saveConfig: 'ذخیره تنظیمات',
                     advancedControl: 'کنترل پیشرفته',
                     subscriptionConverter: 'آدرس تبدیل اشتراک:',
+                    remoteConfigUrl: 'URL پیکربندی از راه دور:',
+                    remoteConfigUrlPlaceholder: 'مثال: https://raw.githubusercontent.com/lizhi123le/ACL4SSR/master/Clash/config/ACL4SSR_Online_Full_MultiMode.ini',
+                    remoteConfigUrlHint: 'URL فایل پیکربندی سفارشی برای سرویس تبدیل اشتراک. اگر خالی بگذارید از پیکربندی پیش‌فرض استفاده می‌شود.',
                     builtinPreferred: 'نوع ترجیحی داخلی:',
                     enablePreferredDomain: 'فعال‌سازی دامنه ترجیحی',
                     enablePreferredIP: 'فعال‌سازی IP ترجیحی',
@@ -3158,6 +3167,11 @@
                                 <small style="color: #00aa00; font-size: 0.85rem;">${t.subscriptionConverterHint}</small>
                         </div>
                         <div style="margin-bottom: 15px;">
+                                <label style="display: block; margin-bottom: 8px; color: #00ff00; font-weight: bold; text-shadow: 0 0 3px #00ff00;">${t.remoteConfigUrl}</label>
+                                <input type="text" id="remoteConfigUrl" placeholder="${t.remoteConfigUrlPlaceholder}" style="width: 100%; padding: 12px; background: rgba(0, 0, 0, 0.8); border: 2px solid #00ff00; color: #00ff00; font-family: 'Courier New', monospace; font-size: 14px;">
+                                <small style="color: #00aa00; font-size: 0.85rem;">${t.remoteConfigUrlHint}</small>
+                        </div>
+                        <div style="margin-bottom: 15px;">
                                 <label style="display: block; margin-bottom: 8px; color: #00ff00; font-weight: bold; text-shadow: 0 0 3px #00ff00;">${t.builtinPreferred}</label>
                             <div style="padding: 15px; background: rgba(0, 20, 0, 0.6); border: 1px solid #00ff00; border-radius: 5px;">
                                 <div style="margin-bottom: 10px;">
@@ -3283,7 +3297,7 @@
         <script>
             // 订阅转换地址（从服务器配置注入）
             var SUB_CONVERTER_URL = "${ scu }";
-            // 远程配置URL（硬编码）
+            // 远程配置URL（可配置）
             var REMOTE_CONFIG_URL = "${ remoteConfigUrl }";
                 
                 // 翻译对象
@@ -4016,6 +4030,9 @@
                         document.getElementById('customECHDomain').value = config.customECHDomain || '';
                     }
                     document.getElementById('scu').value = config.scu || '';
+                    if (document.getElementById('remoteConfigUrl')) {
+                        document.getElementById('remoteConfigUrl').value = config.remoteConfigUrl || '';
+                    }
                     document.getElementById('epd').checked = config.epd !== 'no';
                     document.getElementById('epi').checked = config.epi !== 'no';
                     document.getElementById('egi').checked = config.egi !== 'no';
@@ -4349,7 +4366,7 @@
                 if (advancedConfigForm) {
                     advancedConfigForm.addEventListener('submit', async function(e) {
                         e.preventDefault();
-                        const configData = { scu: document.getElementById('scu').value, epd: document.getElementById('epd').checked ? 'yes' : 'no', epi: document.getElementById('epi').checked ? 'yes' : 'no', egi: document.getElementById('egi').checked ? 'yes' : 'no', ae: document.getElementById('apiEnabled').value,
+                        const configData = { scu: document.getElementById('scu').value, remoteConfigUrl: document.getElementById('remoteConfigUrl').value, epd: document.getElementById('epd').checked ? 'yes' : 'no', epi: document.getElementById('epi').checked ? 'yes' : 'no', egi: document.getElementById('egi').checked ? 'yes' : 'no', ae: document.getElementById('apiEnabled').value,
                             rm: document.getElementById('regionMatching').value,
                             qj: document.getElementById('downgradeControl').value,
                             dkby: document.getElementById('portControl').value,
