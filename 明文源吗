@@ -1489,8 +1489,8 @@
                 if (echData && config.outbounds) {
                     config.outbounds.forEach(outbound => {
                         // 匹配 UUID 或 Password (针对 Trojan)
-                        if ((outbound.uuid && (outbound.uuid === UUID || outbound.uuid === user)) || 
-                            (outbound.password && (outbound.password === UUID || outbound.password === user))) {
+                        if ((outbound.uuid && (outbound.uuid === at || outbound.uuid === user)) || 
+                            (outbound.password && (outbound.password === at || outbound.password === user))) {
                             
                             if (!outbound.tls) {
                                 outbound.tls = { enabled: true };
