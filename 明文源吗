@@ -1271,6 +1271,26 @@
         return btoa(links.join('\n'));
     }
 
+    // 生成 Surge 配置
+    function generateSurgeConfig(links) {
+        return btoa(links.join('\n'));
+    }
+
+    // 生成 Shadowsocks 配置
+    function generateSSConfig(links) {
+        return btoa(links.join('\n'));
+    }
+
+    // 生成 V2Ray 配置
+    function generateV2RayConfig(links) {
+        return btoa(links.join('\n'));
+    }
+
+    // 生成 Loon 配置
+    function generateLoonConfig(links) {
+        return btoa(links.join('\n'));
+    }
+
     // 解析 VLESS/Trojan 链接并生成 Clash 节点配置
     function parseLinkToClashNode(link) {
         try {
