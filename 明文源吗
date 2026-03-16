@@ -1488,9 +1488,11 @@
                 
                 if (echData && config.outbounds) {
                     config.outbounds.forEach(outbound => {
-                        // 匹配 UUID 或 Password (针对 Trojan)
-                        if ((outbound.uuid && (outbound.uuid === at || outbound.uuid === user)) || 
-                            (outbound.password && (outbound.password === at || outbound.password === user))) {
+                        // 匹配凭据以识别需要注入 ECH 的节点 (VLESS/Trojan/xhttp)
+                        const isUUIDMatch = outbound.uuid && (outbound.uuid === at || outbound.uuid === user);
+                        const isPasswordMatch = outbound.password && (outbound.password === at || outbound.password === user || (typeof tp !== 'undefined' && tp && outbound.password === tp));
+                        
+                        if (isUUIDMatch || isPasswordMatch) {
                             
                             if (!outbound.tls) {
                                 outbound.tls = { enabled: true };
