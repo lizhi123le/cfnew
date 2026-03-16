@@ -1498,6 +1498,11 @@
                                 outbound.tls = { enabled: true };
                             }
                             
+                            outbound.tls.utls = {
+                                enabled: true,
+                                fingerprint: "chrome"
+                            };
+                            
                             outbound.tls.ech = {
                                 enabled: true,
                                 config: [
