@@ -1308,7 +1308,7 @@
                 const path = params.get('path') || '/?ed=2560';
                 const host = params.get('host') || server;
                 const servername = params.get('sni') || host;
-                const alpn = params.get('alpn') || 'h3';
+                const alpn = params.get('alpn') || ["h3","h2"];
                 const fingerprint = params.get('fp') || params.get('client-fingerprint') || 'chrome';
                 const ech = params.get('ech');
                 
@@ -1362,7 +1362,7 @@
                 const path = params.get('path') || '/?ed=2560';
                 const host = params.get('host') || server;
                 const sni = params.get('sni') || host;
-                const alpn = params.get('alpn') || 'h3';
+                const alpn = params.get('alpn') || ["h3","h2"];
                 const ech = params.get('ech');
                 
                 const node = {
@@ -1915,7 +1915,7 @@
                     if (enableECH) {
                         const dnsServer = customDNS || 'https://dns.joeyblog.eu.org/joeyblog';
                         const echDomain = customECHDomain || 'cloudflare-ech.com';
-                        wsParams.set('alpn', 'h3');
+                        wsParams.set('alpn', ["h3","h2"]);
                         wsParams.set('ech', `${echDomain}+${dnsServer}`);
                     }
                     
@@ -1997,7 +1997,7 @@
                     if (enableECH) {
                         const dnsServer = customDNS || 'https://dns.joeyblog.eu.org/joeyblog';
                         const echDomain = customECHDomain || 'cloudflare-ech.com';
-                        wsParams.set('alpn', 'h3');
+                        wsParams.set('alpn', ["h3","h2"]);
                         wsParams.set('ech', `${echDomain}+${dnsServer}`);
                     }
                     
@@ -5786,7 +5786,7 @@
                 if (enableECH) {
                     const dnsServer = customDNS || 'https://dns.joeyblog.eu.org/joeyblog';
                     const echDomain = customECHDomain || 'cloudflare-ech.com';
-                    wsParams.set('alpn', 'h3');
+                    wsParams.set('alpn', ["h3","h2"]);
                     wsParams.set('ech', `${echDomain}+${dnsServer}`);
                 }
                 
@@ -5821,7 +5821,7 @@
                 if (enableECH) {
                     const dnsServer = customDNS || 'https://dns.joeyblog.eu.org/joeyblog';
                     const echDomain = customECHDomain || 'cloudflare-ech.com';
-                    wsParams.set('alpn', 'h3');
+                    wsParams.set('alpn', ["h3","h2"]);
                     wsParams.set('ech', `${echDomain}+${dnsServer}`);
                 }
                 
@@ -5859,7 +5859,7 @@
             if (enableECH) {
                 const dnsServer = customDNS || 'https://dns.joeyblog.eu.org/joeyblog';
                 const echDomain = customECHDomain || 'cloudflare-ech.com';
-                params.set('alpn', 'h3,h2');
+                params.set('alpn', ["h3","h2"]);
                 params.set('ech', `${echDomain}+${dnsServer}`);
             }
             
@@ -5900,7 +5900,7 @@
                 if (enableECH) {
                     const dnsServer = customDNS || 'https://dns.joeyblog.eu.org/joeyblog';
                     const echDomain = customECHDomain || 'cloudflare-ech.com';
-                    wsParams.set('alpn', 'h3');
+                    wsParams.set('alpn', ["h3","h2"]);
                     wsParams.set('ech', `${echDomain}+${dnsServer}`);
                 }
                 
@@ -5933,7 +5933,7 @@
                 if (enableECH) {
                     const dnsServer = customDNS || 'https://dns.joeyblog.eu.org/joeyblog';
                     const echDomain = customECHDomain || 'cloudflare-ech.com';
-                    wsParams.set('alpn', 'h3');
+                    wsParams.set('alpn', ["h3","h2"]);
                     wsParams.set('ech', `${echDomain}+${dnsServer}`);
                 }
                 
