@@ -2051,9 +2051,6 @@
         // 读取筛选配置（默认全部启用）
         const ipv4Enabled = getConfigValue('ipv4', '') === '' || getConfigValue('ipv4', 'yes') !== 'no';
         const ipv6Enabled = getConfigValue('ipv6', '') === '' || getConfigValue('ipv6', 'yes') !== 'no';
-        const ispMobile = getConfigValue('ispMobile', '') === '' || getConfigValue('ispMobile', 'yes') !== 'no';
-        const ispUnicom = getConfigValue('ispUnicom', '') === '' || getConfigValue('ispUnicom', 'yes') !== 'no';
-        const ispTelecom = getConfigValue('ispTelecom', '') === '' || getConfigValue('ispTelecom', 'yes') !== 'no';
 
         try {
             const fetchPromises = [];
@@ -2070,17 +2067,6 @@
 
             const [ipv4List, ipv6List] = await Promise.all(fetchPromises);
             results = [...ipv4List, ...ipv6List];
-            
-            // 按运营商筛选
-            if (results.length > 0) {
-                results = results.filter(item => {
-                    const isp = item.isp || '';
-                    if (isp.includes('移动') && !ispMobile) return false;
-                    if (isp.includes('联通') && !ispUnicom) return false;
-                    if (isp.includes('电信') && !ispTelecom) return false;
-                    return true;
-                });
-            }
             
             if (results.length > 0) {
                 return results;
