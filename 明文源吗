@@ -35,6 +35,7 @@
     let epi = true;       
     let egi = true;          
 
+    let domainEnabled = true;
     let ipv4Enabled = true;
     let ipv6Enabled = true;
     let ispMobile = true;
@@ -1745,12 +1746,16 @@
         // --- 全局过滤逻辑：IP版本和运营商 ---
 
         const globalFilter = (item) => {
-            const ip = item.ip || '';
-            const isIPv6 = ip.includes(':') || (ip.includes('[') && ip.includes(']'));
+            const host = item.ip || '';
+            const isIPv6 = host.includes(':') || (host.includes('[') && host.includes(']'));
+            const ipv4Regex = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
+            const isIPv4 = !isIPv6 && ipv4Regex.test(host);
+            const isDomain = !isIPv6 && !isIPv4;
             
-            // IP 版本过滤
+            // IP 版本与域名过滤
             if (isIPv6 && !ipv6Enabled) return false;
-            if (!isIPv6 && !ipv4Enabled) return false;
+            if (isIPv4 && !ipv4Enabled) return false;
+            if (isDomain && !domainEnabled) return false;
             
             // 运营商过滤
             const isp = (item.isp || item.name || '').toLowerCase();
@@ -3199,8 +3204,12 @@
                                 <label style="display: block; margin-bottom: 8px; color: #00ff00; font-weight: bold; text-shadow: 0 0 3px #00ff00;">优选IP筛选设置</label>
                             <div style="padding: 15px; background: rgba(0, 20, 0, 0.6); border: 1px solid #00ff00; border-radius: 5px;">
                                 <div style="margin-bottom: 15px;">
-                                    <label style="display: block; margin-bottom: 8px; color: #00ff00; font-weight: bold; text-shadow: 0 0 3px #00ff00;">IP版本选择</label>
+                                    <label style="display: block; margin-bottom: 8px; color: #00ff00; font-weight: bold; text-shadow: 0 0 3px #00ff00;">IP版本及域名选择</label>
                                     <div style="display: flex; gap: 20px; flex-wrap: wrap;">
+                                        <label style="display: inline-flex; align-items: center; cursor: pointer; color: #00ff00;">
+                                            <input type="checkbox" id="domainEnabled" checked style="margin-right: 8px; width: 18px; height: 18px; cursor: pointer;">
+                                            <span style="font-size: 1rem;">域名</span>
+                                        </label>
                                         <label style="display: inline-flex; align-items: center; cursor: pointer; color: #00ff00;">
                                             <input type="checkbox" id="ipv4Enabled" checked style="margin-right: 8px; width: 18px; height: 18px; cursor: pointer;">
                                             <span style="font-size: 1rem;">IPv4</span>
@@ -4036,6 +4045,7 @@
                     document.getElementById('epd').checked = config.epd !== 'no';
                     document.getElementById('epi').checked = config.epi !== 'no';
                     document.getElementById('egi').checked = config.egi !== 'no';
+                    if (document.getElementById('domainEnabled')) document.getElementById('domainEnabled').checked = config.domain !== 'no';
                     if (document.getElementById('ipv4Enabled')) document.getElementById('ipv4Enabled').checked = config.ipv4 !== 'no';
                     if (document.getElementById('ipv6Enabled')) document.getElementById('ipv6Enabled').checked = config.ipv6 !== 'no';
                     if (document.getElementById('ispMobile')) document.getElementById('ispMobile').checked = config.ispMobile !== 'no';
@@ -4371,6 +4381,7 @@
                             qj: document.getElementById('downgradeControl').value,
                             dkby: document.getElementById('portControl').value,
                             yxby: document.getElementById('preferredControl').value,
+                            domain: document.getElementById('domainEnabled').checked ? 'yes' : 'no',
                             ipv4: document.getElementById('ipv4Enabled').checked ? 'yes' : 'no',
                             ipv6: document.getElementById('ipv6Enabled').checked ? 'yes' : 'no',
                             ispMobile: document.getElementById('ispMobile').checked ? 'yes' : 'no',
@@ -6396,6 +6407,7 @@
         epd = getBoolConfig('epd', true);
         epi = getBoolConfig('epi', true);
         egi = getBoolConfig('egi', true);
+        domainEnabled = getBoolConfig('domain', true);
         ipv4Enabled = getBoolConfig('ipv4', true);
         ipv6Enabled = getBoolConfig('ipv6', true);
         ispMobile = getBoolConfig('ispMobile', true);
