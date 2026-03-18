@@ -1726,42 +1726,44 @@
         const hasCustomPreferred = customPreferredIPs.length > 0 || customPreferredDomains.length > 0;
         
         if (disablePreferred) {
-        } else if (hasCustomPreferred) {
-            
-            if (customPreferredDomains.length > 0 && epd) {
-                const customDomainList = customPreferredDomains.map(d => ({ ip: d.domain, isp: d.name || d.domain }));
-                await addNodesFromList(customDomainList);
-            } 
-			
-            if (customPreferredIPs.length > 0 && epi) {
-                await addNodesFromList(customPreferredIPs);
-            }
         } else {
-            
-            if (epd) {
-            const domainList = directDomains.map(d => ({ ip: d.domain, isp: d.name || d.domain }));
-                await addNodesFromList(domainList);
-            }
+            if (hasCustomPreferred) {
+                
+                if (customPreferredDomains.length > 0 && epd) {
+                    const customDomainList = customPreferredDomains.map(d => ({ ip: d.domain, isp: d.name || d.domain }));
+                    await addNodesFromList(customDomainList);
+                } 
+                
+                if (customPreferredIPs.length > 0 && epi) {
+                    await addNodesFromList(customPreferredIPs);
+                }
+            } else {
+                
+                if (epd) {
+                const domainList = directDomains.map(d => ({ ip: d.domain, isp: d.name || d.domain }));
+                    await addNodesFromList(domainList);
+                }
 
-            if (epi) {
-            const defaultURL = 'https://raw.githubusercontent.com/qwer-search/bestip/refs/heads/main/kejilandbestip.txt';
-                if (piu === defaultURL) {
-                try {
-                    const dynamicIPList = await fetchDynamicIPs();
-                    if (dynamicIPList.length > 0) {
-                            await addNodesFromList(dynamicIPList);
-                    }
-                } catch (error) {
-                    if (!currentWorkerRegion) {
-                        currentWorkerRegion = await detectWorkerRegion(request);
-                    }
-                    
-                    const bestBackupIP = await getBestBackupIP(currentWorkerRegion);
-                    if (bestBackupIP) {
-                        fallbackAddress = bestBackupIP.domain + ':' + bestBackupIP.port;
+                if (epi) {
+                const defaultURL = 'https://raw.githubusercontent.com/qwer-search/bestip/refs/heads/main/kejilandbestip.txt';
+                    if (piu === defaultURL) {
+                    try {
+                        const dynamicIPList = await fetchDynamicIPs();
+                        if (dynamicIPList.length > 0) {
+                                await addNodesFromList(dynamicIPList);
+                        }
+                    } catch (error) {
+                        if (!currentWorkerRegion) {
+                            currentWorkerRegion = await detectWorkerRegion(request);
+                        }
                         
-                        const backupList = [{ ip: bestBackupIP.domain, isp: 'ProxyIP-' + currentWorkerRegion }];
-                            await addNodesFromList(backupList);
+                        const bestBackupIP = await getBestBackupIP(currentWorkerRegion);
+                        if (bestBackupIP) {
+                            fallbackAddress = bestBackupIP.domain + ':' + bestBackupIP.port;
+                            
+                            const backupList = [{ ip: bestBackupIP.domain, isp: 'ProxyIP-' + currentWorkerRegion }];
+                                await addNodesFromList(backupList);
+                            }
                         }
                     }
                 }
