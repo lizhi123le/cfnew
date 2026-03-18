@@ -31,9 +31,15 @@
     // 远程配置URL（可配置）
     let remoteConfigUrl = 'https://raw.githubusercontent.com/lizhi123le/ACL4SSR/master/Clash/config/ACL4SSR_Online_Full_MultiMode.ini';
 
-    let epd = false;   // 优选域名默认关闭
+    let epd = true;   
     let epi = true;       
     let egi = true;          
+
+    let ipv4Enabled = true;
+    let ipv6Enabled = true;
+    let ispMobile = true;
+    let ispUnicom = true;
+    let ispTelecom = true;
 
     let kvStore = null;
     let kvConfig = {};
@@ -1737,11 +1743,6 @@
         }
 
         // --- 全局过滤逻辑：IP版本和运营商 ---
-        const ipv4Enabled = getConfigValue('ipv4', '') === '' || getConfigValue('ipv4', 'yes') !== 'no';
-        const ipv6Enabled = getConfigValue('ipv6', '') === '' || getConfigValue('ipv6', 'yes') !== 'no';
-        const ispMobile = getConfigValue('ispMobile', '') === '' || getConfigValue('ispMobile', 'yes') !== 'no';
-        const ispUnicom = getConfigValue('ispUnicom', '') === '' || getConfigValue('ispUnicom', 'yes') !== 'no';
-        const ispTelecom = getConfigValue('ispTelecom', '') === '' || getConfigValue('ispTelecom', 'yes') !== 'no';
 
         const globalFilter = (item) => {
             const ip = item.ip || '';
@@ -2048,10 +2049,7 @@
         const v6Url1 = "https://www.wetest.vip/page/cloudflare/address_v6.html";
         let results = [];
 
-        // 读取筛选配置（默认全部启用）
-        const ipv4Enabled = getConfigValue('ipv4', '') === '' || getConfigValue('ipv4', 'yes') !== 'no';
-        const ipv6Enabled = getConfigValue('ipv6', '') === '' || getConfigValue('ipv6', 'yes') !== 'no';
-
+        // 使用全局筛选配置
         try {
             const fetchPromises = [];
             if (ipv4Enabled) {
@@ -6389,20 +6387,20 @@
         
         scu = getConfigValue('scu', '') || 'https://url.v1.mk/sub';
         
-        const preferredDomainsControl = getConfigValue('epd', 'no');
-        if (preferredDomainsControl !== undefined && preferredDomainsControl !== '') {
-            epd = preferredDomainsControl !== 'no' && preferredDomainsControl !== false && preferredDomainsControl !== 'false';
-        }
-        
-        const preferredIPsControl = getConfigValue('epi', '');
-        if (preferredIPsControl !== undefined && preferredIPsControl !== '') {
-            epi = preferredIPsControl !== 'no' && preferredIPsControl !== false && preferredIPsControl !== 'false';
-        }
-        
-        const githubIPsControl = getConfigValue('egi', '');
-        if (githubIPsControl !== undefined && githubIPsControl !== '') {
-            egi = githubIPsControl !== 'no' && githubIPsControl !== false && githubIPsControl !== 'false';
-        }
+        const getBoolConfig = (key, def = true) => {
+            const val = getConfigValue(key, '');
+            if (val === '') return def;
+            return val === 'yes' || val === true || val === 'true';
+        };
+
+        epd = getBoolConfig('epd', true);
+        epi = getBoolConfig('epi', true);
+        egi = getBoolConfig('egi', true);
+        ipv4Enabled = getBoolConfig('ipv4', true);
+        ipv6Enabled = getBoolConfig('ipv6', true);
+        ispMobile = getBoolConfig('ispMobile', true);
+        ispUnicom = getBoolConfig('ispUnicom', true);
+        ispTelecom = getBoolConfig('ispTelecom', true);
         
         const echControl = getConfigValue('ech', '');
         if (echControl !== undefined && echControl !== '') {
