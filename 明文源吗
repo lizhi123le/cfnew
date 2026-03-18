@@ -1699,100 +1699,78 @@
             }
         }
 
-        if (currentWorkerRegion === 'CUSTOM') {
-            const nativeList = [{ ip: workerDomain, isp: '原生地址' }];
-            await addNodesFromList(nativeList);
-        } else {
-            try {
-                const nativeList = [{ ip: workerDomain, isp: '原生地址' }];
-                await addNodesFromList(nativeList);
-            } catch (error) {
-                if (!currentWorkerRegion) {
-                    currentWorkerRegion = await detectWorkerRegion(request);
-                }
-                
-                const bestBackupIP = await getBestBackupIP(currentWorkerRegion);
-                if (bestBackupIP) {
-                    fallbackAddress = bestBackupIP.domain + ':' + bestBackupIP.port;
-                    const backupList = [{ ip: bestBackupIP.domain, isp: 'ProxyIP-' + currentWorkerRegion }];
-                    await addNodesFromList(backupList);
-                } else {
-                    const nativeList = [{ ip: workerDomain, isp: '原生地址' }];
-                    await addNodesFromList(nativeList);
-                }
+        const allSources = [];
+        
+        // 1. 原生地址
+        allSources.push({ type: 'native', list: [{ ip: workerDomain, isp: '原生地址' }] });
+
+        // 2. 自定义优选
+        const hasCustomPreferred = customPreferredIPs.length > 0 || customPreferredDomains.length > 0;
+        if (!disablePreferred && hasCustomPreferred) {
+            if (customPreferredDomains.length > 0 && epd) {
+                allSources.push({ type: 'custom-domain', list: customPreferredDomains.map(d => ({ ip: d.domain, isp: d.name || d.domain })) });
+            } 
+            if (customPreferredIPs.length > 0 && epi) {
+                allSources.push({ type: 'custom-ip', list: customPreferredIPs });
             }
         }
 
-        const hasCustomPreferred = customPreferredIPs.length > 0 || customPreferredDomains.length > 0;
-        
-        if (disablePreferred) {
-        } else {
-            if (hasCustomPreferred) {
-                
-                if (customPreferredDomains.length > 0 && epd) {
-                    const customDomainList = customPreferredDomains.map(d => ({ ip: d.domain, isp: d.name || d.domain }));
-                    await addNodesFromList(customDomainList);
-                } 
-                
-                if (customPreferredIPs.length > 0 && epi) {
-                    await addNodesFromList(customPreferredIPs);
-                }
-            } else {
-                
-                if (epd) {
-                const domainList = directDomains.map(d => ({ ip: d.domain, isp: d.name || d.domain }));
-                    await addNodesFromList(domainList);
-                }
-
-                if (epi) {
-                const defaultURL = 'https://raw.githubusercontent.com/qwer-search/bestip/refs/heads/main/kejilandbestip.txt';
-                    if (piu === defaultURL) {
-                    try {
-                        const dynamicIPList = await fetchDynamicIPs();
-                        if (dynamicIPList.length > 0) {
-                                await addNodesFromList(dynamicIPList);
-                        }
-                    } catch (error) {
-                        if (!currentWorkerRegion) {
-                            currentWorkerRegion = await detectWorkerRegion(request);
-                        }
-                        
-                        const bestBackupIP = await getBestBackupIP(currentWorkerRegion);
-                        if (bestBackupIP) {
-                            fallbackAddress = bestBackupIP.domain + ':' + bestBackupIP.port;
-                            
-                            const backupList = [{ ip: bestBackupIP.domain, isp: 'ProxyIP-' + currentWorkerRegion }];
-                                await addNodesFromList(backupList);
-                            }
-                        }
-                    }
-                }
+        // 3. 默认/备用源
+        if (!disablePreferred && !hasCustomPreferred) {
+            if (epd) {
+                allSources.push({ type: 'direct-domain', list: directDomains.map(d => ({ ip: d.domain, isp: d.name || d.domain })) });
             }
+            if (epi && piu === 'https://raw.githubusercontent.com/qwer-search/bestip/refs/heads/main/kejilandbestip.txt') {
+                try {
+                    const dynamicIPList = await fetchDynamicIPs();
+                    if (dynamicIPList.length > 0) allSources.push({ type: 'dynamic-ip', list: dynamicIPList });
+                } catch (e) {}
+            }
+        }
 
-            if (egi) {
+        // 4. yxURL / GitHub 源
+        let newIPList = [];
+        if (!disablePreferred && egi) {
             try {
-                const newIPList = await fetchAndParseNewIPs();
-                if (newIPList.length > 0) {
-                        if (ev) {
-                    finalLinks.push(...generateLinksFromNewIPs(newIPList, user, workerDomain, echConfig));
-                        }
-                        if (et) {
-                            finalLinks.push(...await generateTrojanLinksFromNewIPs(newIPList, user, workerDomain, echConfig));
-                        }
-                }
-            } catch (error) {
-                if (!currentWorkerRegion) {
-                    currentWorkerRegion = await detectWorkerRegion(request);
-                }
-                
-                const bestBackupIP = await getBestBackupIP(currentWorkerRegion);
-                if (bestBackupIP) {
-                    fallbackAddress = bestBackupIP.domain + ':' + bestBackupIP.port;
-                    
-                    const backupList = [{ ip: bestBackupIP.domain, isp: 'ProxyIP-' + currentWorkerRegion }];
-                        await addNodesFromList(backupList);
-                    }
-                }
+                newIPList = await fetchAndParseNewIPs();
+            } catch (e) {}
+        }
+
+        // --- 统一生成节点链路，按要求排序：VLESS -> Trojan -> xhttp ---
+
+        // A. VLESS 节点 (最前面)
+        if (ev) {
+            for (const source of allSources) {
+                finalLinks.push(...generateLinksFromSource(source.list, user, workerDomain, echConfig));
+            }
+            if (newIPList.length > 0) {
+                finalLinks.push(...generateLinksFromNewIPs(newIPList, user, workerDomain, echConfig));
+            }
+        }
+
+        // B. Trojan 节点 (中间)
+        if (et) {
+            for (const source of allSources) {
+                finalLinks.push(...await generateTrojanLinksFromSource(source.list, user, workerDomain, echConfig));
+            }
+            if (newIPList.length > 0) {
+                finalLinks.push(...await generateTrojanLinksFromNewIPs(newIPList, user, workerDomain, echConfig));
+            }
+        }
+
+        // C. xhttp 节点 (最后面)
+        if (ex) {
+            for (const source of allSources) {
+                finalLinks.push(...generateXhttpLinksFromSource(source.list, user, workerDomain, echConfig));
+            }
+            if (newIPList.length > 0) {
+                // 确保 yxURL 解析出来的 IP 也支持 xhttp
+                const xhttpList = newIPList.map(item => ({
+                    ip: item.ip,
+                    port: item.port,
+                    isp: item.name || item.ip
+                }));
+                finalLinks.push(...generateXhttpLinksFromSource(xhttpList, user, workerDomain, echConfig));
             }
         }
 
@@ -5741,11 +5719,35 @@
                 
                 for (const item of apiResults) {
                     const match = item.match(regex);
+                    const isIPv6 = item.includes(':') && !item.includes('[') && (item.split(':').length > 2);
+                    
                     if (match) {
                         results.push({
                             ip: match[1],
                             port: parseInt(match[2] || '443', 10),
                             name: match[3]?.trim() || match[1]
+                        });
+                    } else if (isIPv6) {
+                        // 处理未加中括号的 raw IPv6
+                        const hashIndex = item.indexOf('#');
+                        let hostPart = hashIndex > -1 ? item.substring(0, hashIndex) : item;
+                        const remark = hashIndex > -1 ? item.substring(hashIndex + 1) : '';
+                        
+                        // 简单判断末尾是否带端口 (如 :443)
+                        const lastColonIndex = hostPart.lastIndexOf(':');
+                        const possiblePort = hostPart.substring(lastColonIndex + 1);
+                        let port = 443;
+                        let ip = hostPart;
+                        
+                        if (lastColonIndex > 0 && /^\d+$/.test(possiblePort) && !hostPart.includes('::' + possiblePort)) {
+                            port = parseInt(possiblePort, 10);
+                            ip = hostPart.substring(0, lastColonIndex);
+                        }
+                        
+                        results.push({
+                            ip: ip,
+                            port: port,
+                            name: remark.trim() || ip
                         });
                     }
                 }
@@ -5763,11 +5765,33 @@
                 const trimmedLine = line.trim();
                 if (!trimmedLine) continue;
                 const match = trimmedLine.match(simpleRegex);
+                const isIPv6 = trimmedLine.includes(':') && (trimmedLine.split(':').length > 2);
+
                 if (match) {
                     results.push({
                         ip: match[1],
                         port: parseInt(match[2], 10),
                         name: match[3].trim() || match[1]
+                    });
+                } else if (isIPv6) {
+                    const hashIndex = trimmedLine.indexOf('#');
+                    let hostPart = hashIndex > -1 ? trimmedLine.substring(0, hashIndex) : trimmedLine;
+                    const remark = hashIndex > -1 ? trimmedLine.substring(hashIndex + 1) : '';
+                    
+                    const lastColonIndex = hostPart.lastIndexOf(':');
+                    const possiblePort = hostPart.substring(lastColonIndex + 1);
+                    let port = 443;
+                    let ip = hostPart;
+                    
+                    if (lastColonIndex > 0 && /^\d+$/.test(possiblePort) && !hostPart.includes('::' + possiblePort)) {
+                        port = parseInt(possiblePort, 10);
+                        ip = hostPart.substring(0, lastColonIndex);
+                    }
+                    
+                    results.push({
+                        ip: ip,
+                        port: port,
+                        name: remark.trim() || ip
                     });
                 }
             }
@@ -6585,15 +6609,21 @@
                     lines.forEach(line => {
                         const hashIndex = line.indexOf('#');
                         const [hostPart, remark] = hashIndex > -1 ? [line.substring(0, hashIndex), line.substring(hashIndex)] : [line, ''];
+                        const isIPv6 = IPV6_PATTERN.test(hostPart);
                         let hasPort = false;
                         if (hostPart.startsWith('[')) {
                             hasPort = /\]:(\d+)$/.test(hostPart);
-                        } else {
+                        } else if (!isIPv6) {
                             const colonIndex = hostPart.lastIndexOf(':');
                             hasPort = colonIndex > -1 && /^\d+$/.test(hostPart.substring(colonIndex + 1));
                         }
                         const port = new URL(url).searchParams.get('port') || defaultPort;
-                        results.add(hasPort ? line : `${hostPart}:${port}${remark}`);
+                        if (hasPort) {
+                            results.add(line);
+                        } else {
+                            const wrappedHost = isIPv6 && !hostPart.startsWith('[') ? `[${hostPart}]` : hostPart;
+                            results.add(`${wrappedHost}:${port}${remark}`);
+                        }
                     });
                 } else {
                     const headers = lines[0].split(',').map(h => h.trim());
