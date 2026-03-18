@@ -1852,7 +1852,7 @@
             if (item.colo && item.colo.trim()) {
                 nodeNameBase = `${nodeNameBase}-${item.colo.trim()}`;
             }
-            const safeIP = item.ip.includes(':') ? `[${item.ip}]` : item.ip;
+            const safeIP = (item.ip.includes(':') && !item.ip.includes('[')) ? `[${item.ip}]` : item.ip;
             
             let portsToGenerate = [];
             
@@ -1940,7 +1940,7 @@
             if (item.colo && item.colo.trim()) {
                 nodeNameBase = `${nodeNameBase}-${item.colo.trim()}`;
             }
-            const safeIP = item.ip.includes(':') ? `[${item.ip}]` : item.ip;
+            const safeIP = (item.ip.includes(':') && !item.ip.includes('[')) ? `[${item.ip}]` : item.ip;
             
             let portsToGenerate = [];
             
@@ -5813,7 +5813,7 @@
             const nodeName = item.name.replace(/\s/g, '_');
             const port = item.port;
             const currentNodePath = enableRandomPath ? randomPath('/?ed=2560') : '/?ed=2560';
-            const safeIP = item.ip.includes(':') ? `[${item.ip}]` : item.ip;
+            const safeIP = (item.ip.includes(':') && !item.ip.includes('[')) ? `[${item.ip}]` : item.ip;
             
             if (CF_HTTPS_PORTS.includes(port)) {
                 
@@ -5886,7 +5886,7 @@
             if (item.colo && item.colo.trim()) {
                 nodeNameBase = `${nodeNameBase}-${item.colo.trim()}`;
             }
-            const safeIP = item.ip.includes(':') ? `[${item.ip}]` : item.ip;
+            const safeIP = (item.ip.includes(':') && !item.ip.includes('[')) ? `[${item.ip}]` : item.ip;
             const port = item.port || 443;
             
             const wsNodeName = `${nodeNameBase}-${port}-xhttp`;
@@ -5928,7 +5928,7 @@
             const nodeName = item.name.replace(/\s/g, '_');
             const port = item.port;
             const currentNodePath = enableRandomPath ? randomPath('/?ed=2560') : '/?ed=2560';
-            const safeIP = item.ip.includes(':') ? `[${item.ip}]` : item.ip;
+            const safeIP = (item.ip.includes(':') && !item.ip.includes('[')) ? `[${item.ip}]` : item.ip;
             
             if (CF_HTTPS_PORTS.includes(port)) {
                 
@@ -6604,7 +6604,7 @@
                 }
                 const lines = text.trim().split('\n').map(l => l.trim()).filter(l => l);
                 const isCSV = lines.length > 1 && lines[0].includes(',');
-                const IPV6_PATTERN = /^[^\[\]]*:[^\[\]]*:[^\[\]]/;
+                const IPV6_PATTERN = /^(?:\[[\da-fA-F:]+\]|[\da-fA-F]*:[\da-fA-F:]*:[\da-fA-F:]*)/;
                 if (!isCSV) {
                     lines.forEach(line => {
                         const hashIndex = line.indexOf('#');
