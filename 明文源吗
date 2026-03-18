@@ -1736,6 +1736,44 @@
             } catch (e) {}
         }
 
+        // --- 全局过滤逻辑：IP版本和运营商 ---
+        const ipv4Enabled = getConfigValue('ipv4', '') === '' || getConfigValue('ipv4', 'yes') !== 'no';
+        const ipv6Enabled = getConfigValue('ipv6', '') === '' || getConfigValue('ipv6', 'yes') !== 'no';
+        const ispMobile = getConfigValue('ispMobile', '') === '' || getConfigValue('ispMobile', 'yes') !== 'no';
+        const ispUnicom = getConfigValue('ispUnicom', '') === '' || getConfigValue('ispUnicom', 'yes') !== 'no';
+        const ispTelecom = getConfigValue('ispTelecom', '') === '' || getConfigValue('ispTelecom', 'yes') !== 'no';
+
+        const globalFilter = (item) => {
+            const ip = item.ip || '';
+            const isIPv6 = ip.includes(':') || (ip.includes('[') && ip.includes(']'));
+            
+            // IP 版本过滤
+            if (isIPv6 && !ipv6Enabled) return false;
+            if (!isIPv6 && !ipv4Enabled) return false;
+            
+            // 运营商过滤
+            const isp = (item.isp || item.name || '').toLowerCase();
+            if (isp.includes('移动') || isp.includes('mobile')) {
+                if (!ispMobile) return false;
+            }
+            if (isp.includes('联通') || isp.includes('unicom')) {
+                if (!ispUnicom) return false;
+            }
+            if (isp.includes('电信') || isp.includes('telecom')) {
+                if (!ispTelecom) return false;
+            }
+            
+            return true;
+        };
+
+        // 应用过滤到所有来源 (原生地址除外)
+        for (const source of allSources) {
+            if (source.type !== 'native') {
+                source.list = source.list.filter(globalFilter);
+            }
+        }
+        newIPList = newIPList.filter(item => globalFilter({ ip: item.ip, name: item.name }));
+
         // --- 统一生成节点链路，按要求排序：VLESS -> Trojan -> xhttp ---
 
         // A. VLESS 节点 (最前面)
