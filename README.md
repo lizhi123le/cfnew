@@ -1,19 +1,6 @@
-# CFnew - 终端 v2.9.4
+# CFnew - 终端 v2.9.5
 
-> **⚠️ 重要：部署后请将兼容日期设置为 `2026-01-20`**
-> 
-> **Pages 部署：**
-> 1. 登录 [Cloudflare 控制台](https://dash.cloudflare.com/)
-> 2. 进入 **Workers 和 Pages** → 选择你的 Pages 项目
-> 3. 点击 **设置** → **运行时**
-> 4. 找到 **兼容性日期**，选择 `2026-01-20`，点击 **保存**
-> 5. 返回 **部署** → **创建部署** → 上传文件
-> 
-> **Worker 部署：**
-> 1. 登录 [Cloudflare 控制台](https://dash.cloudflare.com/)
-> 2. 进入 **Workers 和 Pages** → 选择你的 Worker
-> 3. 点击 **设置** → **运行时**
-> 4. 找到 **兼容性日期**，选择 `2026-01-20`，点击 **保存**
+> **⚠️ 重要：部署时请确保兼容日期设置为 `2026-01-20`，详见下方[部署方式](#部署方式)**
 
 **语言:** [中文](README.md) | [فارسی](فارسی.md)
 
@@ -31,6 +18,13 @@
 - 应用唤醒：点按钮自动打开对应客户端
 - 自动识别：根据User-Agent自动返回对应格式
 - 多语言：支持中文和波斯语，根据浏览器语言自动切换
+
+## v2.9.5 更新
+
+- GitHub 默认优选地址默认关闭，需自行配置优选IP来源URL
+- ECH 默认域名改为 `www.speedtest.net`
+- 新增「启用原生地址」开关，可在管理面板中控制是否生成原生地址节点（默认关闭）
+- 兼容日期设置为 `2026-01-20`
 
 ## v2.9.4 更新
 
@@ -77,7 +71,65 @@
 - Pages视频教程：https://www.youtube.com/watch?v=JhVxJChDL-E
 - Snippets视频教程：https://www.youtube.com/watch?v=xeFeH3Akcu8
 
-### 部署
+### 部署方式
+
+#### 方式一：GitHub 自动部署（推荐）
+
+通过 Fork [cfnewup](https://github.com/byJoey/cfnewup) 仓库，连接 Cloudflare Pages，实现自动同步更新。
+
+**第一步：Fork 仓库并启用 GitHub Actions**
+
+1. Fork 仓库 [byJoey/cfnewup](https://github.com/byJoey/cfnewup)
+2. 进入你 Fork 的仓库页面，点击 **Settings** → **Actions** → **General**
+   - 找到 **Workflow permissions**，选择 **Read and write permissions**，点击 **Save**
+3. 点击顶部的 **Actions** 标签
+4. 点击 **I understand my workflows, go ahead and enable them**（Fork 的仓库默认禁用 Actions，需要手动启用）
+5. 在左侧找到 **从 cfnew 同步 Releases** 工作流，点击 **Enable workflow**
+6. （可选）点击 **Run workflow** → **Run workflow** 立即触发一次同步
+
+> 启用后，GitHub Actions 会每 6 小时自动检查 cfnew 是否有新版本，有则自动下载 `Pages.zip` 并解压更新 `_worker.js`。
+
+**第二步：连接 Cloudflare Pages**
+
+1. 登录 [Cloudflare 控制台](https://dash.cloudflare.com/)
+2. 进入 **Workers 和 Pages** → **创建** → **Pages** → **连接到 Git**
+3. 选择你 Fork 的 `cfnewup` 仓库，分支选 `main`
+4. 构建设置：
+   - **框架预设**：无
+   - **构建命令**：留空
+   - **构建输出目录**：留空（会自动使用 `wrangler.toml` 中的配置）
+5. 点击 **保存并部署**
+
+> 该仓库已内置 `wrangler.toml`，兼容日期 `2026-01-20` 会自动生效，无需手动设置。
+> cfnew 发布新版本后，cfnewup 的 Actions 会自动同步并推送更新，Pages 检测到仓库变更后会自动重新部署。
+
+#### 方式二：手动上传部署
+
+从 GitHub Releases 下载 zip 文件，手动上传到 Cloudflare Pages。
+
+1. 前往 [cfnew Releases](https://github.com/byJoey/cfnew/releases) 下载最新的 `Pages.zip`
+2. 登录 [Cloudflare 控制台](https://dash.cloudflare.com/)
+3. 进入 **Workers 和 Pages** → 选择你的 Pages 项目（或新建一个）
+4. 设置兼容日期：
+   - 点击 **设置** → **运行时**
+   - 找到 **兼容性日期**，选择 `2026-01-20`，点击 **保存**
+5. 返回 **部署** → **创建部署** → 上传 `Pages.zip`
+
+#### 方式三：Worker 部署
+
+直接将脚本粘贴到 Cloudflare Worker。
+
+1. 登录 [Cloudflare 控制台](https://dash.cloudflare.com/)
+2. 进入 **Workers 和 Pages** → **创建** → **Worker**
+3. 将 `少年你相信光吗`（混淆版）或 `明文源吗`（明文版）的内容粘贴到编辑器
+4. 设置兼容日期：
+   - 点击 **设置** → **运行时**
+   - 找到 **兼容性日期**，选择 `2026-01-20`，点击 **保存**
+5. 点击 **部署**
+
+---
+
+### 配置说明
 
 订阅每15分钟自动优选一次
 
