@@ -15,6 +15,8 @@
     let manualWorkerRegion = '';
     let piu = '';
     let cp = '';  
+    let host = '';
+    let hostList = [];
 
     let ev = true;   
     let et = false; 
@@ -2462,6 +2464,8 @@
                     enableXhttp: '启用 xhttp 协议',
                     trojanPassword: 'Trojan 密码 (可选):',
                     customPath: '自定义路径 (d):',
+                    hostSetting: '自定义HOST (host):',
+                    hostPlaceholder: '例如: h1.com,h2.com',
                     customIP: '自定义ProxyIP (p):',
                     preferredIPs: '优选IP列表 (yx):',
                     preferredIPsURL: '优选IP来源URL (yxURL):',
@@ -2503,7 +2507,7 @@
                     enablePreferredDomain: '启用优选域名',
                     enablePreferredIP: '启用优选 IP',
                     enableNativeAddress: '启用原生地址',
-                    enableGitHubPreferred: '启用 GitHub 默认优选',
+                    enableGitHubPreferred: '优选IP来源URL',
                     allowAPIManagement: '允许API管理 (ae):',
                     regionMatching: '地区匹配 (rm):',
                     downgradeControl: '降级控制 (qj):',
@@ -2617,6 +2621,8 @@
                     customECHDomainHint: 'دامنه استفاده شده در پیکربندی ECH، خالی بگذارید تا از مقدار پیش‌فرض استفاده شود',
                     trojanPassword: 'رمز عبور Trojan (اختیاری):',
                     customPath: 'مسیر سفارشی (d):',
+                    hostSetting: 'HOST سفارشی (host):',
+                    hostPlaceholder: 'مثال: h1.com,h2.com',
                     customIP: 'ProxyIP سفارشی (p):',
                     preferredIPs: 'لیست IP ترجیحی (yx):',
                     preferredIPsURL: 'URL منبع IP ترجیحی (yxURL):',
@@ -3072,6 +3078,11 @@
                                 <label style="display: block; margin-bottom: 8px; color: #00ff00; font-weight: bold; text-shadow: 0 0 3px #00ff00;">${t.customPath}</label>
                                 <input type="text" id="customPath" placeholder="${isFarsi ? 'مثال: /mypath یا خالی بگذارید تا از UUID استفاده شود' : '例如: /mypath 或留空使用 UUID'}" style="width: 100%; padding: 12px; background: rgba(0, 0, 0, 0.8); border: 2px solid #00ff00; color: #00ff00; font-family: 'Courier New', monospace; font-size: 14px;">
                                 <small style="color: #00aa00; font-size: 0.85rem;">${isFarsi ? 'مسیر اشتراک سفارشی. اگر خالی بگذارید از UUID به عنوان مسیر استفاده می‌شود.' : '自定义订阅路径。留空则使用 UUID 作为路径。'}</small>
+                        </div>
+                        <div style="margin-bottom: 15px;">
+                                <label style="display: block; margin-bottom: 8px; color: #00ff00; font-weight: bold; text-shadow: 0 0 3px #00ff00;">${t.hostSetting}</label>
+                                <input type="text" id="hostInput" placeholder="${t.hostPlaceholder}" style="width: 100%; padding: 12px; background: rgba(0, 0, 0, 0.8); border: 2px solid #00ff00; color: #00ff00; font-family: 'Courier New', monospace; font-size: 14px;">
+                                <small style="color: #00aa00; font-size: 0.85rem;">${isFarsi ? 'آدرس‌های HOST سفارشی (با کاما جدا کنید). سیستم به صورت تصادفی یکی را برای هر گره انتخاب می‌کند.' : '自定义节点请求的HOST值，支持多个用逗号分隔，系统将随机选择。'}</small>
                         </div>
                         <div style="margin-bottom: 15px;">
                                 <label style="display: block; margin-bottom: 8px; color: #00ff00; font-weight: bold; text-shadow: 0 0 3px #00ff00;">${t.customIP}</label>
@@ -4064,6 +4075,7 @@
                     if (document.getElementById('ispUnicom')) document.getElementById('ispUnicom').checked = config.ispUnicom !== 'no';
                     if (document.getElementById('ispTelecom')) document.getElementById('ispTelecom').checked = config.ispTelecom !== 'no';
                     document.getElementById('customPath').value = config.d || '';
+                    document.getElementById('hostInput').value = config.host || '';
                     document.getElementById('customIP').value = config.p || '';
                     document.getElementById('yx').value = config.yx || '';
                     document.getElementById('yxURL').value = config.yxURL || '';
@@ -4209,6 +4221,7 @@
                             body: JSON.stringify({ 
                                 wk: '',
                                 d: '',
+                                host: '',
                                 p: '',
                                 yx: '',
                                 yxURL: '',
@@ -4363,6 +4376,7 @@
                         e.preventDefault();
                         const configData = { ev: document.getElementById('ev').checked ? 'yes' : 'no', et: document.getElementById('et').checked ? 'yes' : 'no', ex: document.getElementById('ex').checked ? 'yes' : 'no', ech: document.getElementById('ech').checked ? 'yes' : 'no', randomPath: document.getElementById('randomPath').checked ? 'yes' : 'no', tp: document.getElementById('tp').value,
                             d: document.getElementById('customPath').value,
+                            host: document.getElementById('hostInput').value,
                             p: document.getElementById('customIP').value,
                             yx: document.getElementById('yx').value,
                             yxURL: document.getElementById('yxURL').value,
@@ -5846,6 +5860,14 @@
         }
     }
 
+    function getRandomHost(defaultHost) {
+        if (hostList && hostList.length > 0) {
+            const randomIndex = Math.floor(Math.random() * hostList.length);
+            return hostList[randomIndex];
+        }
+        return defaultHost;
+    }
+
     function generateLinksFromNewIPs(list, user, workerDomain, echConfig = null) {
         
         const CF_HTTP_PORTS = [80, 8080, 8880, 2052, 2082, 2086, 2095];
@@ -5859,6 +5881,7 @@
             const port = item.port;
             const currentNodePath = enableRandomPath ? randomPath('/?ed=2560') : '/?ed=2560';
             const safeIP = (item.ip.includes(':') && !item.ip.includes('[')) ? `[${item.ip}]` : item.ip;
+            const randomHost = getRandomHost(workerDomain);
             
             if (CF_HTTPS_PORTS.includes(port)) {
                 
@@ -5866,10 +5889,10 @@
                 const wsParams = new URLSearchParams({
                     encryption: 'none',
                     security: 'tls',
-                    sni: workerDomain,
+                    sni: randomHost,
                     fp: enableECH ? 'chrome' : 'randomized',
                     type: 'ws',
-                    host: workerDomain,
+                    host: randomHost,
                     path: currentNodePath
                 });
                 
@@ -5890,7 +5913,7 @@
                         encryption: 'none',
                         security: 'none',
                         type: 'ws',
-                        host: workerDomain,
+                        host: randomHost,
                         path: currentNodePath
                     });
                     links.push(`${proto}://${user}@${safeIP}:${port}?${wsParams.toString()}#${encodeURIComponent(wsNodeName)}`);
@@ -5901,10 +5924,10 @@
                 const wsParams = new URLSearchParams({
                     encryption: 'none',
                     security: 'tls',
-                    sni: workerDomain,
+                    sni: randomHost,
                     fp: enableECH ? 'chrome' : 'randomized',
                     type: 'ws',
-                    host: workerDomain,
+                    host: randomHost,
                     path: currentNodePath
                 });
                 
@@ -5933,15 +5956,16 @@
             }
             const safeIP = (item.ip.includes(':') && !item.ip.includes('[')) ? `[${item.ip}]` : item.ip;
             const port = item.port || 443;
+            const randomHost = getRandomHost(workerDomain);
             
             const wsNodeName = `${nodeNameBase}-${port}-xhttp`;
             const params = new URLSearchParams({
                 encryption: 'none',
                 security: 'tls',
-                sni: workerDomain,
+                sni: randomHost,
                 fp: 'chrome',
                 type: 'xhttp',
-                host: workerDomain,
+                host: randomHost,
                 path: enableRandomPath ? randomPath(`/${nodePath}`) : `/${nodePath}`,
                 mode: 'stream-one'
             });
@@ -5974,16 +5998,17 @@
             const port = item.port;
             const currentNodePath = enableRandomPath ? randomPath('/?ed=2560') : '/?ed=2560';
             const safeIP = (item.ip.includes(':') && !item.ip.includes('[')) ? `[${item.ip}]` : item.ip;
+            const randomHost = getRandomHost(workerDomain);
             
             if (CF_HTTPS_PORTS.includes(port)) {
                 
                 const wsNodeName = `${nodeName}-${port}-${atob('VHJvamFu')}-WS-TLS`;
                 const wsParams = new URLSearchParams({
                     security: 'tls',
-                    sni: workerDomain,
+                    sni: randomHost,
                     fp: 'chrome',
                     type: 'ws',
-                    host: workerDomain,
+                    host: randomHost,
                     path: currentNodePath
                 });
                 
@@ -6003,7 +6028,7 @@
                     const wsParams = new URLSearchParams({
                         security: 'none',
                         type: 'ws',
-                        host: workerDomain,
+                        host: randomHost,
                         path: currentNodePath
                     });
                     links.push(`${atob('dHJvamFuOi8v')}${password}@${safeIP}:${port}?${wsParams.toString()}#${encodeURIComponent(wsNodeName)}`);
@@ -6013,10 +6038,10 @@
                 const wsNodeName = `${nodeName}-${port}-${atob('VHJvamFu')}-WS-TLS`;
                 const wsParams = new URLSearchParams({
                     security: 'tls',
-                    sni: workerDomain,
+                    sni: randomHost,
                     fp: 'chrome',
                     type: 'ws',
-                    host: workerDomain,
+                    host: randomHost,
                     path: currentNodePath
                 });
                 
@@ -6419,6 +6444,12 @@
         }
         
         cp = getConfigValue('d', '') || '';
+        host = getConfigValue('host', '') || '';
+        if (host && host.trim()) {
+            hostList = host.split(',').map(h => h.trim()).filter(h => h);
+        } else {
+            hostList = [];
+        }
         
         piu = getConfigValue('yxURL', '') || '';
         
