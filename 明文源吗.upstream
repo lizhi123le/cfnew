@@ -1,5 +1,5 @@
-    // CFnew - 终端 v2.9.5
-    // 版本: v2.9.5 
+    // CFnew - 终端 v2.9.6
+    // 版本: v2.9.6 
     import { connect } from 'cloudflare:sockets';
     let at = '351c9981-04b6-4103-aa4b-864aa9c91469';
     let fallbackAddress = '';
@@ -9,7 +9,6 @@
     let enableSocksDowngrade = false;
     let disableNonTLS = false;
     let disablePreferred = false;
-
     let enableRegionMatching = true;
     let currentWorkerRegion = '';
     let manualWorkerRegion = '';
@@ -24,8 +23,8 @@
     let enableECH = false;  
     // 自定义DNS服务器（默认：https://223.5.5.5/dns-query）
     let customDNS = 'https://223.5.5.5/dns-query';
-    // 自定义ECH域名（默认：speedtest.net）
-    let customECHDomain = 'speedtest.net';
+    // 自定义ECH域名（默认：cloudflare-ech.com）
+    let customECHDomain = 'cloudflare-ech.com';
 
     let scu = 'https://url.v1.mk/sub';  
     // 远程配置URL（硬编码）
@@ -40,6 +39,7 @@
     let kvConfig = {};
 
     const regionMapping = {
+        'HK': ['🇭🇰 香港', 'HK', 'Hong Kong'],
         'US': ['🇺🇸 美国', 'US', 'United States'],
         'SG': ['🇸🇬 新加坡', 'SG', 'Singapore'],
         'JP': ['🇯🇵 日本', 'JP', 'Japan'],
@@ -56,6 +56,7 @@
     };
 
     let backupIPs = [
+        { domain: 'ProxyIP.HK.CMLiussss.net', region: 'HK', regionCode: 'HK', port: 443 },
         { domain: 'ProxyIP.US.CMLiussss.net', region: 'US', regionCode: 'US', port: 443 },
         { domain: 'ProxyIP.SG.CMLiussss.net', region: 'SG', regionCode: 'SG', port: 443 },
         { domain: 'ProxyIP.JP.CMLiussss.net', region: 'JP', regionCode: 'JP', port: 443 },
@@ -1245,7 +1246,7 @@
                 const path = params.get('path') || '/?ed=2048';
                 const host = params.get('host') || server;
                 const servername = params.get('sni') || host;
-                const alpn = params.get('alpn') || 'h3,h2,http/1.1';
+                const alpn = params.get('alpn') || 'h3';
                 const fingerprint = params.get('fp') || params.get('client-fingerprint') || 'chrome';
                 const ech = params.get('ech');
                 
@@ -1276,7 +1277,7 @@
                 }
                 
                 if (ech) {
-                    const echDomain = customECHDomain || 'speedtest.net';
+                    const echDomain = customECHDomain || 'cloudflare-ech.com';
                     node['ech-opts'] = {
                         enable: true,
                         'query-server-name': echDomain
@@ -1299,7 +1300,7 @@
                 const path = params.get('path') || '/?ed=2048';
                 const host = params.get('host') || server;
                 const sni = params.get('sni') || host;
-                const alpn = params.get('alpn') || 'h3,h2,http/1.1';
+                const alpn = params.get('alpn') || 'h3';
                 const ech = params.get('ech');
                 
                 const node = {
@@ -1324,7 +1325,7 @@
                 }
                 
                 if (ech) {
-                    const echDomain = customECHDomain || 'speedtest.net';
+                    const echDomain = customECHDomain || 'cloudflare-ech.com';
                     node['ech-opts'] = {
                         enable: true,
                         'query-server-name': echDomain
@@ -1375,7 +1376,7 @@
                             if (beforeBrace.length > 0) {
                                 // 在最后一个 } 之前添加 , ech-opts: {enable: true, query-server-name: ...}
                                 // 确保在逗号前有空格
-                                const echDomain = customECHDomain || 'speedtest.net';
+                                const echDomain = customECHDomain || 'cloudflare-ech.com';
                                 const needsComma = !beforeBrace.endsWith(',') && !beforeBrace.endsWith('{');
                                 return line.substring(0, lastBraceIndex) + (needsComma ? ', ' : ' ') + `ech-opts: {enable: true, query-server-name: ${echDomain}}` + line.substring(lastBraceIndex);
                             }
@@ -1563,7 +1564,7 @@
         let echConfig = null;
         if (enableECH) {
             const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
-            const echDomain = customECHDomain || 'speedtest.net';
+            const echDomain = customECHDomain || 'cloudflare-ech.com';
             echConfig = `${echDomain}+${dnsServer}`;
         }
 
@@ -1797,8 +1798,8 @@
                     // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
                     if (enableECH) {
                         const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
-                        const echDomain = customECHDomain || 'speedtest.net';
-                        wsParams.set('alpn', 'h3,h2,http/1.1');
+                        const echDomain = customECHDomain || 'cloudflare-ech.com';
+                        wsParams.set('alpn', 'h3');
                         wsParams.set('ech', `${echDomain}+${dnsServer}`);
                     }
                     
@@ -1878,8 +1879,8 @@
                     // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
                     if (enableECH) {
                         const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
-                        const echDomain = customECHDomain || 'speedtest.net';
-                        wsParams.set('alpn', 'h3,h2,http/1.1');
+                        const echDomain = customECHDomain || 'cloudflare-ech.com';
+                        wsParams.set('alpn', 'h3');
                         wsParams.set('ech', `${echDomain}+${dnsServer}`);
                     }
                     
@@ -2409,11 +2410,11 @@
                     preferredControlYes: '关闭优选',
                     preferredControlHint: '设置为"关闭优选"时只使用原生地址，不生成优选IP和域名节点',
                     regionNames: {
-                        US: '🇺🇸 美国', SG: '🇸🇬 新加坡', JP: '🇯🇵 日本',
+                        HK: '🇭🇰 香港', US: '🇺🇸 美国', SG: '🇸🇬 新加坡', JP: '🇯🇵 日本',
                         KR: '🇰🇷 韩国', DE: '🇩🇪 德国', SE: '🇸🇪 瑞典', NL: '🇳🇱 荷兰',
                         FI: '🇫🇮 芬兰', GB: '🇬🇧 英国'
                     },
-                    terminal: '终端 v2.9.5',
+                    terminal: '终端 v2.9.6',
                     githubProject: 'GitHub 项目',
                     autoDetectClient: '自动识别',
                 selectionLogicText: '同地区 → 邻近地区 → 其他地区',
@@ -2549,11 +2550,11 @@
                     preferredControlYes: 'بستن ترجیح',
                     preferredControlHint: 'وقتی "بستن ترجیح" تنظیم شود، فقط از آدرس اصلی استفاده می‌شود، گره‌های IP و دامنه ترجیحی تولید نمی‌شوند',
                     regionNames: {
-                        US: '🇺🇸 آمریکا', SG: '🇸🇬 سنگاپور', JP: '🇯🇵 ژاپن',
+                        HK: '🇭🇰 هنگ کنگ', US: '🇺🇸 آمریکا', SG: '🇸🇬 سنگاپور', JP: '🇯🇵 ژاپن',
                         KR: '🇰🇷 کره جنوبی', DE: '🇩🇪 آلمان', SE: '🇸🇪 سوئد', NL: '🇳🇱 هلند',
                         FI: '🇫🇮 فنلاند', GB: '🇬🇧 بریتانیا'
                     },
-                    terminal: 'ترمینال v2.9.5',
+                    terminal: 'ترمینال v2.9.6',
                     githubProject: 'پروژه GitHub',
                     autoDetectClient: 'تشخیص خودکار',
                 selectionLogicText: 'هم‌منطقه → منطقه مجاور → سایر مناطق',
@@ -2847,6 +2848,7 @@
                                 <label style="display: block; margin-bottom: 8px; color: #00ff00; font-weight: bold; text-shadow: 0 0 3px #00ff00;">${t.specifyRegion}</label>
                             <select id="wkRegion" style="width: 100%; padding: 12px; background: rgba(0, 0, 0, 0.8); border: 2px solid #00ff00; color: #00ff00; font-family: 'Courier New', monospace; font-size: 14px;">
                                     <option value="">${t.autoDetect}</option>
+                                    <option value="HK">${t.regionNames.HK}</option>
                                     <option value="US">${t.regionNames.US}</option>
                                     <option value="SG">${t.regionNames.SG}</option>
                                     <option value="JP">${t.regionNames.JP}</option>
@@ -3483,7 +3485,7 @@
                                 currentIP: '当前使用IP: ',
                                 regionMatch: '地区匹配: ',
                                 regionNames: {
-                        'US': '🇺🇸 美国', 'SG': '🇸🇬 新加坡', 'JP': '🇯🇵 日本',
+                        'HK': '🇭🇰 香港', 'US': '🇺🇸 美国', 'SG': '🇸🇬 新加坡', 'JP': '🇯🇵 日本',
                         'KR': '🇰🇷 韩国', 'DE': '🇩🇪 德国', 'SE': '🇸🇪 瑞典', 'NL': '🇳🇱 荷兰',
                         'FI': '🇫🇮 芬兰', 'GB': '🇬🇧 英国'
                                 },
@@ -3508,7 +3510,7 @@
                                 currentIP: 'IP فعلی: ',
                                 regionMatch: 'تطبیق منطقه: ',
                                 regionNames: {
-                                    'US': '🇺🇸 آمریکا', 'SG': '🇸🇬 سنگاپور', 'JP': '🇯🇵 ژاپن',
+                                    'HK': '🇭🇰 هنگ کنگ', 'US': '🇺🇸 آمریکا', 'SG': '🇸🇬 سنگاپور', 'JP': '🇯🇵 ژاپن',
                                     'KR': '🇰🇷 کره جنوبی', 'DE': '🇩🇪 آلمان', 'SE': '🇸🇪 سوئد', 'NL': '🇳🇱 هلند',
                                     'FI': '🇫🇮 فنلاند', 'GB': '🇬🇧 بریتانیا'
                                 },
@@ -5643,8 +5645,8 @@
                 // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
                 if (enableECH) {
                     const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
-                    const echDomain = customECHDomain || 'speedtest.net';
-                    link += `&alpn=h3%2Ch2%2Chttp%2F1.1&ech=${encodeURIComponent(`${echDomain}+${dnsServer}`)}`;
+                    const echDomain = customECHDomain || 'cloudflare-ech.com';
+                    link += `&alpn=h3&ech=${encodeURIComponent(`${echDomain}+${dnsServer}`)}`;
                 }
                 
                 link += `#${encodeURIComponent(wsNodeName)}`;
@@ -5664,8 +5666,8 @@
                 // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
                 if (enableECH) {
                     const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
-                    const echDomain = customECHDomain || 'speedtest.net';
-                    link += `&alpn=h3%2Ch2%2Chttp%2F1.1&ech=${encodeURIComponent(`${echDomain}+${dnsServer}`)}`;
+                    const echDomain = customECHDomain || 'cloudflare-ech.com';
+                    link += `&alpn=h3&ech=${encodeURIComponent(`${echDomain}+${dnsServer}`)}`;
                 }
                 
                 link += `#${encodeURIComponent(wsNodeName)}`;
@@ -5702,8 +5704,8 @@
             // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
             if (enableECH) {
                 const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
-                const echDomain = customECHDomain || 'speedtest.net';
-                params.set('alpn', 'h3,h2,http/1.1');
+                const echDomain = customECHDomain || 'cloudflare-ech.com';
+                params.set('alpn', 'h3');
                 params.set('ech', `${echDomain}+${dnsServer}`);
             }
             
@@ -5735,8 +5737,8 @@
                 // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
                 if (enableECH) {
                     const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
-                    const echDomain = customECHDomain || 'speedtest.net';
-                    link += `&alpn=h3%2Ch2%2Chttp%2F1.1&ech=${encodeURIComponent(`${echDomain}+${dnsServer}`)}`;
+                    const echDomain = customECHDomain || 'cloudflare-ech.com';
+                    link += `&alpn=h3&ech=${encodeURIComponent(`${echDomain}+${dnsServer}`)}`;
                 }
                 
                 link += `#${encodeURIComponent(wsNodeName)}`;
@@ -5756,8 +5758,8 @@
                 // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
                 if (enableECH) {
                     const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
-                    const echDomain = customECHDomain || 'speedtest.net';
-                    link += `&alpn=h3%2Ch2%2Chttp%2F1.1&ech=${encodeURIComponent(`${echDomain}+${dnsServer}`)}`;
+                    const echDomain = customECHDomain || 'cloudflare-ech.com';
+                    link += `&alpn=h3&ech=${encodeURIComponent(`${echDomain}+${dnsServer}`)}`;
                 }
                 
                 link += `#${encodeURIComponent(wsNodeName)}`;
@@ -6131,7 +6133,7 @@
         if (customECHDomainValue && customECHDomainValue.trim()) {
             customECHDomain = customECHDomainValue.trim();
         } else {
-            customECHDomain = 'speedtest.net';
+            customECHDomain = 'cloudflare-ech.com';
         }
         
         // 如果启用了ECH，自动启用仅TLS模式（避免80端口干扰）
