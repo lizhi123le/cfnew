@@ -5862,12 +5862,24 @@
         }
     }
 
+    function replaceWildcards(h) {
+        if (!h || !h.includes('*')) return h;
+        const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+        return h.replace(/\*/g, () => {
+            let s = '';
+            for (let i = 0; i < Math.floor(Math.random() * 14) + 3; i++) {
+                s += chars[Math.floor(Math.random() * chars.length)];
+            }
+            return s;
+        });
+    }
+
     function getRandomHost(defaultHost) {
         if (hostList && hostList.length > 0) {
             const randomIndex = Math.floor(Math.random() * hostList.length);
-            return hostList[randomIndex];
+            return replaceWildcards(hostList[randomIndex]);
         }
-        return defaultHost;
+        return replaceWildcards(defaultHost);
     }
 
     function generateLinksFromNewIPs(list, user, workerDomain, echConfig = null) {
@@ -6448,7 +6460,7 @@
         cp = getConfigValue('d', '') || '';
         host = getConfigValue('host', '') || '';
         if (host && host.trim()) {
-            hostList = host.split(',').map(h => h.trim()).filter(h => h);
+            hostList = host.split(',').map(h => h.trim()).filter(h => h).sort(() => Math.random() - 0.5);
         } else {
             hostList = [];
         }
