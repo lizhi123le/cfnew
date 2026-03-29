@@ -6910,3 +6910,10 @@
             return '';
         }
     }
+
+    // 主 try-fetch 结束
+    } catch (e) {
+        return new Response(e.stack || e.message, { status: 500 });
+    }
+  }
+};
