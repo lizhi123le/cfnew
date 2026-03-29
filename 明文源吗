@@ -52,7 +52,7 @@
     // KV配置缓存（方案1：内存缓存）
     let kvConfigCache = null;
     let kvConfigCacheTime = 0;
-    const CACHE_TTL = 300000; // 5分钟缓存
+    const CACHE_TTL = 1 * 60 * 60 * 1000; // 1小时缓存
 
     const regionMapping = {
         'US': ['🇺🇸 美国', 'US', 'United States'],
