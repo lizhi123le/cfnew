@@ -1435,7 +1435,8 @@
             
             // 如果 ECH 开启，为所有节点添加 ECH 参数
             if (enableECH) {
-                const echDomain = customECHDomain || 'cloudflare-ech.com';
+                const workerDomain = new URL(request.url).hostname;
+                const echDomain = customECHDomain || workerDomain;
                 const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
 
                 // 1. 添加 nameserver-policy 以确保 ECH 域名能解析 HTTPS 记录
@@ -1561,7 +1562,8 @@
             let config = JSON.parse(sbConfigText);
 
             if (enableECH) {
-                const echDomain = customECHDomain || 'cloudflare-ech.com';
+                const workerDomain = new URL(request.url).hostname;
+                const echDomain = customECHDomain || workerDomain;
                 const echData = await getECHConfig(echDomain);
                 
                 if (echData && config.outbounds) {
@@ -1612,9 +1614,9 @@
         const debugSteps = [];
         
         try {
-            // 优先使用 Google DNS 查询 cloudflare-ech.com 的 ECH 配置
-            debugSteps.push('尝试使用 Google DNS 查询 cloudflare-ech.com...');
-            const echDomainUrl = `https://v.recipes/dns/dns.google/dns-query?name=cloudflare-ech.com&type=65`;
+            // 优先查询目标域名的 ECH 配置
+            debugSteps.push(`尝试查询 ${domain} 的 ECH 配置...`);
+            const echDomainUrl = `https://v.recipes/dns/dns.google/dns-query?name=${domain}&type=65`;
             const echResponse = await fetch(echDomainUrl, {
                 headers: {
                     'Accept': 'application/json'
@@ -1662,7 +1664,7 @@
                 debugSteps.push(`Google DNS 请求失败: ${echResponse.status}`);
             }
             
-            // 如果 cloudflare-ech.com 查询失败，尝试使用 Google DNS 查询目标域名的 HTTPS 记录
+            // 如果首选查询失败，尝试再次使用 Google DNS 查询目标域名的 HTTPS 记录
             debugSteps.push(`尝试使用 Google DNS 查询目标域名 ${domain}...`);
             const dohUrl = `https://v.recipes/dns/dns.google/dns-query?name=${encodeURIComponent(domain)}&type=65`;
             const response = await fetch(dohUrl, {
@@ -1709,7 +1711,7 @@
             
             // 如果 Google DNS 失败，尝试使用 Cloudflare DNS 作为备选
             debugSteps.push('尝试使用 Cloudflare DNS 作为备选...');
-            const cfEchUrl = `https://cloudflare-dns.com/dns-query?name=cloudflare-ech.com&type=65`;
+            const cfEchUrl = `https://cloudflare-dns.com/dns-query?name=${domain}&type=65`;
             const cfResponse = await fetch(cfEchUrl, {
                 headers: {
                     'Accept': 'application/dns-json'
@@ -1759,7 +1761,7 @@
         let echConfig = null;
         if (enableECH) {
             const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
-            const echDomain = customECHDomain || 'cloudflare-ech.com';
+            const echDomain = customECHDomain || workerDomain;
             echConfig = `${echDomain}+${dnsServer}`;
         }
 
@@ -2597,7 +2599,7 @@
                     customDNSPlaceholder: '例如: https://223.5.5.5/dns-query',
                     customDNSHint: '用于ECH配置查询的DNS服务器地址（DoH格式）',
                     customECHDomain: '自定义 ECH 域名',
-                    customECHDomainPlaceholder: '例如: cloudflare-ech.com',
+                    customECHDomainPlaceholder: '例如: worker.example.com',
                     customECHDomainHint: 'ECH配置中使用的域名，留空则使用默认值',
                     saveProtocol: '保存协议配置',
                     subscriptionConverterPlaceholder: '默认: https://url.v1.mk/sub',
@@ -2683,7 +2685,7 @@
                     customDNSPlaceholder: 'مثال: https://223.5.5.5/dns-query',
                     customDNSHint: 'آدرس سرور DNS برای جستجوی پیکربندی ECH (فرمت DoH)',
                     customECHDomain: 'دامنه ECH سفارشی',
-                    customECHDomainPlaceholder: 'مثال: cloudflare-ech.com',
+                    customECHDomainPlaceholder: 'مثال: worker.example.com',
                     customECHDomainHint: 'دامنه استفاده شده در پیکربندی ECH، خالی بگذارید تا از مقدار پیش‌فرض استفاده شود',
                     trojanPassword: 'رمز عبور Trojan (اختیاری):',
                     customPath: 'مسیر سفارشی (d):',
