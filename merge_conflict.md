@@ -1,6 +1,6 @@
 # 合并冲突报告
-## 冲突时间: Sun Mar 29 03:05:47 UTC 2026
-## 上游更新哈希: a3f8051ac3a19a70a48ef19935327ec5a64d084bfddd20676e2d1687d6705517
+## 冲突时间: Sun Mar 29 03:58:31 UTC 2026
+## 上游更新哈希: 97d52f577d1c019c2917f5f5e7fa84c05be2e801bb33624f1610bcccf81e4d60
 
 以下文件包含冲突标记，需要手动解决：
 
@@ -54,12 +54,17 @@
 
     let kvStore = null;
     let kvConfig = {};
+<<<<<<< local_明文源吗
     let enableRandomPath = false; // 随机路径开关
     
     // KV配置缓存（方案1：内存缓存）
     let kvConfigCache = null;
     let kvConfigCacheTime = 0;
     const CACHE_TTL = 300000; // 5分钟缓存
+=======
+    let kvConfigLastLoad = 0;
+    const KV_CACHE_TTL = 5 * 60 * 60 * 1000; // 5小时缓存
+>>>>>>> upstream_明文源吗
 
     const regionMapping = {
         'US': ['🇺🇸 美国', 'US', 'United States'],
@@ -155,9 +160,13 @@
         }
     }
 
-    async function loadKVConfig() {
+    async function loadKVConfig(force = false) {
         
         if (!kvStore) {
+            return;
+        }
+
+        if (!force && kvConfigLastLoad > 0 && (Date.now() - kvConfigLastLoad) < KV_CACHE_TTL) {
             return;
         }
         
@@ -181,6 +190,7 @@
                 kvConfigCache = kvConfig; // 缓存空对象
                 kvConfigCacheTime = Date.now();
             }
+            kvConfigLastLoad = Date.now();
         } catch (error) {
             kvConfig = {};
             // 错误时不缓存，允许下次重试
@@ -197,7 +207,11 @@
             
             // 写入配置
             await kvStore.put('c', configString);
+<<<<<<< local_明文源吗
             
+=======
+            kvConfigLastLoad = Date.now();
+>>>>>>> upstream_明文源吗
         } catch (error) {
             throw error; 
         }
@@ -354,7 +368,26 @@
     export default {
         async fetch(request, env, ctx) {
             try {
+<<<<<<< local_明文源吗
                 const url = new URL(request.url);
+=======
+                
+                const isWebSocket = request.headers.get('Upgrade') === atob('d2Vic29ja2V0');
+                const isPost = request.method === 'POST';
+                const reqUrl = new URL(request.url);
+                const pathSegments = reqUrl.pathname.split('/').filter(p => p);
+
+                if (!isWebSocket && !isPost && reqUrl.pathname !== '/') {
+                    const tmpAt = (env.u || env.U || '').toLowerCase();
+                    const tmpCp = (env.d || env.D || '').toLowerCase();
+                    const firstSeg = pathSegments[0] || '';
+                    const cleanCp = tmpCp.startsWith('/') ? tmpCp.substring(1) : tmpCp;
+                    if (firstSeg !== tmpAt && firstSeg !== cleanCp) {
+                        return new Response('Not Found', { status: 404 });
+                    }
+                }
+
+>>>>>>> upstream_明文源吗
                 await initKVStore(env);
                 
                 at = (env.u || env.U || at).toLowerCase();
@@ -6061,12 +6094,7 @@
             // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
             if (enableECH) {
                 const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
-<<<<<<< local_明文源吗
                 const echDomain = customECHDomain || randomHost;
-=======
-                const echDomain = customECHDomain || 'cloudflare-ech.com';
-                params.set('alpn', 'h2');
->>>>>>> upstream_明文源吗
                 params.set('ech', `${echDomain}+${dnsServer}`);
             }
             

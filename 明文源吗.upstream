@@ -37,6 +37,8 @@
 
     let kvStore = null;
     let kvConfig = {};
+    let kvConfigLastLoad = 0;
+    const KV_CACHE_TTL = 5 * 60 * 60 * 1000; // 5小时缓存
 
     const regionMapping = {
         'HK': ['🇭🇰 香港', 'HK', 'Hong Kong'],
@@ -133,9 +135,13 @@
         }
     }
 
-    async function loadKVConfig() {
+    async function loadKVConfig(force = false) {
         
         if (!kvStore) {
+            return;
+        }
+
+        if (!force && kvConfigLastLoad > 0 && (Date.now() - kvConfigLastLoad) < KV_CACHE_TTL) {
             return;
         }
         
@@ -146,6 +152,7 @@
                 kvConfig = JSON.parse(configData);
             } else {
             }
+            kvConfigLastLoad = Date.now();
         } catch (error) {
             kvConfig = {};
         }
@@ -159,6 +166,7 @@
         try {
             const configString = JSON.stringify(kvConfig);
             await kvStore.put('c', configString);
+            kvConfigLastLoad = Date.now();
         } catch (error) {
             throw error; 
         }
@@ -313,6 +321,21 @@
         async fetch(request, env, ctx) {
             try {
                 
+                const isWebSocket = request.headers.get('Upgrade') === atob('d2Vic29ja2V0');
+                const isPost = request.method === 'POST';
+                const reqUrl = new URL(request.url);
+                const pathSegments = reqUrl.pathname.split('/').filter(p => p);
+
+                if (!isWebSocket && !isPost && reqUrl.pathname !== '/') {
+                    const tmpAt = (env.u || env.U || '').toLowerCase();
+                    const tmpCp = (env.d || env.D || '').toLowerCase();
+                    const firstSeg = pathSegments[0] || '';
+                    const cleanCp = tmpCp.startsWith('/') ? tmpCp.substring(1) : tmpCp;
+                    if (firstSeg !== tmpAt && firstSeg !== cleanCp) {
+                        return new Response('Not Found', { status: 404 });
+                    }
+                }
+
                 await initKVStore(env);
                 
                 at = (env.u || env.U || at).toLowerCase();
