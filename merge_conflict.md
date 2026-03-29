@@ -1,6 +1,6 @@
 # 合并冲突报告
-## 冲突时间: Sat Mar 28 09:23:52 UTC 2026
-## 上游更新哈希: 1c0dbf0a183c85f7ad79ce3f7e42ff831d2486cfd91b85f5b74eb30a7ba7e9e6
+## 冲突时间: Sun Mar 29 03:05:47 UTC 2026
+## 上游更新哈希: a3f8051ac3a19a70a48ef19935327ec5a64d084bfddd20676e2d1687d6705517
 
 以下文件包含冲突标记，需要手动解决：
 
@@ -16,6 +16,7 @@
     let enableSocksDowngrade = false;
     let disableNonTLS = false;
     let disablePreferred = false;
+
     let enableRegionMatching = true;
     let currentWorkerRegion = '';
     let manualWorkerRegion = '';
@@ -32,8 +33,8 @@
     let enableECH = false;  
     // 自定义DNS服务器（默认：https://223.5.5.5/dns-query）
     let customDNS = 'https://223.5.5.5/dns-query';
-    // 自定义ECH域名（默认：cloudflare-ech.com）
-    let customECHDomain = 'cloudflare-ech.com';
+    // 自定义ECH域名（默认：节点host）
+    let customECHDomain = '';
 
     let scu = 'https://url.v1.mk/sub';  
     // 远程配置URL（可配置）
@@ -61,7 +62,6 @@
     const CACHE_TTL = 300000; // 5分钟缓存
 
     const regionMapping = {
-        'HK': ['🇭🇰 香港', 'HK', 'Hong Kong'],
         'US': ['🇺🇸 美国', 'US', 'United States'],
         'SG': ['🇸🇬 新加坡', 'SG', 'Singapore'],
         'JP': ['🇯🇵 日本', 'JP', 'Japan'],
@@ -78,7 +78,6 @@
     };
 
     let backupIPs = [
-        { domain: 'ProxyIP.HK.CMLiussss.net', region: 'HK', regionCode: 'HK', port: 443 },
         { domain: 'ProxyIP.US.CMLiussss.net', region: 'US', regionCode: 'US', port: 443 },
         { domain: 'ProxyIP.SG.CMLiussss.net', region: 'SG', regionCode: 'SG', port: 443 },
         { domain: 'ProxyIP.JP.CMLiussss.net', region: 'JP', regionCode: 'JP', port: 443 },
@@ -355,7 +354,7 @@
     export default {
         async fetch(request, env, ctx) {
             try {
-                
+                const url = new URL(request.url);
                 await initKVStore(env);
                 
                 at = (env.u || env.U || at).toLowerCase();
@@ -516,6 +515,9 @@
                 const customECHDomainValue = getConfigValue('customECHDomain', '');
                 if (customECHDomainValue && customECHDomainValue.trim()) {
                     customECHDomain = customECHDomainValue.trim();
+                } else {
+                    // 默认使用当前节点的主机名 (url.hostname)
+                    customECHDomain = url.hostname;
                 }
                 
                 // 如果启用了ECH，自动启用仅TLS模式（避免80端口干扰）
@@ -536,8 +538,6 @@
             piu = getConfigValue('yxURL', env.yxURL || env.YXURL) || '';
             
             cp = getConfigValue('d', env.d || env.D) || '';
-
-                const url = new URL(request.url);
 
                 if (url.pathname.includes('/api/config')) {
                     const pathParts = url.pathname.split('/').filter(p => p);
@@ -1327,11 +1327,7 @@
                 const path = params.get('path') || '/?ed=2560';
                 const host = params.get('host') || server;
                 const servername = params.get('sni') || host;
-<<<<<<< local_明文源吗
                 const alpn = params.get('alpn') || ["h3","h2"];
-=======
-                const alpn = params.get('alpn') || 'h3';
->>>>>>> upstream_明文源吗
                 const fingerprint = params.get('fp') || params.get('client-fingerprint') || 'chrome';
                 const ech = params.get('ech');
                 
@@ -1348,7 +1344,7 @@
                 
                 if (tls) {
                     node.servername = servername;
-                    node.alpn = alpn.split(',').map(a => a.trim());
+                    node.alpn = (typeof alpn === 'string') ? alpn.split(',').map(a => a.trim()) : alpn;
                     node['skip-cert-verify'] = false;
                 }
                 
@@ -1362,7 +1358,8 @@
                 }
                 
                 if (ech) {
-                    const echDomain = customECHDomain || 'cloudflare-ech.com';
+                    const echDomain = customECHDomain;
+                    delete node.alpn; // ECH 开启时不设置 ALPN
                     node['ech-opts'] = {
                         enable: true,
                         'query-server-name': echDomain
@@ -1385,11 +1382,7 @@
                 const path = params.get('path') || '/?ed=2560';
                 const host = params.get('host') || server;
                 const sni = params.get('sni') || host;
-<<<<<<< local_明文源吗
                 const alpn = params.get('alpn') || ["h3","h2"];
-=======
-                const alpn = params.get('alpn') || 'h3';
->>>>>>> upstream_明文源吗
                 const ech = params.get('ech');
                 
                 const node = {
@@ -1414,7 +1407,8 @@
                 }
                 
                 if (ech) {
-                    const echDomain = customECHDomain || 'cloudflare-ech.com';
+                    const echDomain = customECHDomain;
+                    delete node.alpn; // ECH 开启时不设置 ALPN
                     node['ech-opts'] = {
                         enable: true,
                         'query-server-name': echDomain
@@ -1427,8 +1421,6 @@
             return null;
         }
         return null;
-    }
-
     // 生成 Clash 配置
     async function generateClashConfig(links, request, user) {
         // 先通过订阅转换服务获取 Clash 配置
@@ -1448,42 +1440,108 @@
             
             // 如果 ECH 开启，为所有节点添加 ECH 参数
             if (enableECH) {
-                // 处理单行格式的节点：  - {name: ..., server: ..., ...}
-                // 需要正确处理嵌套的花括号（如 ws-opts: {path: "...", headers: {Host: ...}}）
-                clashConfig = clashConfig.split('\n').map(line => {
-                    // 检查是否是节点行（以 "  - {" 开头，且包含 name: 和 server:）
-                    if (/^\s*-\s*\{/.test(line) && line.includes('name:') && line.includes('server:')) {
-                        // 检查是否已经有 ech-opts
-                        if (line.includes('ech-opts')) {
-                            return line; // 已有 ech-opts，不修改
-                        }
-                        // 找到最后一个 } 的位置（从右往左查找，处理嵌套花括号）
-                        const lastBraceIndex = line.lastIndexOf('}');
-                        if (lastBraceIndex > 0) {
-                            // 检查最后一个 } 之前是否有内容，确保格式正确
-                            const beforeBrace = line.substring(0, lastBraceIndex).trim();
-                            if (beforeBrace.length > 0) {
-                                // 在最后一个 } 之前添加 , ech-opts: {enable: true, query-server-name: ...}
-                                // 确保在逗号前有空格
-                                const echDomain = customECHDomain || 'cloudflare-ech.com';
-                                const needsComma = !beforeBrace.endsWith(',') && !beforeBrace.endsWith('{');
-                                return line.substring(0, lastBraceIndex) + (needsComma ? ', ' : ' ') + `ech-opts: {enable: true, query-server-name: ${echDomain}}` + line.substring(lastBraceIndex);
-                            }
+                const workerDomain = new URL(request.url).hostname;
+                const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
+
+                // 1. 添加 nameserver-policy 以确保 ECH 域名能解析 HTTPS 记录
+                const hostsEntries = `    "${customECHDomain || 'example.com'}":\n      - ${dnsServer}`;
+                const hasNameserverPolicy = /^\s{2}nameserver-policy:\s*(?:\n|$)/m.test(clashConfig);
+
+                if (hasNameserverPolicy) {
+                    clashConfig = clashConfig.replace(/^(\s{2}nameserver-policy:\s*\n)/m, `$1${hostsEntries}\n`);
+                } else {
+                    // 检查是否已经有了 dns: 块
+                    if (/^dns:\s*(?:\n|$)/m.test(clashConfig)) {
+                        const nameserverPolicyBlock = `  nameserver-policy:\n${hostsEntries}\n`;
+                        if (clashConfig.includes('nameserver:')) {
+                            clashConfig = clashConfig.replace(/^(\s*nameserver:)/m, `${nameserverPolicyBlock}$1`);
+                        } else {
+                            clashConfig = clashConfig.replace(/^(dns:\s*\n)/m, `$1${nameserverPolicyBlock}`);
                         }
                     }
-                    return line;
-                }).join('\n');
-                
-                // 处理多行格式的节点（如果存在）
-                // 只处理单行格式，多行格式由订阅转换服务处理，不需要额外修改
-                // 如果订阅转换服务返回多行格式，通常已经是正确的格式
+                }
+
+                // 2. 处理代理节点添加 ech-opts
+                const lines = clashConfig.split('\n');
+                const processedLines = [];
+                let i = 0;
+
+                while (i < lines.length) {
+                    const line = lines[i];
+                    const trimmedLine = line.trim();
+
+                    // 处理行格式（Flow）：- {name: ..., uuid: ..., ...}
+                    if (trimmedLine.startsWith('- {') && (trimmedLine.includes('uuid:') || trimmedLine.includes('password:'))) {
+                        let fullNode = line;
+                        let braceCount = (line.match(/\{/g) || []).length - (line.match(/\}/g) || []).length;
+
+                        while (braceCount > 0 && i + 1 < lines.length) {
+                            i++;
+                            fullNode += '\n' + lines[i];
+                            braceCount += (lines[i].match(/\{/g) || []).length - (lines[i].match(/\}/g) || []).length;
+                        }
+
+                        if (!fullNode.includes('ech-opts')) {
+                            const nodeECHDomain = customECHDomain || getRandomHost(workerDomain);
+                            // 移除原有的 alpn 并添加 ech-opts
+                            fullNode = fullNode.replace(/,\s*alpn\s*:\s*\[[^\]]*\]/, '');
+                            fullNode = fullNode.replace(/\}(\s*)$/, `, ech-opts: {enable: true, query-server-name: ${nodeECHDomain}}}$1`);
+                        }
+                        processedLines.push(fullNode);
+                        i++;
+                    }
+                    // 处理块格式（Block）：- name: ..., 后续行为属性
+                    else if (trimmedLine.startsWith('- name:')) {
+                        let nodeLines = [line];
+                        let baseIndent = line.search(/\S/);
+                        let topLevelIndent = baseIndent + 2;
+                        i++;
+
+                        while (i < lines.length) {
+                            const nextLine = lines[i];
+                            const nextTrimmed = nextLine.trim();
+                            if (!nextTrimmed) { nodeLines.push(nextLine); i++; break; }
+                            const nextIndent = nextLine.search(/\S/);
+                            if (nextIndent <= baseIndent && nextTrimmed.startsWith('- ')) break;
+                            if (nextIndent < baseIndent && nextTrimmed) break;
+                            nodeLines.push(nextLine);
+                            i++;
+                        }
+
+                        const nodeText = nodeLines.join('\n');
+                        // 匹配凭据以识别需要注入 ECH 的节点
+                        if ((nodeText.includes('uuid:') || nodeText.includes('password:')) && !nodeText.includes('ech-opts:')) {
+                            const nodeECHDomain = customECHDomain || getRandomHost(workerDomain);
+                            // 移除 ALPN 配置
+                            nodeLines = nodeLines.filter(line => !line.trim().startsWith('alpn:'));
+                            
+                            let insertIndex = -1;
+                            for (let j = nodeLines.length - 1; j >= 0; j--) {
+                                if (nodeLines[j].trim()) { insertIndex = j; break; }
+                            }
+                            if (insertIndex >= 0) {
+                                const indent = ' '.repeat(topLevelIndent);
+                                const echOptsLines = [
+                                    `${indent}ech-opts:`,
+                                    `${indent}  enable: true`,
+                                    `${indent}  query-server-name: ${nodeECHDomain}`
+                                ];
+                                nodeLines.splice(insertIndex + 1, 0, ...echOptsLines);
+                            }
+                        }
+                        processedLines.push(...nodeLines);
+                    } else {
+                        processedLines.push(line);
+                        i++;
+                    }
+                }
+                clashConfig = processedLines.join('\n');
             }
-            
-            // 替换 DNS nameserver 为阿里的加密 DNS
+
+            // 确保 DNS 设置为指定的加密 DNS
+            const finalDnsServer = customDNS || 'https://223.5.5.5/dns-query';
             clashConfig = clashConfig.replace(/^(\s*nameserver:\s*\n)((?:\s*-\s*[^\n]+\n)*)/m, (match, header, items) => {
-                // 替换所有 nameserver 项为阿里的加密 DNS
-                const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
-                return header + `    - ${dnsServer}\n`;
+                return header + `    - ${finalDnsServer}\n`;
             });
             
             return clashConfig;
@@ -1510,36 +1568,48 @@
             let config = JSON.parse(sbConfigText);
 
             if (enableECH) {
-                const echDomain = customECHDomain || 'speedtest.net';
-                const echData = await getECHConfig(echDomain);
+                const workerDomain = new URL(request.url).hostname;
+                const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
+                const echCache = new Map();
                 
-                if (echData && config.outbounds) {
-                    config.outbounds.forEach(outbound => {
+                if (config.outbounds) {
+                    for (const outbound of config.outbounds) {
                         // 匹配凭据以识别需要注入 ECH 的节点 (VLESS/Trojan/xhttp)
                         const isUUIDMatch = outbound.uuid && (outbound.uuid === at || outbound.uuid === user);
                         const isPasswordMatch = outbound.password && (outbound.password === at || outbound.password === user || (typeof tp !== 'undefined' && tp && outbound.password === tp));
                         
                         if (isUUIDMatch || isPasswordMatch) {
+                            const nodeECHDomain = customECHDomain || getRandomHost(workerDomain);
                             
-                            if (!outbound.tls) {
-                                outbound.tls = { enabled: true };
+                            // 使用缓存避免重复请求
+                            let echData;
+                            if (echCache.has(nodeECHDomain)) {
+                                echData = echCache.get(nodeECHDomain);
+                            } else {
+                                echData = await getECHConfig(nodeECHDomain);
+                                if (echData) echCache.set(nodeECHDomain, echData);
                             }
                             
-                            outbound.tls.utls = {
-                                enabled: true,
-                                fingerprint: "chrome"
-                            };
-                            
-                            outbound.tls.ech = {
-                                enabled: true,
-                                config: [
-                                    "-----BEGIN ECH CONFIGS-----",
-                                    echData,
-                                    "-----END ECH CONFIGS-----"
-                                ]
-                            };
+                            if (echData) {
+                                if (!outbound.tls) {
+                                    outbound.tls = { enabled: true };
+                                }
+                                
+                                outbound.tls.utls = {
+                                    enabled: true,
+                                    fingerprint: "chrome"
+                                };
+                                
+                                // ECH 开启时移除 ALPN
+                                delete outbound.tls.alpn;
+                                
+                                outbound.tls.ech = {
+                                    enabled: true,
+                                    config: `-----BEGIN ECH CONFIGS-----\n${echData}\n-----END ECH CONFIGS-----`
+                                };
+                            }
                         }
-                    });
+                    }
                 }
             }
             
@@ -1562,9 +1632,9 @@
         const debugSteps = [];
         
         try {
-            // 优先使用 Google DNS 查询 cloudflare-ech.com 的 ECH 配置
-            debugSteps.push('尝试使用 Google DNS 查询 cloudflare-ech.com...');
-            const echDomainUrl = `https://v.recipes/dns/dns.google/dns-query?name=cloudflare-ech.com&type=65`;
+            // 优先查询目标域名的 ECH 配置
+            debugSteps.push(`尝试查询 ${domain} 的 ECH 配置...`);
+            const echDomainUrl = `https://v.recipes/dns/dns.google/dns-query?name=${domain}&type=65`;
             const echResponse = await fetch(echDomainUrl, {
                 headers: {
                     'Accept': 'application/json'
@@ -1612,7 +1682,7 @@
                 debugSteps.push(`Google DNS 请求失败: ${echResponse.status}`);
             }
             
-            // 如果 cloudflare-ech.com 查询失败，尝试使用 Google DNS 查询目标域名的 HTTPS 记录
+            // 如果首选查询失败，尝试再次使用 Google DNS 查询目标域名的 HTTPS 记录
             debugSteps.push(`尝试使用 Google DNS 查询目标域名 ${domain}...`);
             const dohUrl = `https://v.recipes/dns/dns.google/dns-query?name=${encodeURIComponent(domain)}&type=65`;
             const response = await fetch(dohUrl, {
@@ -1659,7 +1729,7 @@
             
             // 如果 Google DNS 失败，尝试使用 Cloudflare DNS 作为备选
             debugSteps.push('尝试使用 Cloudflare DNS 作为备选...');
-            const cfEchUrl = `https://cloudflare-dns.com/dns-query?name=cloudflare-ech.com&type=65`;
+            const cfEchUrl = `https://cloudflare-dns.com/dns-query?name=${domain}&type=65`;
             const cfResponse = await fetch(cfEchUrl, {
                 headers: {
                     'Accept': 'application/dns-json'
@@ -1702,26 +1772,21 @@
         if (!url) url = new URL(request.url);
         
         const finalLinks = [];
-        const workerDomain = url.hostname;
+        let workerDomain = url.hostname;
         const target = url.searchParams.get('target') || 'base64';
-
-        // 如果启用了ECH，使用自定义值
-        let echConfig = null;
-        if (enableECH) {
-            const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
-            const echDomain = customECHDomain || 'cloudflare-ech.com';
-            echConfig = `${echDomain}+${dnsServer}`;
-        }
+        
+        // 使用 getRandomHost(workerDomain) 获取一个主 worker 域名，用于一些全局回退
+        workerDomain = getRandomHost(workerDomain);
 
         async function addNodesFromList(list) {
             if (ev) {
-                finalLinks.push(...generateLinksFromSource(list, user, workerDomain, echConfig));
+                finalLinks.push(...generateLinksFromSource(list, user, workerDomain));
             }
             if (et) {
-                finalLinks.push(...await generateTrojanLinksFromSource(list, user, workerDomain, echConfig));
+                finalLinks.push(...await generateTrojanLinksFromSource(list, user, workerDomain));
             }
             if (ex) {
-                finalLinks.push(...generateXhttpLinksFromSource(list, user, workerDomain, echConfig));
+                finalLinks.push(...generateXhttpLinksFromSource(list, user, workerDomain));
             }
         }
 
@@ -1806,27 +1871,27 @@
         // A. VLESS 节点 (最前面)
         if (ev) {
             for (const source of allSources) {
-                finalLinks.push(...generateLinksFromSource(source.list, user, workerDomain, echConfig));
+                finalLinks.push(...generateLinksFromSource(source.list, user, workerDomain));
             }
             if (newIPList.length > 0) {
-                finalLinks.push(...generateLinksFromNewIPs(newIPList, user, workerDomain, echConfig));
+                finalLinks.push(...generateLinksFromNewIPs(newIPList, user, workerDomain));
             }
         }
 
         // B. Trojan 节点 (中间)
         if (et) {
             for (const source of allSources) {
-                finalLinks.push(...await generateTrojanLinksFromSource(source.list, user, workerDomain, echConfig));
+                finalLinks.push(...await generateTrojanLinksFromSource(source.list, user, workerDomain));
             }
             if (newIPList.length > 0) {
-                finalLinks.push(...await generateTrojanLinksFromNewIPs(newIPList, user, workerDomain, echConfig));
+                finalLinks.push(...await generateTrojanLinksFromNewIPs(newIPList, user, workerDomain));
             }
         }
 
         // C. xhttp 节点 (最后面)
         if (ex) {
             for (const source of allSources) {
-                finalLinks.push(...generateXhttpLinksFromSource(source.list, user, workerDomain, echConfig));
+                finalLinks.push(...generateXhttpLinksFromSource(source.list, user, workerDomain));
             }
             if (newIPList.length > 0) {
                 // 确保 yxURL 解析出来的 IP 也支持 xhttp
@@ -1835,7 +1900,7 @@
                     port: item.port,
                     isp: item.name || item.ip
                 }));
-                finalLinks.push(...generateXhttpLinksFromSource(xhttpList, user, workerDomain, echConfig));
+                finalLinks.push(...generateXhttpLinksFromSource(xhttpList, user, workerDomain));
             }
         }
 
@@ -1892,9 +1957,6 @@
         // 添加ECH状态到响应头
         if (enableECH) {
             responseHeaders['X-ECH-Status'] = 'ENABLED';
-            if (echConfig) {
-                responseHeaders['X-ECH-Config-Length'] = String(echConfig.length);
-            }
         }
         
         return new Response(subscriptionContent, {
@@ -1902,7 +1964,7 @@
         });
     }
 
-    function generateLinksFromSource(list, user, workerDomain, echConfig = null) {
+    function generateLinksFromSource(list, user, workerDomain) {
         
         const CF_HTTP_PORTS = [80, 8080, 8880, 2052, 2082, 2086, 2095];
         const CF_HTTPS_PORTS = [443, 2053, 2083, 2087, 2096, 8443];
@@ -1966,13 +2028,7 @@
                     // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
                     if (enableECH) {
                         const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
-<<<<<<< local_明文源吗
-                        const echDomain = customECHDomain || 'speedtest.net';
-                        wsParams.set('alpn', ["h3","h2"]);
-=======
-                        const echDomain = customECHDomain || 'cloudflare-ech.com';
-                        wsParams.set('alpn', 'h3');
->>>>>>> upstream_明文源吗
+                        const echDomain = customECHDomain || randomHost;
                         wsParams.set('ech', `${echDomain}+${dnsServer}`);
                     }
                     
@@ -1995,7 +2051,7 @@
         return links;
     }
 
-    async function generateTrojanLinksFromSource(list, user, workerDomain, echConfig = null) {
+    async function generateTrojanLinksFromSource(list, user, workerDomain) {
         
         const CF_HTTP_PORTS = [80, 8080, 8880, 2052, 2082, 2086, 2095];
         const CF_HTTPS_PORTS = [443, 2053, 2083, 2087, 2096, 8443];
@@ -2054,13 +2110,7 @@
                     // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
                     if (enableECH) {
                         const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
-<<<<<<< local_明文源吗
-                        const echDomain = customECHDomain || 'speedtest.net';
-                        wsParams.set('alpn', ["h3","h2"]);
-=======
-                        const echDomain = customECHDomain || 'cloudflare-ech.com';
-                        wsParams.set('alpn', 'h3');
->>>>>>> upstream_明文源吗
+                        const echDomain = customECHDomain || randomHost;
                         wsParams.set('ech', `${echDomain}+${dnsServer}`);
                     }
                     
@@ -2559,7 +2609,7 @@
                     customDNSPlaceholder: '例如: https://223.5.5.5/dns-query',
                     customDNSHint: '用于ECH配置查询的DNS服务器地址（DoH格式）',
                     customECHDomain: '自定义 ECH 域名',
-                    customECHDomainPlaceholder: '例如: speedtest.net',
+                    customECHDomainPlaceholder: '例如: worker.example.com',
                     customECHDomainHint: 'ECH配置中使用的域名，留空则使用默认值',
                     saveProtocol: '保存协议配置',
                     subscriptionConverterPlaceholder: '默认: https://url.v1.mk/sub',
@@ -2581,7 +2631,7 @@
                     preferredControlYes: '关闭优选',
                     preferredControlHint: '设置为"关闭优选"时只使用原生地址，不生成优选IP和域名节点',
                     regionNames: {
-                        HK: '🇭🇰 香港', US: '🇺🇸 美国', SG: '🇸🇬 新加坡', JP: '🇯🇵 日本',
+                        US: '🇺🇸 美国', SG: '🇸🇬 新加坡', JP: '🇯🇵 日本',
                         KR: '🇰🇷 韩国', DE: '🇩🇪 德国', SE: '🇸🇪 瑞典', NL: '🇳🇱 荷兰',
                         FI: '🇫🇮 芬兰', GB: '🇬🇧 英国'
                     },
@@ -2645,7 +2695,7 @@
                     customDNSPlaceholder: 'مثال: https://223.5.5.5/dns-query',
                     customDNSHint: 'آدرس سرور DNS برای جستجوی پیکربندی ECH (فرمت DoH)',
                     customECHDomain: 'دامنه ECH سفارشی',
-                    customECHDomainPlaceholder: 'مثال: speedtest.net',
+                    customECHDomainPlaceholder: 'مثال: worker.example.com',
                     customECHDomainHint: 'دامنه استفاده شده در پیکربندی ECH، خالی بگذارید تا از مقدار پیش‌فرض استفاده شود',
                     trojanPassword: 'رمز عبور Trojan (اختیاری):',
                     customPath: 'مسیر سفارشی (d):',
@@ -2728,7 +2778,7 @@
                     preferredControlYes: 'بستن ترجیح',
                     preferredControlHint: 'وقتی "بستن ترجیح" تنظیم شود، فقط از آدرس اصلی استفاده می‌شود، گره‌های IP و دامنه ترجیحی تولید نمی‌شوند',
                     regionNames: {
-                        HK: '🇭🇰 هنگ کنگ', US: '🇺🇸 آمریکا', SG: '🇸🇬 سنگاپور', JP: '🇯🇵 ژاپن',
+                        US: '🇺🇸 آمریکا', SG: '🇸🇬 سنگاپور', JP: '🇯🇵 ژاپن',
                         KR: '🇰🇷 کره جنوبی', DE: '🇩🇪 آلمان', SE: '🇸🇪 سوئد', NL: '🇳🇱 هلند',
                         FI: '🇫🇮 فنلاند', GB: '🇬🇧 بریتانیا'
                     },
@@ -3026,7 +3076,6 @@
                                 <label style="display: block; margin-bottom: 8px; color: #00ff00; font-weight: bold; text-shadow: 0 0 3px #00ff00;">${t.specifyRegion}</label>
                             <select id="wkRegion" style="width: 100%; padding: 12px; background: rgba(0, 0, 0, 0.8); border: 2px solid #00ff00; color: #00ff00; font-family: 'Courier New', monospace; font-size: 14px;">
                                     <option value="">${t.autoDetect}</option>
-                                    <option value="HK">${t.regionNames.HK}</option>
                                     <option value="US">${t.regionNames.US}</option>
                                     <option value="SG">${t.regionNames.SG}</option>
                                     <option value="JP">${t.regionNames.JP}</option>
@@ -3694,7 +3743,7 @@
                                 currentIP: '当前使用IP: ',
                                 regionMatch: '地区匹配: ',
                                 regionNames: {
-                        'HK': '🇭🇰 香港', 'US': '🇺🇸 美国', 'SG': '🇸🇬 新加坡', 'JP': '🇯🇵 日本',
+                        'US': '🇺🇸 美国', 'SG': '🇸🇬 新加坡', 'JP': '🇯🇵 日本',
                         'KR': '🇰🇷 韩国', 'DE': '🇩🇪 德国', 'SE': '🇸🇪 瑞典', 'NL': '🇳🇱 荷兰',
                         'FI': '🇫🇮 芬兰', 'GB': '🇬🇧 英国'
                                 },
@@ -3719,7 +3768,7 @@
                                 currentIP: 'IP فعلی: ',
                                 regionMatch: 'تطبیق منطقه: ',
                                 regionNames: {
-                                    'HK': '🇭🇰 هنگ کنگ', 'US': '🇺🇸 آمریکا', 'SG': '🇸🇬 سنگاپور', 'JP': '🇯🇵 ژاپن',
+                                    'US': '🇺🇸 آمریکا', 'SG': '🇸🇬 سنگاپور', 'JP': '🇯🇵 ژاپن',
                                     'KR': '🇰🇷 کره جنوبی', 'DE': '🇩🇪 آلمان', 'SE': '🇸🇪 سوئد', 'NL': '🇳🇱 هلند',
                                     'FI': '🇫🇮 فنلاند', 'GB': '🇬🇧 بریتانیا'
                                 },
@@ -5909,7 +5958,7 @@
         return replaceWildcards(defaultHost);
     }
 
-    function generateLinksFromNewIPs(list, user, workerDomain, echConfig = null) {
+    function generateLinksFromNewIPs(list, user, workerDomain) {
         
         const CF_HTTP_PORTS = [80, 8080, 8880, 2052, 2082, 2086, 2095];
         const CF_HTTPS_PORTS = [443, 2053, 2083, 2087, 2096, 8443];
@@ -5940,14 +5989,8 @@
                 // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
                 if (enableECH) {
                     const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
-<<<<<<< local_明文源吗
-                    const echDomain = customECHDomain || 'speedtest.net';
-                    wsParams.set('alpn', ["h3","h2"]);
+                    const echDomain = customECHDomain || randomHost;
                     wsParams.set('ech', `${echDomain}+${dnsServer}`);
-=======
-                    const echDomain = customECHDomain || 'cloudflare-ech.com';
-                    link += `&alpn=h3&ech=${encodeURIComponent(`${echDomain}+${dnsServer}`)}`;
->>>>>>> upstream_明文源吗
                 }
                 
                 links.push(`${proto}://${user}@${safeIP}:${port}?${wsParams.toString()}#${encodeURIComponent(wsNodeName)}`);
@@ -5980,14 +6023,8 @@
                 // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
                 if (enableECH) {
                     const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
-<<<<<<< local_明文源吗
-                    const echDomain = customECHDomain || 'speedtest.net';
-                    wsParams.set('alpn', ["h3","h2"]);
+                    const echDomain = customECHDomain || randomHost;
                     wsParams.set('ech', `${echDomain}+${dnsServer}`);
-=======
-                    const echDomain = customECHDomain || 'cloudflare-ech.com';
-                    link += `&alpn=h3&ech=${encodeURIComponent(`${echDomain}+${dnsServer}`)}`;
->>>>>>> upstream_明文源吗
                 }
                 
                 links.push(`${proto}://${user}@${safeIP}:${port}?${wsParams.toString()}#${encodeURIComponent(wsNodeName)}`);
@@ -5996,7 +6033,7 @@
         return links;
     }
 
-    function generateXhttpLinksFromSource(list, user, workerDomain, echConfig = null) {
+    function generateXhttpLinksFromSource(list, user, workerDomain) {
         const links = [];
         const nodePath = user.substring(0, 8);
         
@@ -6025,11 +6062,10 @@
             if (enableECH) {
                 const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
 <<<<<<< local_明文源吗
-                const echDomain = customECHDomain || 'speedtest.net';
-                params.set('alpn', ["h3","h2"]);
+                const echDomain = customECHDomain || randomHost;
 =======
                 const echDomain = customECHDomain || 'cloudflare-ech.com';
-                params.set('alpn', 'h3');
+                params.set('alpn', 'h2');
 >>>>>>> upstream_明文源吗
                 params.set('ech', `${echDomain}+${dnsServer}`);
             }
@@ -6040,7 +6076,7 @@
         return links;
     }
 
-    async function generateTrojanLinksFromNewIPs(list, user, workerDomain, echConfig = null) {
+    async function generateTrojanLinksFromNewIPs(list, user, workerDomain) {
         
         const CF_HTTP_PORTS = [80, 8080, 8880, 2052, 2082, 2086, 2095];
         const CF_HTTPS_PORTS = [443, 2053, 2083, 2087, 2096, 8443];
@@ -6071,14 +6107,8 @@
                 // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
                 if (enableECH) {
                     const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
-<<<<<<< local_明文源吗
-                    const echDomain = customECHDomain || 'speedtest.net';
-                    wsParams.set('alpn', ["h3","h2"]);
+                    const echDomain = customECHDomain || randomHost;
                     wsParams.set('ech', `${echDomain}+${dnsServer}`);
-=======
-                    const echDomain = customECHDomain || 'cloudflare-ech.com';
-                    link += `&alpn=h3&ech=${encodeURIComponent(`${echDomain}+${dnsServer}`)}`;
->>>>>>> upstream_明文源吗
                 }
                 
                 links.push(`${atob('dHJvamFuOi8v')}${password}@${safeIP}:${port}?${wsParams.toString()}#${encodeURIComponent(wsNodeName)}`);
@@ -6109,14 +6139,8 @@
                 // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
                 if (enableECH) {
                     const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
-<<<<<<< local_明文源吗
-                    const echDomain = customECHDomain || 'speedtest.net';
-                    wsParams.set('alpn', ["h3","h2"]);
+                    const echDomain = customECHDomain || randomHost;
                     wsParams.set('ech', `${echDomain}+${dnsServer}`);
-=======
-                    const echDomain = customECHDomain || 'cloudflare-ech.com';
-                    link += `&alpn=h3&ech=${encodeURIComponent(`${echDomain}+${dnsServer}`)}`;
->>>>>>> upstream_明文源吗
                 }
                 
                 links.push(`${atob('dHJvamFuOi8v')}${password}@${safeIP}:${port}?${wsParams.toString()}#${encodeURIComponent(wsNodeName)}`);
@@ -6494,7 +6518,7 @@
         if (customECHDomainValue && customECHDomainValue.trim()) {
             customECHDomain = customECHDomainValue.trim();
         } else {
-            customECHDomain = 'cloudflare-ech.com';
+            customECHDomain = '';
         }
         
         // 如果启用了ECH，自动启用仅TLS模式（避免80端口干扰）
