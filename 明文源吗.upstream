@@ -331,7 +331,7 @@
                     const tmpCp = (env.d || env.D || '').toLowerCase();
                     const firstSeg = pathSegments[0] || '';
                     const cleanCp = tmpCp.startsWith('/') ? tmpCp.substring(1) : tmpCp;
-                    if (firstSeg !== tmpAt && firstSeg !== cleanCp) {
+                    if (firstSeg !== tmpAt && (cleanCp ? firstSeg !== cleanCp : false)) {
                         return new Response('Not Found', { status: 404 });
                     }
                 }

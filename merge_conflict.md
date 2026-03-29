@@ -1,6 +1,6 @@
 # 合并冲突报告
-## 冲突时间: Sun Mar 29 03:58:31 UTC 2026
-## 上游更新哈希: 97d52f577d1c019c2917f5f5e7fa84c05be2e801bb33624f1610bcccf81e4d60
+## 冲突时间: Sun Mar 29 04:04:44 UTC 2026
+## 上游更新哈希: 168bb93de170605a0b4313127fb262f09f621549a119a055848515db4fdd1220
 
 以下文件包含冲突标记，需要手动解决：
 
@@ -54,17 +54,12 @@
 
     let kvStore = null;
     let kvConfig = {};
-<<<<<<< local_明文源吗
     let enableRandomPath = false; // 随机路径开关
     
     // KV配置缓存（方案1：内存缓存）
     let kvConfigCache = null;
     let kvConfigCacheTime = 0;
     const CACHE_TTL = 300000; // 5分钟缓存
-=======
-    let kvConfigLastLoad = 0;
-    const KV_CACHE_TTL = 5 * 60 * 60 * 1000; // 5小时缓存
->>>>>>> upstream_明文源吗
 
     const regionMapping = {
         'US': ['🇺🇸 美国', 'US', 'United States'],
@@ -160,13 +155,9 @@
         }
     }
 
-    async function loadKVConfig(force = false) {
+    async function loadKVConfig() {
         
         if (!kvStore) {
-            return;
-        }
-
-        if (!force && kvConfigLastLoad > 0 && (Date.now() - kvConfigLastLoad) < KV_CACHE_TTL) {
             return;
         }
         
@@ -190,7 +181,6 @@
                 kvConfigCache = kvConfig; // 缓存空对象
                 kvConfigCacheTime = Date.now();
             }
-            kvConfigLastLoad = Date.now();
         } catch (error) {
             kvConfig = {};
             // 错误时不缓存，允许下次重试
@@ -207,11 +197,7 @@
             
             // 写入配置
             await kvStore.put('c', configString);
-<<<<<<< local_明文源吗
             
-=======
-            kvConfigLastLoad = Date.now();
->>>>>>> upstream_明文源吗
         } catch (error) {
             throw error; 
         }
@@ -382,7 +368,7 @@
                     const tmpCp = (env.d || env.D || '').toLowerCase();
                     const firstSeg = pathSegments[0] || '';
                     const cleanCp = tmpCp.startsWith('/') ? tmpCp.substring(1) : tmpCp;
-                    if (firstSeg !== tmpAt && firstSeg !== cleanCp) {
+                    if (firstSeg !== tmpAt && (cleanCp ? firstSeg !== cleanCp : false)) {
                         return new Response('Not Found', { status: 404 });
                     }
                 }
@@ -1454,6 +1440,7 @@
             return null;
         }
         return null;
+    }
     // 生成 Clash 配置
     async function generateClashConfig(links, request, user) {
         // 先通过订阅转换服务获取 Clash 配置
