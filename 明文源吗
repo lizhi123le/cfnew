@@ -1436,11 +1436,10 @@
             // 如果 ECH 开启，为所有节点添加 ECH 参数
             if (enableECH) {
                 const workerDomain = new URL(request.url).hostname;
-                const echDomain = customECHDomain || getRandomHost(workerDomain);
                 const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
 
                 // 1. 添加 nameserver-policy 以确保 ECH 域名能解析 HTTPS 记录
-                const hostsEntries = `    "${echDomain}":\n      - ${dnsServer}`;
+                const hostsEntries = `    "${customECHDomain || 'example.com'}":\n      - ${dnsServer}`;
                 const hasNameserverPolicy = /^\s{2}nameserver-policy:\s*(?:\n|$)/m.test(clashConfig);
 
                 if (hasNameserverPolicy) {
@@ -1563,35 +1562,38 @@
 
             if (enableECH) {
                 const workerDomain = new URL(request.url).hostname;
-                const echDomain = customECHDomain || getRandomHost(workerDomain);
-                const echData = await getECHConfig(echDomain);
+                const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
                 
-                if (echData && config.outbounds) {
-                    config.outbounds.forEach(outbound => {
+                if (config.outbounds) {
+                    for (const outbound of config.outbounds) {
                         // 匹配凭据以识别需要注入 ECH 的节点 (VLESS/Trojan/xhttp)
                         const isUUIDMatch = outbound.uuid && (outbound.uuid === at || outbound.uuid === user);
                         const isPasswordMatch = outbound.password && (outbound.password === at || outbound.password === user || (typeof tp !== 'undefined' && tp && outbound.password === tp));
                         
                         if (isUUIDMatch || isPasswordMatch) {
+                            const echDomain = customECHDomain || getRandomHost(workerDomain);
+                            const echData = await getECHConfig(echDomain);
                             
-                            if (!outbound.tls) {
-                                outbound.tls = { enabled: true };
+                            if (echData) {
+                                if (!outbound.tls) {
+                                    outbound.tls = { enabled: true };
+                                }
+                                
+                                outbound.tls.utls = {
+                                    enabled: true,
+                                    fingerprint: "chrome"
+                                };
+                                
+                                // ECH 开启时移除 ALPN
+                                delete outbound.tls.alpn;
+                                
+                                outbound.tls.ech = {
+                                    enabled: true,
+                                    config: `-----BEGIN ECH CONFIGS-----\n${echData}\n-----END ECH CONFIGS-----`
+                                };
                             }
-                            
-                            outbound.tls.utls = {
-                                enabled: true,
-                                fingerprint: "chrome"
-                            };
-                            
-                            // ECH 开启时移除 ALPN
-                            delete outbound.tls.alpn;
-                            
-                            outbound.tls.ech = {
-                                enabled: true,
-                                config: `-----BEGIN ECH CONFIGS-----\n${echData}\n-----END ECH CONFIGS-----`
-                            };
                         }
-                    });
+                    }
                 }
             }
             
