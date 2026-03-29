@@ -1414,6 +1414,7 @@
             return null;
         }
         return null;
+    }
     // 生成 Clash 配置
     async function generateClashConfig(links, request, user) {
         // 先通过订阅转换服务获取 Clash 配置
