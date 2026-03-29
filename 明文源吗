@@ -4873,7 +4873,7 @@
                                 customIP: document.getElementById('customIP').value,
                                 yx: newValue,
                                 yxURL: document.getElementById('yxURL').value,
-                                socksConfig: document.getElementById('socksConfig').value
+                                s: document.getElementById('socksConfig').value
                             };
                             await saveConfig(configData);
                             showStatus('${isFarsi ? 'موفقیت‌آمیز بود' : '已覆盖'} ' + selectedItems.length + ' ${isFarsi ? 'مورد و ذخیره شد' : '项并已保存'}', 'success');
@@ -4908,7 +4908,7 @@
                                 customIP: document.getElementById('customIP').value,
                                 yx: newValue,
                                 yxURL: document.getElementById('yxURL').value,
-                                socksConfig: document.getElementById('socksConfig').value
+                                s: document.getElementById('socksConfig').value
                             };
                             await saveConfig(configData);
                             showStatus('${isFarsi ? 'موفقیت‌آمیز بود' : '已追加'} ' + selectedItems.length + ' ${isFarsi ? 'مورد و ذخیره شد' : '项并已保存'}', 'success');
