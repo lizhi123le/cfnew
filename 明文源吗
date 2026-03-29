@@ -26,8 +26,8 @@
     let enableECH = false;  
     // 自定义DNS服务器（默认：https://223.5.5.5/dns-query）
     let customDNS = 'https://223.5.5.5/dns-query';
-    // 自定义ECH域名（默认：cloudflare-ech.com）
-    let customECHDomain = 'cloudflare-ech.com';
+    // 自定义ECH域名（默认：节点host）
+    let customECHDomain = '';
 
     let scu = 'https://url.v1.mk/sub';  
     // 远程配置URL（可配置）
@@ -2016,7 +2016,7 @@
                     // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
                     if (enableECH) {
                         const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
-                        const echDomain = customECHDomain || 'cloudflare-ech.com';
+                        const echDomain = customECHDomain || randomHost;
                         wsParams.set('ech', `${echDomain}+${dnsServer}`);
                     }
                     
@@ -2098,7 +2098,7 @@
                     // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
                     if (enableECH) {
                         const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
-                        const echDomain = customECHDomain || 'cloudflare-ech.com';
+                        const echDomain = customECHDomain || randomHost;
                         wsParams.set('ech', `${echDomain}+${dnsServer}`);
                     }
                     
@@ -5977,7 +5977,7 @@
                 // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
                 if (enableECH) {
                     const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
-                    const echDomain = customECHDomain || 'cloudflare-ech.com';
+                    const echDomain = customECHDomain || randomHost;
                     wsParams.set('ech', `${echDomain}+${dnsServer}`);
                 }
                 
@@ -6011,7 +6011,7 @@
                 // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
                 if (enableECH) {
                     const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
-                    const echDomain = customECHDomain || 'cloudflare-ech.com';
+                    const echDomain = customECHDomain || randomHost;
                     wsParams.set('ech', `${echDomain}+${dnsServer}`);
                 }
                 
@@ -6049,7 +6049,7 @@
             // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
             if (enableECH) {
                 const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
-                const echDomain = customECHDomain || 'cloudflare-ech.com';
+                const echDomain = customECHDomain || randomHost;
                 params.set('ech', `${echDomain}+${dnsServer}`);
             }
             
@@ -6090,7 +6090,7 @@
                 // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
                 if (enableECH) {
                     const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
-                    const echDomain = customECHDomain || 'cloudflare-ech.com';
+                    const echDomain = customECHDomain || randomHost;
                     wsParams.set('ech', `${echDomain}+${dnsServer}`);
                 }
                 
@@ -6122,7 +6122,7 @@
                 // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
                 if (enableECH) {
                     const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
-                    const echDomain = customECHDomain || 'cloudflare-ech.com';
+                    const echDomain = customECHDomain || randomHost;
                     wsParams.set('ech', `${echDomain}+${dnsServer}`);
                 }
                 
@@ -6501,7 +6501,7 @@
         if (customECHDomainValue && customECHDomainValue.trim()) {
             customECHDomain = customECHDomainValue.trim();
         } else {
-            customECHDomain = 'cloudflare-ech.com';
+            customECHDomain = '';
         }
         
         // 如果启用了ECH，自动启用仅TLS模式（避免80端口干扰）
