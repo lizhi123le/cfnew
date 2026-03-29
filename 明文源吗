@@ -347,7 +347,7 @@
     export default {
         async fetch(request, env, ctx) {
             try {
-                
+                const url = new URL(request.url);
                 await initKVStore(env);
                 
                 at = (env.u || env.U || at).toLowerCase();
@@ -508,6 +508,9 @@
                 const customECHDomainValue = getConfigValue('customECHDomain', '');
                 if (customECHDomainValue && customECHDomainValue.trim()) {
                     customECHDomain = customECHDomainValue.trim();
+                } else {
+                    // 默认使用当前节点的主机名 (url.hostname)
+                    customECHDomain = url.hostname;
                 }
                 
                 // 如果启用了ECH，自动启用仅TLS模式（避免80端口干扰）
@@ -528,8 +531,6 @@
             piu = getConfigValue('yxURL', env.yxURL || env.YXURL) || '';
             
             cp = getConfigValue('d', env.d || env.D) || '';
-
-                const url = new URL(request.url);
 
                 if (url.pathname.includes('/api/config')) {
                     const pathParts = url.pathname.split('/').filter(p => p);
@@ -1336,7 +1337,7 @@
                 
                 if (tls) {
                     node.servername = servername;
-                    node.alpn = alpn.split(',').map(a => a.trim());
+                    node.alpn = (typeof alpn === 'string') ? alpn.split(',').map(a => a.trim()) : alpn;
                     node['skip-cert-verify'] = false;
                 }
                 
@@ -1350,7 +1351,8 @@
                 }
                 
                 if (ech) {
-                    const echDomain = customECHDomain || 'www.speedtest.net';
+                    const echDomain = customECHDomain;
+                    delete node.alpn; // ECH 开启时不设置 ALPN
                     node['ech-opts'] = {
                         enable: true,
                         'query-server-name': echDomain
@@ -1398,7 +1400,8 @@
                 }
                 
                 if (ech) {
-                    const echDomain = customECHDomain || 'www.speedtest.net';
+                    const echDomain = customECHDomain;
+                    delete node.alpn; // ECH 开启时不设置 ALPN
                     node['ech-opts'] = {
                         enable: true,
                         'query-server-name': echDomain
@@ -1432,42 +1435,106 @@
             
             // 如果 ECH 开启，为所有节点添加 ECH 参数
             if (enableECH) {
-                // 处理单行格式的节点：  - {name: ..., server: ..., ...}
-                // 需要正确处理嵌套的花括号（如 ws-opts: {path: "...", headers: {Host: ...}}）
-                clashConfig = clashConfig.split('\n').map(line => {
-                    // 检查是否是节点行（以 "  - {" 开头，且包含 name: 和 server:）
-                    if (/^\s*-\s*\{/.test(line) && line.includes('name:') && line.includes('server:')) {
-                        // 检查是否已经有 ech-opts
-                        if (line.includes('ech-opts')) {
-                            return line; // 已有 ech-opts，不修改
-                        }
-                        // 找到最后一个 } 的位置（从右往左查找，处理嵌套花括号）
-                        const lastBraceIndex = line.lastIndexOf('}');
-                        if (lastBraceIndex > 0) {
-                            // 检查最后一个 } 之前是否有内容，确保格式正确
-                            const beforeBrace = line.substring(0, lastBraceIndex).trim();
-                            if (beforeBrace.length > 0) {
-                                // 在最后一个 } 之前添加 , ech-opts: {enable: true, query-server-name: ...}
-                                // 确保在逗号前有空格
-                                const echDomain = customECHDomain || 'www.speedtest.net';
-                                const needsComma = !beforeBrace.endsWith(',') && !beforeBrace.endsWith('{');
-                                return line.substring(0, lastBraceIndex) + (needsComma ? ', ' : ' ') + `ech-opts: {enable: true, query-server-name: ${echDomain}}` + line.substring(lastBraceIndex);
-                            }
+                const echDomain = customECHDomain || 'www.speedtest.net';
+                const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
+
+                // 1. 添加 nameserver-policy 以确保 ECH 域名能解析 HTTPS 记录
+                const hostsEntries = `    "${echDomain}":\n      - ${dnsServer}`;
+                const hasNameserverPolicy = /^\s{2}nameserver-policy:\s*(?:\n|$)/m.test(clashConfig);
+
+                if (hasNameserverPolicy) {
+                    clashConfig = clashConfig.replace(/^(\s{2}nameserver-policy:\s*\n)/m, `$1${hostsEntries}\n`);
+                } else {
+                    // 检查是否已经有了 dns: 块
+                    if (/^dns:\s*(?:\n|$)/m.test(clashConfig)) {
+                        const nameserverPolicyBlock = `  nameserver-policy:\n${hostsEntries}\n`;
+                        if (clashConfig.includes('nameserver:')) {
+                            clashConfig = clashConfig.replace(/^(\s*nameserver:)/m, `${nameserverPolicyBlock}$1`);
+                        } else {
+                            clashConfig = clashConfig.replace(/^(dns:\s*\n)/m, `$1${nameserverPolicyBlock}`);
                         }
                     }
-                    return line;
-                }).join('\n');
-                
-                // 处理多行格式的节点（如果存在）
-                // 只处理单行格式，多行格式由订阅转换服务处理，不需要额外修改
-                // 如果订阅转换服务返回多行格式，通常已经是正确的格式
+                }
+
+                // 2. 处理代理节点添加 ech-opts
+                const lines = clashConfig.split('\n');
+                const processedLines = [];
+                let i = 0;
+
+                while (i < lines.length) {
+                    const line = lines[i];
+                    const trimmedLine = line.trim();
+
+                    // 处理行格式（Flow）：- {name: ..., uuid: ..., ...}
+                    if (trimmedLine.startsWith('- {') && (trimmedLine.includes('uuid:') || trimmedLine.includes('password:'))) {
+                        let fullNode = line;
+                        let braceCount = (line.match(/\{/g) || []).length - (line.match(/\}/g) || []).length;
+
+                        while (braceCount > 0 && i + 1 < lines.length) {
+                            i++;
+                            fullNode += '\n' + lines[i];
+                            braceCount += (lines[i].match(/\{/g) || []).length - (lines[i].match(/\}/g) || []).length;
+                        }
+
+                        if (!fullNode.includes('ech-opts')) {
+                            // 移除原有的 alpn 并添加 ech-opts
+                            fullNode = fullNode.replace(/,\s*alpn\s*:\s*\[[^\]]*\]/, '');
+                            fullNode = fullNode.replace(/\}(\s*)$/, `, ech-opts: {enable: true, query-server-name: ${echDomain}}}$1`);
+                        }
+                        processedLines.push(fullNode);
+                        i++;
+                    }
+                    // 处理块格式（Block）：- name: ..., 后续行为属性
+                    else if (trimmedLine.startsWith('- name:')) {
+                        let nodeLines = [line];
+                        let baseIndent = line.search(/\S/);
+                        let topLevelIndent = baseIndent + 2;
+                        i++;
+
+                        while (i < lines.length) {
+                            const nextLine = lines[i];
+                            const nextTrimmed = nextLine.trim();
+                            if (!nextTrimmed) { nodeLines.push(nextLine); i++; break; }
+                            const nextIndent = nextLine.search(/\S/);
+                            if (nextIndent <= baseIndent && nextTrimmed.startsWith('- ')) break;
+                            if (nextIndent < baseIndent && nextTrimmed) break;
+                            nodeLines.push(nextLine);
+                            i++;
+                        }
+
+                        const nodeText = nodeLines.join('\n');
+                        // 匹配凭据以识别需要注入 ECH 的节点
+                        if ((nodeText.includes('uuid:') || nodeText.includes('password:')) && !nodeText.includes('ech-opts:')) {
+                            // 移除 ALPN 配置
+                            nodeLines = nodeLines.filter(line => !line.trim().startsWith('alpn:'));
+                            
+                            let insertIndex = -1;
+                            for (let j = nodeLines.length - 1; j >= 0; j--) {
+                                if (nodeLines[j].trim()) { insertIndex = j; break; }
+                            }
+                            if (insertIndex >= 0) {
+                                const indent = ' '.repeat(topLevelIndent);
+                                const echOptsLines = [
+                                    `${indent}ech-opts:`,
+                                    `${indent}  enable: true`,
+                                    `${indent}  query-server-name: ${echDomain}`
+                                ];
+                                nodeLines.splice(insertIndex + 1, 0, ...echOptsLines);
+                            }
+                        }
+                        processedLines.push(...nodeLines);
+                    } else {
+                        processedLines.push(line);
+                        i++;
+                    }
+                }
+                clashConfig = processedLines.join('\n');
             }
-            
-            // 替换 DNS nameserver 为阿里的加密 DNS
+
+            // 确保 DNS 设置为指定的加密 DNS
+            const finalDnsServer = customDNS || 'https://223.5.5.5/dns-query';
             clashConfig = clashConfig.replace(/^(\s*nameserver:\s*\n)((?:\s*-\s*[^\n]+\n)*)/m, (match, header, items) => {
-                // 替换所有 nameserver 项为阿里的加密 DNS
-                const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
-                return header + `    - ${dnsServer}\n`;
+                return header + `    - ${finalDnsServer}\n`;
             });
             
             return clashConfig;
@@ -1514,13 +1581,12 @@
                                 fingerprint: "chrome"
                             };
                             
+                            // ECH 开启时移除 ALPN
+                            delete outbound.tls.alpn;
+                            
                             outbound.tls.ech = {
                                 enabled: true,
-                                config: [
-                                    "-----BEGIN ECH CONFIGS-----",
-                                    echData,
-                                    "-----END ECH CONFIGS-----"
-                                ]
+                                config: `-----BEGIN ECH CONFIGS-----\n${echData}\n-----END ECH CONFIGS-----`
                             };
                         }
                     });
