@@ -52,9 +52,10 @@
     // KV配置缓存（方案1：内存缓存）
     let kvConfigCache = null;
     let kvConfigCacheTime = 0;
-    const CACHE_TTL = 300000; // 5分钟缓存
+    const CACHE_TTL = 1 * 60 * 60 * 1000; // 1小时缓存
 
     const regionMapping = {
+        'HK': ['🇭🇰 香港', 'HK', 'Hong Kong'],
         'US': ['🇺🇸 美国', 'US', 'United States'],
         'SG': ['🇸🇬 新加坡', 'SG', 'Singapore'],
         'JP': ['🇯🇵 日本', 'JP', 'Japan'],
@@ -71,6 +72,7 @@
     };
 
     let backupIPs = [
+        { domain: 'ProxyIP.HK.CMLiussss.net', region: 'HK', regionCode: 'HK', port: 443 },
         { domain: 'ProxyIP.US.CMLiussss.net', region: 'US', regionCode: 'US', port: 443 },
         { domain: 'ProxyIP.SG.CMLiussss.net', region: 'SG', regionCode: 'SG', port: 443 },
         { domain: 'ProxyIP.JP.CMLiussss.net', region: 'JP', regionCode: 'JP', port: 443 },
@@ -218,7 +220,7 @@
             
             if (cfCountry) {
                 const countryToRegion = {
-                    'US': 'US', 'SG': 'SG', 'JP': 'JP', 'KR': 'KR',
+                    'HK': 'HK','US': 'US', 'SG': 'SG', 'JP': 'JP', 'KR': 'KR',
                     'DE': 'DE', 'SE': 'SE', 'NL': 'NL', 'FI': 'FI', 'GB': 'GB',
                     'CN': 'SG', 'TW': 'JP', 'AU': 'SG', 'CA': 'US',
                     'FR': 'DE', 'IT': 'DE', 'ES': 'DE', 'CH': 'DE',
@@ -279,15 +281,16 @@
 
     function getNearbyRegions(region) {
         const nearbyMap = {
-            'US': ['SG', 'JP', 'KR'], 
-            'SG': ['JP', 'KR', 'US'], 
-            'JP': ['SG', 'KR', 'US'], 
-            'KR': ['JP', 'SG', 'US'], 
-            'DE': ['NL', 'GB', 'SE', 'FI'], 
-            'SE': ['DE', 'NL', 'FI', 'GB'], 
-            'NL': ['DE', 'GB', 'SE', 'FI'], 
-            'FI': ['SE', 'DE', 'NL', 'GB'], 
-            'GB': ['DE', 'NL', 'SE', 'FI']  
+            'HK': ['SG', 'JP', 'KR', 'US'],
+            'US': ['SG', 'HK', 'JP', 'KR'],
+            'SG': ['HK', 'JP', 'KR', 'US'],
+            'JP': ['HK', 'SG', 'KR', 'US'],
+            'KR': ['HK', 'JP', 'SG', 'US'],
+            'DE': ['NL', 'GB', 'SE', 'FI'],
+            'SE': ['DE', 'NL', 'FI', 'GB'],
+            'NL': ['DE', 'GB', 'SE', 'FI'],
+            'FI': ['SE', 'DE', 'NL', 'GB'],
+            'GB': ['DE', 'NL', 'SE', 'FI']
         };
         
         return nearbyMap[region] || [];
@@ -295,7 +298,7 @@
 
     function getAllRegionsByPriority(region) {
         const nearbyRegions = getNearbyRegions(region);
-        const allRegions = ['US', 'SG', 'JP', 'KR', 'DE', 'SE', 'NL', 'FI', 'GB'];
+        const allRegions = ['HK', 'US', 'SG', 'JP', 'KR', 'DE', 'SE', 'NL', 'FI', 'GB'];
         
         return [region, ...nearbyRegions, ...allRegions.filter(r => r !== region && !nearbyRegions.includes(r))];
     }
@@ -2625,7 +2628,7 @@
                     preferredControlYes: '关闭优选',
                     preferredControlHint: '设置为"关闭优选"时只使用原生地址，不生成优选IP和域名节点',
                     regionNames: {
-                        US: '🇺🇸 美国', SG: '🇸🇬 新加坡', JP: '🇯🇵 日本',
+                        HK: '🇭🇰 香港', US: '🇺🇸 美国', SG: '🇸🇬 新加坡', JP: '🇯🇵 日本',
                         KR: '🇰🇷 韩国', DE: '🇩🇪 德国', SE: '🇸🇪 瑞典', NL: '🇳🇱 荷兰',
                         FI: '🇫🇮 芬兰', GB: '🇬🇧 英国'
                     },
@@ -2772,8 +2775,8 @@
                     preferredControlYes: 'بستن ترجیح',
                     preferredControlHint: 'وقتی "بستن ترجیح" تنظیم شود، فقط از آدرس اصلی استفاده می‌شود، گره‌های IP و دامنه ترجیحی تولید نمی‌شوند',
                     regionNames: {
-                        US: '🇺🇸 آمریکا', SG: '🇸🇬 سنگاپور', JP: '🇯🇵 ژاپن',
-                        KR: '🇰🇷 کره جنوبی', DE: '🇩🇪 آلمان', SE: '🇸🇪 سوئد', NL: '🇳🇱 هلند',
+                        HK: '🇭🇰 هنگ‌کنگ', US: '🇺🇸 آمریکا', SG: '🇸🇬 سنگاپور', JP: '🇯🇵 ژاپن',
+                        KR: '🇰🇷 کره جنوبی', DE: '🇩🇪 آلمان', SE: '🇸🇪 سوئد', NL: '🇳▌ هلند',
                         FI: '🇫🇮 فنلاند', GB: '🇬🇧 بریتانیا'
                     },
                     terminal: 'ترمینال v2.9.6',
@@ -3070,6 +3073,7 @@
                                 <label style="display: block; margin-bottom: 8px; color: #00ff00; font-weight: bold; text-shadow: 0 0 3px #00ff00;">${t.specifyRegion}</label>
                             <select id="wkRegion" style="width: 100%; padding: 12px; background: rgba(0, 0, 0, 0.8); border: 2px solid #00ff00; color: #00ff00; font-family: 'Courier New', monospace; font-size: 14px;">
                                     <option value="">${t.autoDetect}</option>
+                                    <option value="HK">${t.regionNames.HK}</option>
                                     <option value="US">${t.regionNames.US}</option>
                                     <option value="SG">${t.regionNames.SG}</option>
                                     <option value="JP">${t.regionNames.JP}</option>
@@ -3737,7 +3741,7 @@
                                 currentIP: '当前使用IP: ',
                                 regionMatch: '地区匹配: ',
                                 regionNames: {
-                        'US': '🇺🇸 美国', 'SG': '🇸🇬 新加坡', 'JP': '🇯🇵 日本',
+                        'HK': '🇭🇰 香港', 'US': '🇺🇸 美国', 'SG': '🇸🇬 新加坡', 'JP': '🇯🇵 日本',
                         'KR': '🇰🇷 韩国', 'DE': '🇩🇪 德国', 'SE': '🇸🇪 瑞典', 'NL': '🇳🇱 荷兰',
                         'FI': '🇫🇮 芬兰', 'GB': '🇬🇧 英国'
                                 },
@@ -3762,7 +3766,7 @@
                                 currentIP: 'IP فعلی: ',
                                 regionMatch: 'تطبیق منطقه: ',
                                 regionNames: {
-                                    'US': '🇺🇸 آمریکا', 'SG': '🇸🇬 سنگاپور', 'JP': '🇯🇵 ژاپن',
+                                    'HK': '🇭🇰 هنگ‌کنگ', 'US': '🇺🇸 آمریکا', 'SG': '🇸🇬 سنگاپور', 'JP': '🇯🇵 ژاپن',
                                     'KR': '🇰🇷 کره جنوبی', 'DE': '🇩🇪 آلمان', 'SE': '🇸🇪 سوئد', 'NL': '🇳🇱 هلند',
                                     'FI': '🇫🇮 فنلاند', 'GB': '🇬🇧 بریتانیا'
                                 },
@@ -4873,7 +4877,7 @@
                                 customIP: document.getElementById('customIP').value,
                                 yx: newValue,
                                 yxURL: document.getElementById('yxURL').value,
-                                socksConfig: document.getElementById('socksConfig').value
+                                s: document.getElementById('socksConfig').value
                             };
                             await saveConfig(configData);
                             showStatus('${isFarsi ? 'موفقیت‌آمیز بود' : '已覆盖'} ' + selectedItems.length + ' ${isFarsi ? 'مورد و ذخیره شد' : '项并已保存'}', 'success');
@@ -4908,7 +4912,7 @@
                                 customIP: document.getElementById('customIP').value,
                                 yx: newValue,
                                 yxURL: document.getElementById('yxURL').value,
-                                socksConfig: document.getElementById('socksConfig').value
+                                s: document.getElementById('socksConfig').value
                             };
                             await saveConfig(configData);
                             showStatus('${isFarsi ? 'موفقیت‌آمیز بود' : '已追加'} ' + selectedItems.length + ' ${isFarsi ? 'مورد و ذخیره شد' : '项并已保存'}', 'success');

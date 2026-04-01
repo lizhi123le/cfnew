@@ -1,6 +1,6 @@
 # 合并冲突报告
-## 冲突时间: Sun Mar 29 04:04:44 UTC 2026
-## 上游更新哈希: 168bb93de170605a0b4313127fb262f09f621549a119a055848515db4fdd1220
+## 冲突时间: Wed Apr  1 09:55:12 UTC 2026
+## 上游更新哈希: 8ee1da418e997f8f7907ebdb598f43ee76aa48ca2db1bf85397d8e30409d6730
 
 以下文件包含冲突标记，需要手动解决：
 
@@ -59,9 +59,10 @@
     // KV配置缓存（方案1：内存缓存）
     let kvConfigCache = null;
     let kvConfigCacheTime = 0;
-    const CACHE_TTL = 300000; // 5分钟缓存
+    const CACHE_TTL = 1 * 60 * 60 * 1000; // 1小时缓存
 
     const regionMapping = {
+        'HK': ['🇭🇰 香港', 'HK', 'Hong Kong'],
         'US': ['🇺🇸 美国', 'US', 'United States'],
         'SG': ['🇸🇬 新加坡', 'SG', 'Singapore'],
         'JP': ['🇯🇵 日本', 'JP', 'Japan'],
@@ -78,6 +79,7 @@
     };
 
     let backupIPs = [
+        { domain: 'ProxyIP.HK.CMLiussss.net', region: 'HK', regionCode: 'HK', port: 443 },
         { domain: 'ProxyIP.US.CMLiussss.net', region: 'US', regionCode: 'US', port: 443 },
         { domain: 'ProxyIP.SG.CMLiussss.net', region: 'SG', regionCode: 'SG', port: 443 },
         { domain: 'ProxyIP.JP.CMLiussss.net', region: 'JP', regionCode: 'JP', port: 443 },
@@ -123,7 +125,22 @@
     const ADDRESS_TYPE_URL = 2;
     const ADDRESS_TYPE_IPV6 = 3;
 
-    function isValidFormat(str) {
+    function createNodeIndexer() {
+		const counter = {};
+		return function(baseName) {
+			if (!counter[baseName]) {
+				counter[baseName] = 1;
+			} else {
+				counter[baseName]++;
+			}
+			const index = String(counter[baseName]).padStart(2, '0');
+			return `${baseName}-${index}`;
+		};
+    }
+
+    const getIndexedName = createNodeIndexer(); 
+
+	function isValidFormat(str) {
         const userRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
         return userRegex.test(str);
     }
@@ -225,7 +242,7 @@
             
             if (cfCountry) {
                 const countryToRegion = {
-                    'US': 'US', 'SG': 'SG', 'JP': 'JP', 'KR': 'KR',
+                    'HK': 'HK','US': 'US', 'SG': 'SG', 'JP': 'JP', 'KR': 'KR',
                     'DE': 'DE', 'SE': 'SE', 'NL': 'NL', 'FI': 'FI', 'GB': 'GB',
                     'CN': 'SG', 'TW': 'JP', 'AU': 'SG', 'CA': 'US',
                     'FR': 'DE', 'IT': 'DE', 'ES': 'DE', 'CH': 'DE',
@@ -286,15 +303,16 @@
 
     function getNearbyRegions(region) {
         const nearbyMap = {
-            'US': ['SG', 'JP', 'KR'], 
-            'SG': ['JP', 'KR', 'US'], 
-            'JP': ['SG', 'KR', 'US'], 
-            'KR': ['JP', 'SG', 'US'], 
-            'DE': ['NL', 'GB', 'SE', 'FI'], 
-            'SE': ['DE', 'NL', 'FI', 'GB'], 
-            'NL': ['DE', 'GB', 'SE', 'FI'], 
-            'FI': ['SE', 'DE', 'NL', 'GB'], 
-            'GB': ['DE', 'NL', 'SE', 'FI']  
+            'HK': ['SG', 'JP', 'KR', 'US'],
+            'US': ['SG', 'HK', 'JP', 'KR'],
+            'SG': ['HK', 'JP', 'KR', 'US'],
+            'JP': ['HK', 'SG', 'KR', 'US'],
+            'KR': ['HK', 'JP', 'SG', 'US'],
+            'DE': ['NL', 'GB', 'SE', 'FI'],
+            'SE': ['DE', 'NL', 'FI', 'GB'],
+            'NL': ['DE', 'GB', 'SE', 'FI'],
+            'FI': ['SE', 'DE', 'NL', 'GB'],
+            'GB': ['DE', 'NL', 'SE', 'FI']
         };
         
         return nearbyMap[region] || [];
@@ -302,7 +320,7 @@
 
     function getAllRegionsByPriority(region) {
         const nearbyRegions = getNearbyRegions(region);
-        const allRegions = ['US', 'SG', 'JP', 'KR', 'DE', 'SE', 'NL', 'FI', 'GB'];
+        const allRegions = ['HK', 'US', 'SG', 'JP', 'KR', 'DE', 'SE', 'NL', 'FI', 'GB'];
         
         return [region, ...nearbyRegions, ...allRegions.filter(r => r !== region && !nearbyRegions.includes(r))];
     }
@@ -354,26 +372,7 @@
     export default {
         async fetch(request, env, ctx) {
             try {
-<<<<<<< local_明文源吗
                 const url = new URL(request.url);
-=======
-                
-                const isWebSocket = request.headers.get('Upgrade') === atob('d2Vic29ja2V0');
-                const isPost = request.method === 'POST';
-                const reqUrl = new URL(request.url);
-                const pathSegments = reqUrl.pathname.split('/').filter(p => p);
-
-                if (!isWebSocket && !isPost && reqUrl.pathname !== '/') {
-                    const tmpAt = (env.u || env.U || '').toLowerCase();
-                    const tmpCp = (env.d || env.D || '').toLowerCase();
-                    const firstSeg = pathSegments[0] || '';
-                    const cleanCp = tmpCp.startsWith('/') ? tmpCp.substring(1) : tmpCp;
-                    if (firstSeg !== tmpAt && (cleanCp ? firstSeg !== cleanCp : false)) {
-                        return new Response('Not Found', { status: 404 });
-                    }
-                }
-
->>>>>>> upstream_明文源吗
                 await initKVStore(env);
                 
                 at = (env.u || env.U || at).toLowerCase();
@@ -2033,8 +2032,13 @@
             portsToGenerate.forEach(({ port, tls }) => {
                 if (tls) {
                     
+<<<<<<< local_明文源吗
                     const wsNodeName = `${nodeNameBase}-${port}-WS-TLS`;
                     const currentNodePath = enableRandomPath ? randomPath('/?ed=2560') : '/?ed=2560';
+=======
+					const baseName = `${nodeNameBase}-${port}-WS-TLS`;
+					const wsNodeName = getIndexedName(baseName);
+>>>>>>> upstream_明文源吗
                     const wsParams = new URLSearchParams({ 
                         encryption: 'none', 
                         security: 'tls', 
@@ -2055,8 +2059,13 @@
                     links.push(`${proto}://${user}@${safeIP}:${port}?${wsParams.toString()}#${encodeURIComponent(wsNodeName)}`);
                 } else {
                     
+<<<<<<< local_明文源吗
                     const wsNodeName = `${nodeNameBase}-${port}-WS`;
                     const currentNodePath = enableRandomPath ? randomPath('/?ed=2560') : '/?ed=2560';
+=======
+					const baseName = `${nodeNameBase}-${port}-WS`;
+					const wsNodeName = getIndexedName(baseName);
+>>>>>>> upstream_明文源吗
                     const wsParams = new URLSearchParams({
                         encryption: 'none',
                         security: 'none',
@@ -2116,8 +2125,13 @@
             portsToGenerate.forEach(({ port, tls }) => {
                 if (tls) {
                     
+<<<<<<< local_明文源吗
                     const wsNodeName = `${nodeNameBase}-${port}-${atob('VHJvamFu')}-WS-TLS`;
                     const currentNodePath = enableRandomPath ? randomPath('/?ed=2560') : '/?ed=2560';
+=======
+					const baseName = `${nodeNameBase}-${port}-${atob('VHJvamFu')}-WS-TLS`;
+					const wsNodeName = getIndexedName(baseName);
+>>>>>>> upstream_明文源吗
                     const wsParams = new URLSearchParams({ 
                         security: 'tls', 
                         sni: randomHost, 
@@ -2137,8 +2151,13 @@
                     links.push(`${atob('dHJvamFuOi8v')}${password}@${safeIP}:${port}?${wsParams.toString()}#${encodeURIComponent(wsNodeName)}`);
                 } else {
                     
+<<<<<<< local_明文源吗
                     const wsNodeName = `${nodeNameBase}-${port}-${atob('VHJvamFu')}-WS`;
                     const currentNodePath = enableRandomPath ? randomPath('/?ed=2560') : '/?ed=2560';
+=======
+					const baseName = `${nodeNameBase}-${port}-${atob('VHJvamFu')}-WS`;
+					const wsNodeName = getIndexedName(baseName);
+>>>>>>> upstream_明文源吗
                     const wsParams = new URLSearchParams({
                         security: 'none',
                         type: 'ws',
@@ -2651,7 +2670,7 @@
                     preferredControlYes: '关闭优选',
                     preferredControlHint: '设置为"关闭优选"时只使用原生地址，不生成优选IP和域名节点',
                     regionNames: {
-                        US: '🇺🇸 美国', SG: '🇸🇬 新加坡', JP: '🇯🇵 日本',
+                        HK: '🇭🇰 香港', US: '🇺🇸 美国', SG: '🇸🇬 新加坡', JP: '🇯🇵 日本',
                         KR: '🇰🇷 韩国', DE: '🇩🇪 德国', SE: '🇸🇪 瑞典', NL: '🇳🇱 荷兰',
                         FI: '🇫🇮 芬兰', GB: '🇬🇧 英国'
                     },
@@ -2798,8 +2817,8 @@
                     preferredControlYes: 'بستن ترجیح',
                     preferredControlHint: 'وقتی "بستن ترجیح" تنظیم شود، فقط از آدرس اصلی استفاده می‌شود، گره‌های IP و دامنه ترجیحی تولید نمی‌شوند',
                     regionNames: {
-                        US: '🇺🇸 آمریکا', SG: '🇸🇬 سنگاپور', JP: '🇯🇵 ژاپن',
-                        KR: '🇰🇷 کره جنوبی', DE: '🇩🇪 آلمان', SE: '🇸🇪 سوئد', NL: '🇳🇱 هلند',
+                        HK: '🇭🇰 هنگ‌کنگ', US: '🇺🇸 آمریکا', SG: '🇸🇬 سنگاپور', JP: '🇯🇵 ژاپن',
+                        KR: '🇰🇷 کره جنوبی', DE: '🇩🇪 آلمان', SE: '🇸🇪 سوئد', NL: '🇳▌ هلند',
                         FI: '🇫🇮 فنلاند', GB: '🇬🇧 بریتانیا'
                     },
                     terminal: 'ترمینال v2.9.6',
@@ -3096,6 +3115,7 @@
                                 <label style="display: block; margin-bottom: 8px; color: #00ff00; font-weight: bold; text-shadow: 0 0 3px #00ff00;">${t.specifyRegion}</label>
                             <select id="wkRegion" style="width: 100%; padding: 12px; background: rgba(0, 0, 0, 0.8); border: 2px solid #00ff00; color: #00ff00; font-family: 'Courier New', monospace; font-size: 14px;">
                                     <option value="">${t.autoDetect}</option>
+                                    <option value="HK">${t.regionNames.HK}</option>
                                     <option value="US">${t.regionNames.US}</option>
                                     <option value="SG">${t.regionNames.SG}</option>
                                     <option value="JP">${t.regionNames.JP}</option>
@@ -3763,7 +3783,7 @@
                                 currentIP: '当前使用IP: ',
                                 regionMatch: '地区匹配: ',
                                 regionNames: {
-                        'US': '🇺🇸 美国', 'SG': '🇸🇬 新加坡', 'JP': '🇯🇵 日本',
+                        'HK': '🇭🇰 香港', 'US': '🇺🇸 美国', 'SG': '🇸🇬 新加坡', 'JP': '🇯🇵 日本',
                         'KR': '🇰🇷 韩国', 'DE': '🇩🇪 德国', 'SE': '🇸🇪 瑞典', 'NL': '🇳🇱 荷兰',
                         'FI': '🇫🇮 芬兰', 'GB': '🇬🇧 英国'
                                 },
@@ -3788,7 +3808,7 @@
                                 currentIP: 'IP فعلی: ',
                                 regionMatch: 'تطبیق منطقه: ',
                                 regionNames: {
-                                    'US': '🇺🇸 آمریکا', 'SG': '🇸🇬 سنگاپور', 'JP': '🇯🇵 ژاپن',
+                                    'HK': '🇭🇰 هنگ‌کنگ', 'US': '🇺🇸 آمریکا', 'SG': '🇸🇬 سنگاپور', 'JP': '🇯🇵 ژاپن',
                                     'KR': '🇰🇷 کره جنوبی', 'DE': '🇩🇪 آلمان', 'SE': '🇸🇪 سوئد', 'NL': '🇳🇱 هلند',
                                     'FI': '🇫🇮 فنلاند', 'GB': '🇬🇧 بریتانیا'
                                 },
@@ -4899,7 +4919,7 @@
                                 customIP: document.getElementById('customIP').value,
                                 yx: newValue,
                                 yxURL: document.getElementById('yxURL').value,
-                                socksConfig: document.getElementById('socksConfig').value
+                                s: document.getElementById('socksConfig').value
                             };
                             await saveConfig(configData);
                             showStatus('${isFarsi ? 'موفقیت‌آمیز بود' : '已覆盖'} ' + selectedItems.length + ' ${isFarsi ? 'مورد و ذخیره شد' : '项并已保存'}', 'success');
@@ -4934,7 +4954,7 @@
                                 customIP: document.getElementById('customIP').value,
                                 yx: newValue,
                                 yxURL: document.getElementById('yxURL').value,
-                                socksConfig: document.getElementById('socksConfig').value
+                                s: document.getElementById('socksConfig').value
                             };
                             await saveConfig(configData);
                             showStatus('${isFarsi ? 'موفقیت‌آمیز بود' : '已追加'} ' + selectedItems.length + ' ${isFarsi ? 'مورد و ذخیره شد' : '项并已保存'}', 'success');
@@ -5995,6 +6015,7 @@
             
             if (CF_HTTPS_PORTS.includes(port)) {
                 
+<<<<<<< local_明文源吗
                 const wsNodeName = `${nodeName}-${port}-WS-TLS`;
                 const wsParams = new URLSearchParams({
                     encryption: 'none',
@@ -6005,6 +6026,11 @@
                     host: randomHost,
                     path: currentNodePath
                 });
+=======
+				const baseName = `${nodeName}-${port}-WS-TLS`;
+				const wsNodeName = getIndexedName(baseName);
+                let link = `${proto}://${user}@${item.ip}:${port}?encryption=none&security=tls&sni=${workerDomain}&fp=${enableECH ? 'chrome' : 'randomized'}&type=ws&host=${workerDomain}&path=${wsPath}`;
+>>>>>>> upstream_明文源吗
                 
                 // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
                 if (enableECH) {
@@ -6017,6 +6043,7 @@
             } else if (CF_HTTP_PORTS.includes(port)) {
                 
                 if (!disableNonTLS) {
+<<<<<<< local_明文源吗
                     const wsNodeName = `${nodeName}-${port}-WS`;
                     const wsParams = new URLSearchParams({
                         encryption: 'none',
@@ -6039,6 +6066,18 @@
                     host: randomHost,
                     path: currentNodePath
                 });
+=======
+					const baseName = `${nodeName}-${port}-WS`;
+					const wsNodeName = getIndexedName(baseName);
+                    const link = `${proto}://${user}@${item.ip}:${port}?encryption=none&security=none&type=ws&host=${workerDomain}&path=${wsPath}#${encodeURIComponent(wsNodeName)}`;
+                    links.push(link);
+                }
+            } else {
+                
+				const baseName = `${nodeName}-${port}-WS-TLS`;
+				const wsNodeName = getIndexedName(baseName);
+                let link = `${proto}://${user}@${item.ip}:${port}?encryption=none&security=tls&sni=${workerDomain}&fp=${enableECH ? 'chrome' : 'randomized'}&type=ws&host=${workerDomain}&path=${wsPath}`;
+>>>>>>> upstream_明文源吗
                 
                 // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
                 if (enableECH) {
@@ -6066,7 +6105,8 @@
             const port = item.port || 443;
             const randomHost = getRandomHost(workerDomain);
             
-            const wsNodeName = `${nodeNameBase}-${port}-xhttp`;
+            const baseName = `${nodeNameBase}-${port}-xhttp`;
+			const wsNodeName = getIndexedName(baseName);
             const params = new URLSearchParams({
                 encryption: 'none',
                 security: 'tls',
@@ -6081,7 +6121,12 @@
             // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
             if (enableECH) {
                 const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
+<<<<<<< local_明文源吗
                 const echDomain = customECHDomain || randomHost;
+=======
+                const echDomain = customECHDomain || 'cloudflare-ech.com';
+                params.set('alpn', 'h3,h2');
+>>>>>>> upstream_明文源吗
                 params.set('ech', `${echDomain}+${dnsServer}`);
             }
             
@@ -6109,6 +6154,7 @@
             
             if (CF_HTTPS_PORTS.includes(port)) {
                 
+<<<<<<< local_明文源吗
                 const wsNodeName = `${nodeName}-${port}-${atob('VHJvamFu')}-WS-TLS`;
                 const wsParams = new URLSearchParams({
                     security: 'tls',
@@ -6118,6 +6164,11 @@
                     host: randomHost,
                     path: currentNodePath
                 });
+=======
+                const baseName = `${nodeName}-${port}-${atob('VHJvamFu')}-WS-TLS`;
+				const wsNodeName = getIndexedName(baseName);
+                let link = `${atob('dHJvamFuOi8v')}${password}@${item.ip}:${port}?security=tls&sni=${workerDomain}&fp=chrome&type=ws&host=${workerDomain}&path=${wsPath}`;
+>>>>>>> upstream_明文源吗
                 
                 // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
                 if (enableECH) {
@@ -6130,6 +6181,7 @@
             } else if (CF_HTTP_PORTS.includes(port)) {
                 
                 if (!disableNonTLS) {
+<<<<<<< local_明文源吗
                     const wsNodeName = `${nodeName}-${port}-${atob('VHJvamFu')}-WS`;
                     const wsParams = new URLSearchParams({
                         security: 'none',
@@ -6150,6 +6202,18 @@
                     host: randomHost,
                     path: currentNodePath
                 });
+=======
+                    const baseName = `${nodeName}-${port}-${atob('VHJvamFu')}-WS`;
+					const wsNodeName = getIndexedName(baseName);
+                    const link = `${atob('dHJvamFuOi8v')}${password}@${item.ip}:${port}?security=none&type=ws&host=${workerDomain}&path=${wsPath}#${encodeURIComponent(wsNodeName)}`;
+                    links.push(link);
+                }
+            } else {
+                
+                const baseName = `${nodeName}-${port}-${atob('VHJvamFu')}-WS-TLS`;
+				const wsNodeName = getIndexedName(baseName);
+                let link = `${atob('dHJvamFuOi8v')}${password}@${item.ip}:${port}?security=tls&sni=${workerDomain}&fp=chrome&type=ws&host=${workerDomain}&path=${wsPath}`;
+>>>>>>> upstream_明文源吗
                 
                 // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
                 if (enableECH) {
