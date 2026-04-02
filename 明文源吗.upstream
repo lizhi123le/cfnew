@@ -104,21 +104,6 @@
     const ADDRESS_TYPE_URL = 2;
     const ADDRESS_TYPE_IPV6 = 3;
 
-    function createNodeIndexer() {
-		const counter = {};
-		return function(baseName) {
-			if (!counter[baseName]) {
-				counter[baseName] = 1;
-			} else {
-				counter[baseName]++;
-			}
-			const index = String(counter[baseName]).padStart(2, '0');
-			return `${baseName}-${index}`;
-		};
-    }
-
-    const getIndexedName = createNodeIndexer(); 
-
 	function isValidFormat(str) {
         const userRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
         return userRegex.test(str);
@@ -136,6 +121,24 @@
         
         return false;
     }
+
+    const getIndexedName = (function() {
+		const nodeCounters = {};   // 计数
+		return function(baseName) {
+			// 若别名为域名对节点不编号
+			if (baseName.includes('.')) {
+				return baseName;
+			}
+			// 若别名为非域名对节点编号
+			if (!nodeCounters[baseName]) {
+				nodeCounters[baseName] = 1;
+			} else {
+				nodeCounters[baseName]++;
+			}
+			const index = String(nodeCounters[baseName]).padStart(2, '0');
+			return `${baseName}-${index}`;
+		};
+    })();
 
     async function initKVStore(env) {
         
