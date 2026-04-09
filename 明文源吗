@@ -512,8 +512,7 @@
                 if (customECHDomainValue && customECHDomainValue.trim()) {
                     customECHDomain = customECHDomainValue.trim();
                 } else {
-                    // 默认使用当前节点的主机名 (url.hostname)
-                    customECHDomain = url.hostname;
+                    customECHDomain = '';
                 }
                 
                 // 如果启用了ECH，自动启用仅TLS模式（避免80端口干扰）
@@ -1354,7 +1353,9 @@
                 }
                 
                 if (ech) {
-                    const echDomain = customECHDomain;
+                    // 从 ech 参数中提取域名（格式为 domain+dnsServer）
+                    const echParts = ech.split('+');
+                    const echDomain = echParts[0] || customECHDomain || getRandomHost(workerDomain);
                     delete node.alpn; // ECH 开启时不设置 ALPN
                     node['ech-opts'] = {
                         enable: true,
@@ -1403,7 +1404,9 @@
                 }
                 
                 if (ech) {
-                    const echDomain = customECHDomain;
+                    // 从 ech 参数中提取域名（格式为 domain+dnsServer）
+                    const echParts = ech.split('+');
+                    const echDomain = echParts[0] || customECHDomain || getRandomHost(workerDomain);
                     delete node.alpn; // ECH 开启时不设置 ALPN
                     node['ech-opts'] = {
                         enable: true,
