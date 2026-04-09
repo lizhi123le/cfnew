@@ -2025,7 +2025,7 @@
                     // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
                     if (enableECH) {
                         const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
-                        const echDomain = customECHDomain || randomHost;
+                        const echDomain = customECHDomain || getRandomHost(workerDomain);
                         wsParams.set('ech', `${echDomain}+${dnsServer}`);
                     }
                     
@@ -2107,7 +2107,7 @@
                     // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
                     if (enableECH) {
                         const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
-                        const echDomain = customECHDomain || randomHost;
+                        const echDomain = customECHDomain || getRandomHost(workerDomain);
                         wsParams.set('ech', `${echDomain}+${dnsServer}`);
                     }
                     
@@ -5987,7 +5987,7 @@
                 // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
                 if (enableECH) {
                     const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
-                    const echDomain = customECHDomain || randomHost;
+                    const echDomain = customECHDomain || getRandomHost(workerDomain);
                     wsParams.set('ech', `${echDomain}+${dnsServer}`);
                 }
                 
@@ -6021,7 +6021,7 @@
                 // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
                 if (enableECH) {
                     const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
-                    const echDomain = customECHDomain || randomHost;
+                    const echDomain = customECHDomain || getRandomHost(workerDomain);
                     wsParams.set('ech', `${echDomain}+${dnsServer}`);
                 }
                 
@@ -6059,7 +6059,7 @@
             // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
             if (enableECH) {
                 const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
-                const echDomain = customECHDomain || randomHost;
+                const echDomain = customECHDomain || getRandomHost(workerDomain);
                 params.set('ech', `${echDomain}+${dnsServer}`);
             }
             
@@ -6100,7 +6100,7 @@
                 // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
                 if (enableECH) {
                     const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
-                    const echDomain = customECHDomain || randomHost;
+                    const echDomain = customECHDomain || getRandomHost(workerDomain);
                     wsParams.set('ech', `${echDomain}+${dnsServer}`);
                 }
                 
@@ -6132,7 +6132,7 @@
                 // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
                 if (enableECH) {
                     const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
-                    const echDomain = customECHDomain || randomHost;
+                    const echDomain = customECHDomain || getRandomHost(workerDomain);
                     wsParams.set('ech', `${echDomain}+${dnsServer}`);
                 }
                 
