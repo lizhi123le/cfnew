@@ -1769,11 +1769,8 @@
         if (!url) url = new URL(request.url);
         
         const finalLinks = [];
-        let workerDomain = url.hostname;
+        const workerDomain = url.hostname;
         const target = url.searchParams.get('target') || 'base64';
-        
-        // 使用 getRandomHost(workerDomain) 获取一个主 worker 域名，用于一些全局回退
-        workerDomain = getRandomHost(workerDomain);
 
         async function addNodesFromList(list) {
             if (ev) {
