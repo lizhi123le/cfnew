@@ -6094,44 +6094,6 @@
         return links;
     }
 
-    function generateXhttpLinksFromSource(list, user, workerDomain) {
-        const links = [];
-        const nodePath = user.substring(0, 8);
-        
-        list.forEach(item => {
-            let nodeNameBase = item.isp.replace(/\s/g, '_');
-            if (item.colo && item.colo.trim()) {
-                nodeNameBase = `${nodeNameBase}-${item.colo.trim()}`;
-            }
-            const safeIP = (item.ip.includes(':') && !item.ip.includes('[')) ? `[${item.ip}]` : item.ip;
-            const port = item.port || 443;
-            const randomHost = getRandomHost(workerDomain);
-            
-            const wsNodeName = `${nodeNameBase}-${port}-xhttp`;
-            const params = new URLSearchParams({
-                encryption: 'none',
-                security: 'tls',
-                sni: randomHost,
-                fp: 'chrome',
-                type: 'xhttp',
-                host: randomHost,
-                path: enableRandomPath ? randomPath(`/${nodePath}`) : `/${nodePath}`,
-                mode: 'stream-one'
-            });
-            
-            // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
-            if (enableECH) {
-                const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
-                const echDomain = customECHDomain || getRandomHost(workerDomain);
-                params.set('ech', `${echDomain}+${dnsServer}`);
-            }
-            
-            links.push(`vless://${user}@${safeIP}:${port}?${params.toString()}#${encodeURIComponent(wsNodeName)}`);
-        });
-        
-        return links;
-    }
-
     async function generateTrojanLinksFromNewIPs(list, user, workerDomain) {
         
         const CF_HTTP_PORTS = [80, 8080, 8880, 2052, 2082, 2086, 2095];
