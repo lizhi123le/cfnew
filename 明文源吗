@@ -1465,8 +1465,12 @@
                 const lines = clashConfig.split('\n');
                 const processedLines = [];
                 let i = 0;
+                let lineCounter = 0;
 
                 while (i < lines.length) {
+                    lineCounter++;
+                    if (lineCounter % 200 === 0) await new Promise(r => setTimeout(r, 0));
+                    
                     const line = lines[i];
                     const trimmedLine = line.trim();
 
@@ -1573,7 +1577,11 @@
                 const echCache = new Map();
                 
                 if (config.outbounds) {
+                    let outboundCounter = 0;
                     for (const outbound of config.outbounds) {
+                        outboundCounter++;
+                        if (outboundCounter % 100 === 0) await new Promise(r => setTimeout(r, 0));
+                        
                         // 匹配凭据以识别需要注入 ECH 的节点 (VLESS/Trojan/xhttp)
                         const isUUIDMatch = outbound.uuid && (outbound.uuid === at || outbound.uuid === user);
                         const isPasswordMatch = outbound.password && (outbound.password === at || outbound.password === user || (typeof tp !== 'undefined' && tp && outbound.password === tp));
@@ -1867,17 +1875,23 @@
 
         // A. VLESS 节点 (最前面)
         if (ev) {
+            let srcCounter = 0;
             for (const source of allSources) {
-                finalLinks.push(...generateLinksFromSource(source.list, user, workerDomain));
+                srcCounter++;
+                if (srcCounter % 5 === 0) await new Promise(r => setTimeout(r, 0));
+                finalLinks.push(...await generateLinksFromSource(source.list, user, workerDomain));
             }
             if (newIPList.length > 0) {
-                finalLinks.push(...generateLinksFromNewIPs(newIPList, user, workerDomain));
+                finalLinks.push(...await generateLinksFromNewIPs(newIPList, user, workerDomain));
             }
         }
 
         // B. Trojan 节点 (中间)
         if (et) {
+            let srcCounter = 0;
             for (const source of allSources) {
+                srcCounter++;
+                if (srcCounter % 5 === 0) await new Promise(r => setTimeout(r, 0));
                 finalLinks.push(...await generateTrojanLinksFromSource(source.list, user, workerDomain));
             }
             if (newIPList.length > 0) {
@@ -1887,8 +1901,11 @@
 
         // C. xhttp 节点 (最后面)
         if (ex) {
+            let srcCounter = 0;
             for (const source of allSources) {
-                finalLinks.push(...generateXhttpLinksFromSource(source.list, user, workerDomain));
+                srcCounter++;
+                if (srcCounter % 5 === 0) await new Promise(r => setTimeout(r, 0));
+                finalLinks.push(...await generateXhttpLinksFromSource(source.list, user, workerDomain));
             }
             if (newIPList.length > 0) {
                 // 确保 yxURL 解析出来的 IP 也支持 xhttp
@@ -1897,7 +1914,7 @@
                     port: item.port,
                     isp: item.name || item.ip
                 }));
-                finalLinks.push(...generateXhttpLinksFromSource(xhttpList, user, workerDomain));
+                finalLinks.push(...await generateXhttpLinksFromSource(xhttpList, user, workerDomain));
             }
         }
 
@@ -1961,7 +1978,7 @@
         });
     }
 
-    function generateLinksFromSource(list, user, workerDomain) {
+    async function generateLinksFromSource(list, user, workerDomain) {
         
         const CF_HTTP_PORTS = [80, 8080, 8880, 2052, 2082, 2086, 2095];
         const CF_HTTPS_PORTS = [443, 2053, 2083, 2087, 2096, 8443];
@@ -1970,8 +1987,12 @@
         const defaultHttpPorts = disableNonTLS ? [] : [80];
         const links = [];
         const proto = atob('dmxlc3M=');
+        let linkCounter = 0;
 
-        list.forEach(item => {
+        for (const item of list) {
+            linkCounter++;
+            if (linkCounter % 200 === 0) await new Promise(r => setTimeout(r, 0));
+            
             let nodeNameBase = item.isp.replace(/\s/g, '_');
             if (item.colo && item.colo.trim()) {
                 nodeNameBase = `${nodeNameBase}-${item.colo.trim()}`;
@@ -1982,23 +2003,17 @@
             let portsToGenerate = [];
             
             if (item.port) {
-                
                 const port = item.port;
-                
                 if (CF_HTTPS_PORTS.includes(port)) {
-                    
                     portsToGenerate.push({ port: port, tls: true });
                 } else if (CF_HTTP_PORTS.includes(port)) {
-                    
                     if (!disableNonTLS) {
                         portsToGenerate.push({ port: port, tls: false });
                     }
                 } else {
-                    
                     portsToGenerate.push({ port: port, tls: true });
                 }
             } else {
-                
                 defaultHttpsPorts.forEach(port => {
                     portsToGenerate.push({ port: port, tls: true });
                 });
@@ -2007,9 +2022,8 @@
                 });
             }
 
-            portsToGenerate.forEach(({ port, tls }) => {
+            for (const { port, tls } of portsToGenerate) {
                 if (tls) {
-                    
                     const wsNodeName = `${nodeNameBase}-${port}-WS-TLS`;
                     const currentNodePath = enableRandomPath ? randomPath('/?ed=2560') : '/?ed=2560';
                     const wsParams = new URLSearchParams({ 
@@ -2022,7 +2036,6 @@
                         path: currentNodePath
                     });
                     
-                    // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
                     if (enableECH) {
                         const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
                         const echDomain = customECHDomain || getRandomHost(workerDomain);
@@ -2031,7 +2044,6 @@
                     
                     links.push(`${proto}://${user}@${safeIP}:${port}?${wsParams.toString()}#${encodeURIComponent(wsNodeName)}`);
                 } else {
-                    
                     const wsNodeName = `${nodeNameBase}-${port}-WS`;
                     const currentNodePath = enableRandomPath ? randomPath('/?ed=2560') : '/?ed=2560';
                     const wsParams = new URLSearchParams({
@@ -2043,8 +2055,8 @@
                     });
                     links.push(`${proto}://${user}@${safeIP}:${port}?${wsParams.toString()}#${encodeURIComponent(wsNodeName)}`);
                 }
-            });
-        });
+            }
+        }
         return links;
     }
 
@@ -2058,8 +2070,12 @@
         const links = [];
         
         const password = tp || user;
+        let linkCounter = 0;
 
-        list.forEach(item => {
+        for (const item of list) {
+            linkCounter++;
+            if (linkCounter % 200 === 0) await new Promise(r => setTimeout(r, 0));
+            
             let nodeNameBase = item.isp.replace(/\s/g, '_');
             if (item.colo && item.colo.trim()) {
                 nodeNameBase = `${nodeNameBase}-${item.colo.trim()}`;
@@ -2071,7 +2087,6 @@
             
             if (item.port) {
                 const port = item.port;
-                
                 if (CF_HTTPS_PORTS.includes(port)) {
                     portsToGenerate.push({ port: port, tls: true });
                 } else if (CF_HTTP_PORTS.includes(port)) {
@@ -2090,9 +2105,8 @@
                 });
             }
 
-            portsToGenerate.forEach(({ port, tls }) => {
+            for (const { port, tls } of portsToGenerate) {
                 if (tls) {
-                    
                     const wsNodeName = `${nodeNameBase}-${port}-${atob('VHJvamFu')}-WS-TLS`;
                     const currentNodePath = enableRandomPath ? randomPath('/?ed=2560') : '/?ed=2560';
                     const wsParams = new URLSearchParams({ 
@@ -2104,7 +2118,6 @@
                         path: currentNodePath
                     });
                     
-                    // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
                     if (enableECH) {
                         const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
                         const echDomain = customECHDomain || getRandomHost(workerDomain);
@@ -2113,7 +2126,6 @@
                     
                     links.push(`${atob('dHJvamFuOi8v')}${password}@${safeIP}:${port}?${wsParams.toString()}#${encodeURIComponent(wsNodeName)}`);
                 } else {
-                    
                     const wsNodeName = `${nodeNameBase}-${port}-${atob('VHJvamFu')}-WS`;
                     const currentNodePath = enableRandomPath ? randomPath('/?ed=2560') : '/?ed=2560';
                     const wsParams = new URLSearchParams({
@@ -2124,8 +2136,8 @@
                     });
                     links.push(`${atob('dHJvamFuOi8v')}${password}@${safeIP}:${port}?${wsParams.toString()}#${encodeURIComponent(wsNodeName)}`);
                 }
-            });
-        });
+            }
+        }
         return links;
     }
 
@@ -2172,7 +2184,11 @@
             const cellRegex = /<td data-label="线路名称">(.+?)<\/td>[\s\S]*?<td data-label="优选地址">([\d.:a-fA-F]+)<\/td>[\s\S]*?<td data-label="数据中心">(.+?)<\/td>/;
 
             let match;
+            let rowCounter = 0;
             while ((match = rowRegex.exec(html)) !== null) {
+                rowCounter++;
+                if (rowCounter % 100 === 0) await new Promise(r => setTimeout(r, 0));
+                
                 const rowHtml = match[0];
                 const cellMatch = rowHtml.match(cellRegex);
                 if (cellMatch && cellMatch[1] && cellMatch[2]) {
@@ -5609,6 +5625,42 @@
         }
     }
 
+    async function generateXhttpLinksFromSource(list, user, workerDomain) {
+        const links = [];
+        const proto = atob('dmxlc3M=');
+        let linkCounter = 0;
+
+        for (const item of list) {
+            linkCounter++;
+            if (linkCounter % 200 === 0) await new Promise(r => setTimeout(r, 0));
+
+            const nodeName = item.isp.replace(/\s/g, '_');
+            const port = 443; // xhttp 通常使用 443
+            const randomHost = getRandomHost(workerDomain);
+            const safeIP = (item.ip.includes(':') && !item.ip.includes('[')) ? `[${item.ip}]` : item.ip;
+            
+            const xhttpParams = new URLSearchParams({
+                encryption: 'none',
+                security: 'tls',
+                sni: randomHost,
+                fp: 'chrome',
+                type: 'xhttp',
+                host: randomHost,
+                path: '/?ed=2560'
+            });
+            
+            // 如果启用了ECH，添加ech参数
+            if (enableECH) {
+                const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
+                const echDomain = customECHDomain || getRandomHost(workerDomain);
+                xhttpParams.set('ech', `${echDomain}+${dnsServer}`);
+            }
+            
+            links.push(`${proto}://${user}@${safeIP}:${port}?${xhttpParams.toString()}#${encodeURIComponent(nodeName + '-xhttp')}`);
+        }
+        return links;
+    }
+
     function create_xhttp_uploader(httpx, writable) {
         const counter = new XhttpCounter();
         const writer = writable.getWriter();
@@ -5852,7 +5904,11 @@
                 const results = [];
                 const regex = /^(\[[\da-fA-F:]+\]|[\d.]+|[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?)*)(?::(\d+))?(?:#(.+))?$/;
                 
+                let itemCounter = 0;
                 for (const item of apiResults) {
+                    itemCounter++;
+                    if (itemCounter % 200 === 0) await new Promise(r => setTimeout(r, 0));
+
                     const match = item.match(regex);
                     const isIPv6 = item.includes(':') && !item.includes('[') && (item.split(':').length > 2);
                     
@@ -5896,7 +5952,11 @@
             const lines = text.trim().replace(/\r/g, "").split('\n');
             const simpleRegex = /^([^:]+):(\d+)#(.*)$/;
 
+            let lineCounter = 0;
             for (const line of lines) {
+                lineCounter++;
+                if (lineCounter % 200 === 0) await new Promise(r => setTimeout(r, 0));
+
                 const trimmedLine = line.trim();
                 if (!trimmedLine) continue;
                 const match = trimmedLine.match(simpleRegex);
@@ -5956,15 +6016,18 @@
         return replaceWildcards(defaultHost);
     }
 
-    function generateLinksFromNewIPs(list, user, workerDomain) {
+    async function generateLinksFromNewIPs(list, user, workerDomain) {
         
         const CF_HTTP_PORTS = [80, 8080, 8880, 2052, 2082, 2086, 2095];
         const CF_HTTPS_PORTS = [443, 2053, 2083, 2087, 2096, 8443];
         
         const links = [];
         const proto = atob('dmxlc3M=');
+        let linkCounter = 0;
         
-        list.forEach(item => {
+        for (const item of list) {
+            linkCounter++;
+            if (linkCounter % 200 === 0) await new Promise(r => setTimeout(r, 0));
             const nodeName = item.name.replace(/\s/g, '_');
             const port = item.port;
             const currentNodePath = enableRandomPath ? randomPath('/?ed=2560') : '/?ed=2560';
@@ -6027,7 +6090,7 @@
                 
                 links.push(`${proto}://${user}@${safeIP}:${port}?${wsParams.toString()}#${encodeURIComponent(wsNodeName)}`);
             }
-        });
+        }
         return links;
     }
 
