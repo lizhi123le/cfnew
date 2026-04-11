@@ -1466,7 +1466,9 @@
                 const processedLines = [];
                 let i = 0;
 
+                let linesProcessedCount = 0;
                 while (i < lines.length) {
+                    if (++linesProcessedCount % 100 === 0) await new Promise(r => setTimeout(r, 0));
                     const line = lines[i];
                     const trimmedLine = line.trim();
 
@@ -1573,7 +1575,9 @@
                 const echCache = new Map();
                 
                 if (config.outbounds) {
+                    let sbProcessedCount = 0;
                     for (const outbound of config.outbounds) {
+                        if (++sbProcessedCount % 100 === 0) await new Promise(r => setTimeout(r, 0));
                         // 匹配凭据以识别需要注入 ECH 的节点 (VLESS/Trojan/xhttp)
                         const isUUIDMatch = outbound.uuid && (outbound.uuid === at || outbound.uuid === user);
                         const isPasswordMatch = outbound.password && (outbound.password === at || outbound.password === user || (typeof tp !== 'undefined' && tp && outbound.password === tp));
@@ -1777,13 +1781,13 @@
 
         async function addNodesFromList(list) {
             if (ev) {
-                finalLinks.push(...generateLinksFromSource(list, user, workerDomain));
+                finalLinks.push(...await generateLinksFromSource(list, user, workerDomain));
             }
             if (et) {
                 finalLinks.push(...await generateTrojanLinksFromSource(list, user, workerDomain));
             }
             if (ex) {
-                finalLinks.push(...generateXhttpLinksFromSource(list, user, workerDomain));
+                finalLinks.push(...await generateXhttpLinksFromSource(list, user, workerDomain));
             }
         }
 
@@ -1868,10 +1872,10 @@
         // A. VLESS 节点 (最前面)
         if (ev) {
             for (const source of allSources) {
-                finalLinks.push(...generateLinksFromSource(source.list, user, workerDomain));
+                finalLinks.push(...await generateLinksFromSource(source.list, user, workerDomain));
             }
             if (newIPList.length > 0) {
-                finalLinks.push(...generateLinksFromNewIPs(newIPList, user, workerDomain));
+                finalLinks.push(...await generateLinksFromNewIPs(newIPList, user, workerDomain));
             }
         }
 
@@ -1888,7 +1892,7 @@
         // C. xhttp 节点 (最后面)
         if (ex) {
             for (const source of allSources) {
-                finalLinks.push(...generateXhttpLinksFromSource(source.list, user, workerDomain));
+                finalLinks.push(...await generateXhttpLinksFromSource(source.list, user, workerDomain));
             }
             if (newIPList.length > 0) {
                 // 确保 yxURL 解析出来的 IP 也支持 xhttp
@@ -1897,7 +1901,7 @@
                     port: item.port,
                     isp: item.name || item.ip
                 }));
-                finalLinks.push(...generateXhttpLinksFromSource(xhttpList, user, workerDomain));
+                finalLinks.push(...await generateXhttpLinksFromSource(xhttpList, user, workerDomain));
             }
         }
 
@@ -1961,7 +1965,7 @@
         });
     }
 
-    function generateLinksFromSource(list, user, workerDomain) {
+    async function generateLinksFromSource(list, user, workerDomain) {
         
         const CF_HTTP_PORTS = [80, 8080, 8880, 2052, 2082, 2086, 2095];
         const CF_HTTPS_PORTS = [443, 2053, 2083, 2087, 2096, 8443];
@@ -1971,7 +1975,9 @@
         const links = [];
         const proto = atob('dmxlc3M=');
 
-        list.forEach(item => {
+        for (let i = 0; i < list.length; i++) {
+            if (i > 0 && i % 100 === 0) await new Promise(r => setTimeout(r, 0));
+            const item = list[i];
             let nodeNameBase = item.isp.replace(/\s/g, '_');
             if (item.colo && item.colo.trim()) {
                 nodeNameBase = `${nodeNameBase}-${item.colo.trim()}`;
@@ -2044,7 +2050,7 @@
                     links.push(`${proto}://${user}@${safeIP}:${port}?${wsParams.toString()}#${encodeURIComponent(wsNodeName)}`);
                 }
             });
-        });
+        }
         return links;
     }
 
@@ -2059,7 +2065,9 @@
         
         const password = tp || user;
 
-        list.forEach(item => {
+        for (let i = 0; i < list.length; i++) {
+            if (i > 0 && i % 100 === 0) await new Promise(r => setTimeout(r, 0));
+            const item = list[i];
             let nodeNameBase = item.isp.replace(/\s/g, '_');
             if (item.colo && item.colo.trim()) {
                 nodeNameBase = `${nodeNameBase}-${item.colo.trim()}`;
@@ -2125,7 +2133,7 @@
                     links.push(`${atob('dHJvamFuOi8v')}${password}@${safeIP}:${port}?${wsParams.toString()}#${encodeURIComponent(wsNodeName)}`);
                 }
             });
-        });
+        }
         return links;
     }
 
@@ -2234,8 +2242,14 @@
         const earlyData = request.headers.get(atob('c2VjLXdlYnNvY2tldC1wcm90b2NvbA==')) || '';
         const readable = makeReadableStream(serverSock, earlyData);
 
+        let wsUploadCpuYieldByteCounter = 0;
         readable.pipeTo(new WritableStream({
             async write(chunk) {
+                wsUploadCpuYieldByteCounter += chunk.byteLength || chunk.length || 0;
+                if (wsUploadCpuYieldByteCounter >= 131072) {
+                    wsUploadCpuYieldByteCounter = 0;
+                    await new Promise(r => setTimeout(r, 0));
+                }
                 if (isDnsQuery) return await forwardUDP(chunk, serverSock, null);
                 if (remoteConnWrapper.socket) {
                     const writer = remoteConnWrapper.socket.writable.getWriter();
@@ -2398,11 +2412,19 @@
 
     async function connectStreams(remoteSocket, webSocket, headerData, retryFunc) {
         let header = headerData, hasData = false;
+        let wsDownloadCpuYieldByteCounter = 0;
         await remoteSocket.readable.pipeTo(
             new WritableStream({
                 async write(chunk, controller) {
                     hasData = true;
                     if (webSocket.readyState !== 1) controller.error(E_WS_NOT_OPEN);
+                    
+                    wsDownloadCpuYieldByteCounter += chunk.byteLength || chunk.length || 0;
+                    if (wsDownloadCpuYieldByteCounter >= 131072) {
+                        wsDownloadCpuYieldByteCounter = 0;
+                        await new Promise(r => setTimeout(r, 0));
+                    }
+                    
                     if (header) { webSocket.send(await new Blob([header, chunk]).arrayBuffer()); header = null; } 
                     else { webSocket.send(chunk); }
                 },
@@ -2419,8 +2441,14 @@
             const writer = tcpSocket.writable.getWriter();
             await writer.write(udpChunk);
             writer.releaseLock();
+            let udpDownloadCpuYieldByteCounter = 0;
             await tcpSocket.readable.pipeTo(new WritableStream({
                 async write(chunk) {
+                    udpDownloadCpuYieldByteCounter += chunk.byteLength || chunk.length || 0;
+                    if (udpDownloadCpuYieldByteCounter >= 131072) {
+                        udpDownloadCpuYieldByteCounter = 0;
+                        await new Promise(r => setTimeout(r, 0));
+                    }
                     if (webSocket.readyState === 1) {
                         if (header) { webSocket.send(await new Blob([header, chunk]).arrayBuffer()); header = null; } 
                         else { webSocket.send(chunk); }
@@ -5956,7 +5984,7 @@
         return replaceWildcards(defaultHost);
     }
 
-    function generateLinksFromNewIPs(list, user, workerDomain) {
+    async function generateLinksFromNewIPs(list, user, workerDomain) {
         
         const CF_HTTP_PORTS = [80, 8080, 8880, 2052, 2082, 2086, 2095];
         const CF_HTTPS_PORTS = [443, 2053, 2083, 2087, 2096, 8443];
@@ -5964,7 +5992,9 @@
         const links = [];
         const proto = atob('dmxlc3M=');
         
-        list.forEach(item => {
+        for (let i = 0; i < list.length; i++) {
+            if (i > 0 && i % 100 === 0) await new Promise(r => setTimeout(r, 0));
+            const item = list[i];
             const nodeName = item.name.replace(/\s/g, '_');
             const port = item.port;
             const currentNodePath = enableRandomPath ? randomPath('/?ed=2560') : '/?ed=2560';
@@ -6027,15 +6057,17 @@
                 
                 links.push(`${proto}://${user}@${safeIP}:${port}?${wsParams.toString()}#${encodeURIComponent(wsNodeName)}`);
             }
-        });
+        }
         return links;
     }
 
-    function generateXhttpLinksFromSource(list, user, workerDomain) {
+    async function generateXhttpLinksFromSource(list, user, workerDomain) {
         const links = [];
         const nodePath = user.substring(0, 8);
         
-        list.forEach(item => {
+        for (let i = 0; i < list.length; i++) {
+            if (i > 0 && i % 100 === 0) await new Promise(r => setTimeout(r, 0));
+            const item = list[i];
             let nodeNameBase = item.isp.replace(/\s/g, '_');
             if (item.colo && item.colo.trim()) {
                 nodeNameBase = `${nodeNameBase}-${item.colo.trim()}`;
@@ -6064,7 +6096,7 @@
             }
             
             links.push(`vless://${user}@${safeIP}:${port}?${params.toString()}#${encodeURIComponent(wsNodeName)}`);
-        });
+        }
         
         return links;
     }
@@ -6078,7 +6110,9 @@
         
         const password = tp || user;
         
-        list.forEach(item => {
+        for (let i = 0; i < list.length; i++) {
+            if (i > 0 && i % 100 === 0) await new Promise(r => setTimeout(r, 0));
+            const item = list[i];
             const nodeName = item.name.replace(/\s/g, '_');
             const port = item.port;
             const currentNodePath = enableRandomPath ? randomPath('/?ed=2560') : '/?ed=2560';
@@ -6138,7 +6172,7 @@
                 
                 links.push(`${atob('dHJvamFuOi8v')}${password}@${safeIP}:${port}?${wsParams.toString()}#${encodeURIComponent(wsNodeName)}`);
             }
-        });
+        }
         return links;
     }
 
