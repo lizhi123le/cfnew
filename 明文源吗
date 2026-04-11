@@ -2258,23 +2258,12 @@
         const earlyData = request.headers.get(atob('c2VjLXdlYnNvY2tldC1wcm90b2NvbA==')) || '';
         const readable = makeReadableStream(serverSock, earlyData);
 
-        let wsUploadCpuYieldByteCounter = 0;
-        let lastWsUpYieldTime = Date.now();
         readable.pipeTo(new WritableStream({
             async write(chunk) {
-                let dataChunk = chunk;
-                wsUploadCpuYieldByteCounter += dataChunk.byteLength || dataChunk.length || 0;
-                if (Date.now() - lastWsUpYieldTime > 20) {
-                    lastWsUpYieldTime = Date.now();
-                    if (dataChunk instanceof ArrayBuffer) dataChunk = dataChunk.slice(0);
-                    else if (dataChunk.buffer && dataChunk.buffer instanceof ArrayBuffer) dataChunk = new Uint8Array(dataChunk).slice();
-                    await new Promise(r => setTimeout(r, 0));
-                }
-                
-                if (isDnsQuery) return await forwardUDP(dataChunk, serverSock, null);
+                if (isDnsQuery) return await forwardUDP(chunk, serverSock, null);
                 if (remoteConnWrapper.socket) {
                     const writer = remoteConnWrapper.socket.writable.getWriter();
-                    await writer.write(dataChunk);
+                    await writer.write(chunk);
                     writer.releaseLock();
                     return;
                 }
@@ -2433,25 +2422,13 @@
 
     async function connectStreams(remoteSocket, webSocket, headerData, retryFunc) {
         let header = headerData, hasData = false;
-        let wsDownloadCpuYieldByteCounter = 0;
-        let lastWsDownYieldTime = Date.now();
         await remoteSocket.readable.pipeTo(
             new WritableStream({
                 async write(chunk, controller) {
                     hasData = true;
                     if (webSocket.readyState !== 1) controller.error(E_WS_NOT_OPEN);
-                    
-                    let dataChunk = chunk;
-                    wsDownloadCpuYieldByteCounter += dataChunk.byteLength || dataChunk.length || 0;
-                    if (Date.now() - lastWsDownYieldTime > 20) {
-                        lastWsDownYieldTime = Date.now();
-                        if (dataChunk instanceof ArrayBuffer) dataChunk = dataChunk.slice(0);
-                        else if (dataChunk.buffer && dataChunk.buffer instanceof ArrayBuffer) dataChunk = new Uint8Array(dataChunk).slice();
-                        await new Promise(r => setTimeout(r, 0));
-                    }
-                    
-                    if (header) { webSocket.send(await new Blob([header, dataChunk]).arrayBuffer()); header = null; } 
-                    else { webSocket.send(dataChunk); }
+                    if (header) { webSocket.send(await new Blob([header, chunk]).arrayBuffer()); header = null; } 
+                    else { webSocket.send(chunk); }
                 },
                 abort(reason) { },
             })
@@ -2466,21 +2443,11 @@
             const writer = tcpSocket.writable.getWriter();
             await writer.write(udpChunk);
             writer.releaseLock();
-            let udpDownloadCpuYieldByteCounter = 0;
-            let lastUdpYieldTime = Date.now();
             await tcpSocket.readable.pipeTo(new WritableStream({
                 async write(chunk) {
-                    let dataChunk = chunk;
-                    udpDownloadCpuYieldByteCounter += dataChunk.byteLength || dataChunk.length || 0;
-                    if (Date.now() - lastUdpYieldTime > 20) {
-                        lastUdpYieldTime = Date.now();
-                        if (dataChunk instanceof ArrayBuffer) dataChunk = dataChunk.slice(0);
-                        else if (dataChunk.buffer && dataChunk.buffer instanceof ArrayBuffer) dataChunk = new Uint8Array(dataChunk).slice();
-                        await new Promise(r => setTimeout(r, 0));
-                    }
                     if (webSocket.readyState === 1) {
-                        if (header) { webSocket.send(await new Blob([header, dataChunk]).arrayBuffer()); header = null; } 
-                        else { webSocket.send(dataChunk); }
+                        if (header) { webSocket.send(await new Blob([header, chunk]).arrayBuffer()); header = null; } 
+                        else { webSocket.send(chunk); }
                     }
                 },
             }));
