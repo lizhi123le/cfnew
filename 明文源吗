@@ -1466,13 +1466,7 @@
                 const processedLines = [];
                 let i = 0;
 
-                let linesProcessedCount = 0;
-                let lastLinesYieldTime = Date.now();
                 while (i < lines.length) {
-                    if (Date.now() - lastLinesYieldTime > 20) {
-                        lastLinesYieldTime = Date.now();
-                        await new Promise(r => setTimeout(r, 0));
-                    }
                     const line = lines[i];
                     const trimmedLine = line.trim();
 
@@ -1579,13 +1573,7 @@
                 const echCache = new Map();
                 
                 if (config.outbounds) {
-                    let sbProcessedCount = 0;
-                    let lastSbYieldTime = Date.now();
                     for (const outbound of config.outbounds) {
-                        if (Date.now() - lastSbYieldTime > 20) {
-                            lastSbYieldTime = Date.now();
-                            await new Promise(r => setTimeout(r, 0));
-                        }
                         // 匹配凭据以识别需要注入 ECH 的节点 (VLESS/Trojan/xhttp)
                         const isUUIDMatch = outbound.uuid && (outbound.uuid === at || outbound.uuid === user);
                         const isPasswordMatch = outbound.password && (outbound.password === at || outbound.password === user || (typeof tp !== 'undefined' && tp && outbound.password === tp));
@@ -1789,13 +1777,13 @@
 
         async function addNodesFromList(list) {
             if (ev) {
-                finalLinks.push(...await generateLinksFromSource(list, user, workerDomain));
+                finalLinks.push(...generateLinksFromSource(list, user, workerDomain));
             }
             if (et) {
                 finalLinks.push(...await generateTrojanLinksFromSource(list, user, workerDomain));
             }
             if (ex) {
-                finalLinks.push(...await generateXhttpLinksFromSource(list, user, workerDomain));
+                finalLinks.push(...generateXhttpLinksFromSource(list, user, workerDomain));
             }
         }
 
@@ -1880,10 +1868,10 @@
         // A. VLESS 节点 (最前面)
         if (ev) {
             for (const source of allSources) {
-                finalLinks.push(...await generateLinksFromSource(source.list, user, workerDomain));
+                finalLinks.push(...generateLinksFromSource(source.list, user, workerDomain));
             }
             if (newIPList.length > 0) {
-                finalLinks.push(...await generateLinksFromNewIPs(newIPList, user, workerDomain));
+                finalLinks.push(...generateLinksFromNewIPs(newIPList, user, workerDomain));
             }
         }
 
@@ -1900,7 +1888,7 @@
         // C. xhttp 节点 (最后面)
         if (ex) {
             for (const source of allSources) {
-                finalLinks.push(...await generateXhttpLinksFromSource(source.list, user, workerDomain));
+                finalLinks.push(...generateXhttpLinksFromSource(source.list, user, workerDomain));
             }
             if (newIPList.length > 0) {
                 // 确保 yxURL 解析出来的 IP 也支持 xhttp
@@ -1909,7 +1897,7 @@
                     port: item.port,
                     isp: item.name || item.ip
                 }));
-                finalLinks.push(...await generateXhttpLinksFromSource(xhttpList, user, workerDomain));
+                finalLinks.push(...generateXhttpLinksFromSource(xhttpList, user, workerDomain));
             }
         }
 
@@ -1973,7 +1961,7 @@
         });
     }
 
-    async function generateLinksFromSource(list, user, workerDomain) {
+    function generateLinksFromSource(list, user, workerDomain) {
         
         const CF_HTTP_PORTS = [80, 8080, 8880, 2052, 2082, 2086, 2095];
         const CF_HTTPS_PORTS = [443, 2053, 2083, 2087, 2096, 8443];
@@ -1983,13 +1971,7 @@
         const links = [];
         const proto = atob('dmxlc3M=');
 
-        let lastLinkYieldTime = Date.now();
-        for (let i = 0; i < list.length; i++) {
-            if (Date.now() - lastLinkYieldTime > 20) {
-                lastLinkYieldTime = Date.now();
-                await new Promise(r => setTimeout(r, 0));
-            }
-            const item = list[i];
+        list.forEach(item => {
             let nodeNameBase = item.isp.replace(/\s/g, '_');
             if (item.colo && item.colo.trim()) {
                 nodeNameBase = `${nodeNameBase}-${item.colo.trim()}`;
@@ -2062,7 +2044,7 @@
                     links.push(`${proto}://${user}@${safeIP}:${port}?${wsParams.toString()}#${encodeURIComponent(wsNodeName)}`);
                 }
             });
-        }
+        });
         return links;
     }
 
@@ -2077,13 +2059,7 @@
         
         const password = tp || user;
 
-        let lastTrojanYieldTime = Date.now();
-        for (let i = 0; i < list.length; i++) {
-            if (Date.now() - lastTrojanYieldTime > 20) {
-                lastTrojanYieldTime = Date.now();
-                await new Promise(r => setTimeout(r, 0));
-            }
-            const item = list[i];
+        list.forEach(item => {
             let nodeNameBase = item.isp.replace(/\s/g, '_');
             if (item.colo && item.colo.trim()) {
                 nodeNameBase = `${nodeNameBase}-${item.colo.trim()}`;
@@ -2149,7 +2125,7 @@
                     links.push(`${atob('dHJvamFuOi8v')}${password}@${safeIP}:${port}?${wsParams.toString()}#${encodeURIComponent(wsNodeName)}`);
                 }
             });
-        }
+        });
         return links;
     }
 
@@ -5615,15 +5591,13 @@
         try {
             await inner_upload(httpx.data);
             let chunkCount = 0;
-            let lastXhttpUpTime = Date.now();
             while (!httpx.done) {
                 const r = await httpx.reader.read(get_xhttp_buffer());
                 if (r.done) break;
                 await inner_upload(r.value);
                 httpx.done = r.done;
                 chunkCount++;
-                if (Date.now() - lastXhttpUpTime > 20) {
-                    lastXhttpUpTime = Date.now();
+                if (chunkCount % 10 === 0) {
                     await xhttp_sleep(0);
                 }
                 if (!r.value || r.value.length === 0) {
@@ -5702,7 +5676,6 @@
             ;(async () => {
                 try {
                     let chunkCount = 0;
-                    let lastXhttpDownTime = Date.now();
                     while (true) {
                         const r = await reader.read();
                         if (r.done) {
@@ -5711,8 +5684,7 @@
                         lastActivity = Date.now();
                         await writer.write(r.value);
                         chunkCount++;
-                        if (Date.now() - lastXhttpDownTime > 20) {
-                            lastXhttpDownTime = Date.now();
+                        if (chunkCount % 5 === 0) {
                             await xhttp_sleep(0);
                         }
                     }
@@ -5984,7 +5956,7 @@
         return replaceWildcards(defaultHost);
     }
 
-    async function generateLinksFromNewIPs(list, user, workerDomain) {
+    function generateLinksFromNewIPs(list, user, workerDomain) {
         
         const CF_HTTP_PORTS = [80, 8080, 8880, 2052, 2082, 2086, 2095];
         const CF_HTTPS_PORTS = [443, 2053, 2083, 2087, 2096, 8443];
@@ -5992,13 +5964,7 @@
         const links = [];
         const proto = atob('dmxlc3M=');
         
-        let lastNewIPYieldTime = Date.now();
-        for (let i = 0; i < list.length; i++) {
-            if (Date.now() - lastNewIPYieldTime > 20) {
-                lastNewIPYieldTime = Date.now();
-                await new Promise(r => setTimeout(r, 0));
-            }
-            const item = list[i];
+        list.forEach(item => {
             const nodeName = item.name.replace(/\s/g, '_');
             const port = item.port;
             const currentNodePath = enableRandomPath ? randomPath('/?ed=2560') : '/?ed=2560';
@@ -6061,21 +6027,15 @@
                 
                 links.push(`${proto}://${user}@${safeIP}:${port}?${wsParams.toString()}#${encodeURIComponent(wsNodeName)}`);
             }
-        }
+        });
         return links;
     }
 
-    async function generateXhttpLinksFromSource(list, user, workerDomain) {
+    function generateXhttpLinksFromSource(list, user, workerDomain) {
         const links = [];
         const nodePath = user.substring(0, 8);
         
-        let lastXhttpYieldTime = Date.now();
-        for (let i = 0; i < list.length; i++) {
-            if (Date.now() - lastXhttpYieldTime > 20) {
-                lastXhttpYieldTime = Date.now();
-                await new Promise(r => setTimeout(r, 0));
-            }
-            const item = list[i];
+        list.forEach(item => {
             let nodeNameBase = item.isp.replace(/\s/g, '_');
             if (item.colo && item.colo.trim()) {
                 nodeNameBase = `${nodeNameBase}-${item.colo.trim()}`;
@@ -6104,7 +6064,7 @@
             }
             
             links.push(`vless://${user}@${safeIP}:${port}?${params.toString()}#${encodeURIComponent(wsNodeName)}`);
-        }
+        });
         
         return links;
     }
@@ -6118,13 +6078,7 @@
         
         const password = tp || user;
         
-        let lastTrojanNewIPYieldTime = Date.now();
-        for (let i = 0; i < list.length; i++) {
-            if (Date.now() - lastTrojanNewIPYieldTime > 20) {
-                lastTrojanNewIPYieldTime = Date.now();
-                await new Promise(r => setTimeout(r, 0));
-            }
-            const item = list[i];
+        list.forEach(item => {
             const nodeName = item.name.replace(/\s/g, '_');
             const port = item.port;
             const currentNodePath = enableRandomPath ? randomPath('/?ed=2560') : '/?ed=2560';
@@ -6184,7 +6138,7 @@
                 
                 links.push(`${atob('dHJvamFuOi8v')}${password}@${safeIP}:${port}?${wsParams.toString()}#${encodeURIComponent(wsNodeName)}`);
             }
-        }
+        });
         return links;
     }
 
