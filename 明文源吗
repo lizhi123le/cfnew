@@ -3037,6 +3037,55 @@
                 transform: translateY(-4px) scale(1.08);
                 text-shadow: 0 0 15px #00ff00, 0 0 25px #00ff00;
             }
+            .terminal-btn {
+                background: rgba(0, 20, 0, 0.8);
+                border: 2px solid #00ff00;
+                padding: 10px 20px;
+                color: #00ff00;
+                font-family: "Courier New", monospace;
+                font-weight: bold;
+                cursor: pointer;
+                transition: all 0.3s ease;
+                text-shadow: 0 0 5px #00ff00;
+                box-shadow: 0 0 10px rgba(0, 255, 0, 0.2);
+                position: relative;
+                overflow: hidden;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                gap: 8px;
+            }
+            .terminal-btn::before {
+                content: ""; position: absolute; top: 0; left: -100%;
+                width: 100%; height: 100%;
+                background: linear-gradient(90deg, transparent, rgba(0,255,0,0.3), transparent);
+                transition: left 0.6s ease;
+            }
+            .terminal-btn:hover::before { left: 100%; }
+            .terminal-btn:hover {
+                background: rgba(0, 35, 0, 0.9);
+                box-shadow: 0 0 20px rgba(0, 255, 0, 0.4);
+                transform: translateY(-2px);
+                text-shadow: 0 0 8px #00ff00;
+            }
+            .terminal-btn:active { transform: translateY(0); }
+            
+            .terminal-btn-red { border-color: #ff4444; color: #ff4444; text-shadow: 0 0 5px #ff4444; }
+            .terminal-btn-red::before { background: linear-gradient(90deg, transparent, rgba(255,68,68,0.3), transparent); }
+            .terminal-btn-red:hover { 
+                background: rgba(30, 0, 0, 0.9); 
+                box-shadow: 0 0 20px rgba(255, 0, 0, 0.3);
+                text-shadow: 0 0 8px #ff4444;
+            }
+            
+            .terminal-btn-blue { border-color: #00aaff; color: #00aaff; text-shadow: 0 0 5px #00aaff; }
+            .terminal-btn-blue::before { background: linear-gradient(90deg, transparent, rgba(0,170,255,0.3), transparent); }
+            .terminal-btn-blue:hover { 
+                background: rgba(0, 20, 30, 0.9); 
+                box-shadow: 0 0 20px rgba(0, 170, 255, 0.3);
+                text-shadow: 0 0 8px #00aaff;
+            }
+            
             .atob('c3Vic2NyaXB0aW9u')-url {
                 background: rgba(0, 0, 0, 0.9);
                 border: 2px solid #00ff00; padding: 15px;
@@ -3079,7 +3128,12 @@
                 .card { padding: 15px; }
                 .title { font-size: 2.2rem; }
                 .header { margin-bottom: 20px; }
-                #latencyResultsList { max-height: 350px; }
+                #latencyResultsList { 
+                    max-height: 380px; 
+                    -webkit-overflow-scrolling: touch; 
+                    overscroll-behavior-y: contain;
+                    touch-action: pan-y;
+                }
                 #latencyTestFixedHeader { padding: 10px; }
                 #cityCheckboxesContainer { max-height: 120px; }
             }
@@ -3154,7 +3208,7 @@
                             </select>
                                 <small id="wkRegionHint" style="color: #00aa00; font-size: 0.85rem; display: none;">⚠️ ${t.customIPDisabledHint}</small>
                         </div>
-                            <button type="submit" style="background: rgba(0, 255, 0, 0.15); border: 2px solid #00ff00; padding: 12px 24px; color: #00ff00; font-family: 'Courier New', monospace; font-weight: bold; cursor: pointer; margin-right: 10px; text-shadow: 0 0 8px #00ff00; transition: all 0.4s ease;">${t.saveRegion}</button>
+                            <button type="submit" class="terminal-btn" style="padding: 12px 24px; margin-right: 10px;">${t.saveRegion}</button>
                     </form>
                     <form id="otherConfigForm" style="margin-bottom: 20px;">
                         <div style="margin-bottom: 15px;">
@@ -3210,7 +3264,7 @@
                                         <small style="color: #00aa00; font-size: 0.8rem; display: block; margin-top: 5px;">${t.trojanPasswordHint}</small>
                                 </div>
                                     <small style="color: #00aa00; font-size: 0.85rem; display: block; margin-top: 10px;">${t.protocolHint}</small>
-                                    <button type="button" id="saveProtocolBtn" style="margin-top: 15px; background: rgba(0, 255, 0, 0.15); border: 2px solid #00ff00; padding: 10px 20px; color: #00ff00; font-family: 'Courier New', monospace; font-weight: bold; cursor: pointer; text-shadow: 0 0 8px #00ff00; transition: all 0.4s ease; width: 100%;">${t.saveProtocol}</button>
+                                    <button type="button" id="saveProtocolBtn" class="terminal-btn" style="margin-top: 15px; width: 100%;">${t.saveProtocol}</button>
                             </div>
                         </div>
                         <div style="margin-bottom: 15px;">
@@ -3276,28 +3330,28 @@
                                 <label style="display: block; margin-bottom: 5px; color: #00ff00; font-size: 0.9rem;">${t.fetchURL}</label>
                                 <div style="display: flex; gap: 8px;">
                                     <input type="text" id="fetchURLInput" placeholder="${t.fetchURLPlaceholder}" style="flex: 1; padding: 10px; background: rgba(0, 0, 0, 0.8); border: 1px solid #00ff00; color: #00ff00; font-family: 'Courier New', monospace; font-size: 13px;">
-                                    <button type="button" id="fetchIPBtn" style="background: rgba(0, 200, 255, 0.2); border: 1px solid #00aaff; padding: 8px 16px; color: #00aaff; font-family: 'Courier New', monospace; cursor: pointer; white-space: nowrap;">⬇ ${t.fetchIP}</button>
+                                    <button type="button" id="fetchIPBtn" class="terminal-btn terminal-btn-blue" style="padding: 8px 16px; white-space: nowrap;">⬇ ${t.fetchIP}</button>
                                 </div>
                             </div>
                             <div id="cfRandomDiv" style="margin-bottom: 10px; display: none;">
-                                <button type="button" id="generateCFIPBtn" style="background: rgba(0, 255, 0, 0.15); border: 1px solid #00ff00; padding: 10px 20px; color: #00ff00; font-family: 'Courier New', monospace; cursor: pointer; width: 100%; transition: all 0.3s;">🎲 ${t.generateIP}</button>
+                                <button type="button" id="generateCFIPBtn" class="terminal-btn" style="padding: 10px 20px; width: 100%;">🎲 ${t.generateIP}</button>
                             </div>
                             <div style="display: flex; gap: 10px; margin-bottom: 15px;">
-                                <button type="button" id="startLatencyTest" style="background: rgba(0, 255, 0, 0.2); border: 1px solid #00ff00; padding: 8px 16px; color: #00ff00; font-family: 'Courier New', monospace; cursor: pointer; transition: all 0.3s;">▶ ${t.startTest}</button>
-                                <button type="button" id="stopLatencyTest" style="background: rgba(255, 0, 0, 0.2); border: 1px solid #ff4444; padding: 8px 16px; color: #ff4444; font-family: 'Courier New', monospace; cursor: pointer; display: none; transition: all 0.3s;">⏹ ${t.stopTest}</button>
+                                <button type="button" id="startLatencyTest" class="terminal-btn" style="padding: 8px 16px;">▶ ${t.startTest}</button>
+                                <button type="button" id="stopLatencyTest" class="terminal-btn terminal-btn-red" style="padding: 8px 16px; display: none;">⏹ ${t.stopTest}</button>
                             </div>
                             <!-- 测试状态和进度 -->
                             <div id="latencyTestStatus" style="color: #00ff00; font-size: 0.95rem; font-weight: bold; margin-bottom: 12px; padding: 8px 12px; background: rgba(0, 255, 0, 0.1); border-left: 3px solid #00ff00; display: none; text-shadow: 0 0 5px #00ff00;"></div>
                             
                             <!-- 测试结果容器：使用Flex布局实现内部固定与滚动 -->
-                            <div id="latencyTestResults" style="display: none; flex-direction: column; border: 1px solid #00aa00; border-radius: 8px; background: rgba(0, 10, 0, 0.8); overflow: hidden; margin-top: 10px;">
+                            <div id="latencyTestResults" style="display: none; flex-direction: column; border: 1px solid #00aa00; border-radius: 8px; background: rgba(0, 10, 0, 0.8); margin-top: 10px; max-height: 80vh; overflow: hidden;">
                                 <!-- 固定头部：包含操作按钮和城市筛选 -->
                                 <div id="latencyTestFixedHeader" style="padding: 12px; border-bottom: 1px solid #004400; background: rgba(0, 20, 0, 0.95); z-index: 10;">
                                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 10px;">
                                         <span style="color: #00ff00; font-weight: bold; font-size: 1rem; text-shadow: 0 0 5px #00ff00;">📊 ${t.testResult}</span>
                                         <div style="display: flex; gap: 8px;">
-                                            <button type="button" id="selectAllResults" style="background: rgba(0, 255, 0, 0.1); border: 1px solid #00ff00; padding: 5px 12px; color: #00ff00; font-size: 0.85rem; cursor: pointer; transition: all 0.3s;">${t.selectAll}</button>
-                                            <button type="button" id="deselectAllResults" style="background: transparent; border: 1px solid #00aa00; padding: 5px 12px; color: #00aa00; font-size: 0.85rem; cursor: pointer; transition: all 0.3s;">${t.deselectAll}</button>
+                                            <button type="button" id="selectAllResults" class="terminal-btn" style="padding: 5px 12px; font-size: 0.85rem;">${t.selectAll}</button>
+                                            <button type="button" id="deselectAllResults" class="terminal-btn" style="padding: 5px 12px; font-size: 0.85rem; background: transparent; border-color: #00aa00; color: #00aa00;">${t.deselectAll}</button>
                                         </div>
                                     </div>
                                     
@@ -3318,8 +3372,8 @@
 
                                     <!-- 操作按钮：覆盖添加/追加添加 (固定在顶部) -->
                                     <div style="display: flex; gap: 10px; padding-top: 5px;">
-                                        <button type="button" id="overwriteSelectedToYx" style="flex: 1; background: rgba(0, 200, 0, 0.25); border: 1px solid #00ff00; padding: 10px; color: #00ff00; font-family: 'Courier New', monospace; font-weight: bold; cursor: pointer; transition: all 0.3s; text-shadow: 0 0 5px #00ff00; border-radius: 4px;">🚀 ${isFarsi ? '覆盖添加' : '覆盖添加'}</button>
-                                        <button type="button" id="appendSelectedToYx" style="flex: 1; background: rgba(0, 150, 0, 0.2); border: 1px solid #00aa00; padding: 10px; color: #00aa00; font-family: 'Courier New', monospace; font-weight: bold; cursor: pointer; transition: all 0.3s; border-radius: 4px;">➕ ${isFarsi ? '追加添加' : '追加添加'}</button>
+                                        <button type="button" id="overwriteSelectedToYx" class="terminal-btn" style="flex: 1; padding: 10px;">🚀 ${isFarsi ? '覆盖添加' : '覆盖添加'}</button>
+                                        <button type="button" id="appendSelectedToYx" class="terminal-btn" style="flex: 1; padding: 10px; border-color: #00aa00; color: #00aa00;">➕ ${isFarsi ? '追加添加' : '追加添加'}</button>
                                     </div>
                                 </div>
 
@@ -3333,7 +3387,7 @@
                                 <input type="text" id="socksConfig" placeholder="${isFarsi ? 'مثال: user:pass@host:port یا host:port' : '例如: user:pass@host:port 或 host:port'}" style="width: 100%; padding: 12px; background: rgba(0, 0, 0, 0.8); border: 2px solid #00ff00; color: #00ff00; font-family: 'Courier New', monospace; font-size: 14px;">
                                 <small style="color: #00aa00; font-size: 0.85rem;">${isFarsi ? 'آدرس پروکسی SOCKS5، برای انتقال تمام ترافیک خروجی استفاده می‌شود' : 'SOCKS5代理地址，用于转发所有出站流量'}</small>
                         </div>
-                            <button type="submit" style="background: rgba(0, 255, 0, 0.15); border: 2px solid #00ff00; padding: 12px 24px; color: #00ff00; font-family: 'Courier New', monospace; font-weight: bold; cursor: pointer; margin-right: 10px; text-shadow: 0 0 8px #00ff00; transition: all 0.4s ease;">${t.saveConfig}</button>
+                            <button type="submit" class="terminal-btn" style="padding: 12px 24px; margin-right: 10px;">${t.saveConfig}</button>
                     </form>
                     
                         <h3 style="color: #00ff00; margin: 20px 0 15px 0; font-size: 1.2rem;">${t.advancedControl}</h3>
