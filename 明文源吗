@@ -1982,6 +1982,7 @@
         const defaultHttpPorts = disableNonTLS ? [] : [80];
         const links = [];
         const proto = atob('dmxlc3M=');
+        const echCache = new Map();
 
         let lastLinkYieldTime = Date.now();
         for (let i = 0; i < list.length; i++) {
@@ -2025,7 +2026,7 @@
                 });
             }
 
-            portsToGenerate.forEach(({ port, tls }) => {
+            for (const { port, tls } of portsToGenerate) {
                 if (tls) {
                     
                     const wsNodeName = `${nodeNameBase}-${port}-WS-TLS`;
@@ -2040,11 +2041,22 @@
                         path: currentNodePath
                     });
                     
-                    // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
+                    // 如果启用了ECH，添加ech和echconfiglist参数
                     if (enableECH) {
                         const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
                         const echDomain = customECHDomain || getRandomHost(workerDomain);
                         wsParams.set('ech', `${echDomain}+${dnsServer}`);
+                        
+                        let echConfig = '';
+                        if (echCache.has(echDomain)) {
+                            echConfig = echCache.get(echDomain);
+                        } else {
+                            echConfig = await getECHConfig(echDomain);
+                            echCache.set(echDomain, echConfig);
+                        }
+                        if (echConfig) {
+                            wsParams.set('echconfiglist', echConfig);
+                        }
                     }
                     
                     links.push(`${proto}://${user}@${safeIP}:${port}?${wsParams.toString()}#${encodeURIComponent(wsNodeName)}`);
@@ -2061,7 +2073,7 @@
                     });
                     links.push(`${proto}://${user}@${safeIP}:${port}?${wsParams.toString()}#${encodeURIComponent(wsNodeName)}`);
                 }
-            });
+            }
         }
         return links;
     }
@@ -2074,6 +2086,7 @@
         const defaultHttpsPorts = [443];
         const defaultHttpPorts = disableNonTLS ? [] : [80];
         const links = [];
+        const echCache = new Map();
         
         const password = tp || user;
 
@@ -2114,7 +2127,7 @@
                 });
             }
 
-            portsToGenerate.forEach(({ port, tls }) => {
+            for (const { port, tls } of portsToGenerate) {
                 if (tls) {
                     
                     const wsNodeName = `${nodeNameBase}-${port}-${atob('VHJvamFu')}-WS-TLS`;
@@ -2128,11 +2141,22 @@
                         path: currentNodePath
                     });
                     
-                    // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
+                    // 如果启用了ECH，添加ech和echconfiglist参数
                     if (enableECH) {
                         const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
                         const echDomain = customECHDomain || getRandomHost(workerDomain);
                         wsParams.set('ech', `${echDomain}+${dnsServer}`);
+                        
+                        let echConfig = '';
+                        if (echCache.has(echDomain)) {
+                            echConfig = echCache.get(echDomain);
+                        } else {
+                            echConfig = await getECHConfig(echDomain);
+                            echCache.set(echDomain, echConfig);
+                        }
+                        if (echConfig) {
+                            wsParams.set('echconfiglist', echConfig);
+                        }
                     }
                     
                     links.push(`${atob('dHJvamFuOi8v')}${password}@${safeIP}:${port}?${wsParams.toString()}#${encodeURIComponent(wsNodeName)}`);
@@ -2148,7 +2172,7 @@
                     });
                     links.push(`${atob('dHJvamFuOi8v')}${password}@${safeIP}:${port}?${wsParams.toString()}#${encodeURIComponent(wsNodeName)}`);
                 }
-            });
+            }
         }
         return links;
     }
@@ -6101,6 +6125,7 @@
         
         const links = [];
         const proto = atob('dmxlc3M=');
+        const echCache = new Map();
         
         let lastNewIPYieldTime = Date.now();
         for (let i = 0; i < list.length; i++) {
@@ -6128,11 +6153,22 @@
                     path: currentNodePath
                 });
                 
-                // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
+                // 如果启用了ECH，添加ech和echconfiglist参数
                 if (enableECH) {
                     const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
                     const echDomain = customECHDomain || getRandomHost(workerDomain);
                     wsParams.set('ech', `${echDomain}+${dnsServer}`);
+                    
+                    let echConfig = '';
+                    if (echCache.has(echDomain)) {
+                        echConfig = echCache.get(echDomain);
+                    } else {
+                        echConfig = await getECHConfig(echDomain);
+                        echCache.set(echDomain, echConfig);
+                    }
+                    if (echConfig) {
+                        wsParams.set('echconfiglist', echConfig);
+                    }
                 }
                 
                 links.push(`${proto}://${user}@${safeIP}:${port}?${wsParams.toString()}#${encodeURIComponent(wsNodeName)}`);
@@ -6162,11 +6198,22 @@
                     path: currentNodePath
                 });
                 
-                // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
+                // 如果启用了ECH，添加ech和echconfiglist参数
                 if (enableECH) {
                     const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
                     const echDomain = customECHDomain || getRandomHost(workerDomain);
                     wsParams.set('ech', `${echDomain}+${dnsServer}`);
+                    
+                    let echConfig = '';
+                    if (echCache.has(echDomain)) {
+                        echConfig = echCache.get(echDomain);
+                    } else {
+                        echConfig = await getECHConfig(echDomain);
+                        echCache.set(echDomain, echConfig);
+                    }
+                    if (echConfig) {
+                        wsParams.set('echconfiglist', echConfig);
+                    }
                 }
                 
                 links.push(`${proto}://${user}@${safeIP}:${port}?${wsParams.toString()}#${encodeURIComponent(wsNodeName)}`);
@@ -6178,6 +6225,7 @@
     async function generateXhttpLinksFromSource(list, user, workerDomain) {
         const links = [];
         const nodePath = user.substring(0, 8);
+        const echCache = new Map();
         
         let lastXhttpYieldTime = Date.now();
         for (let i = 0; i < list.length; i++) {
@@ -6206,11 +6254,23 @@
                 mode: 'stream-one'
             });
             
-            // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
+            // 如果启用了ECH，添加ech和echconfiglist参数
             if (enableECH) {
                 const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
                 const echDomain = customECHDomain || getRandomHost(workerDomain);
                 params.set('ech', `${echDomain}+${dnsServer}`);
+                
+                // 获取并添加 ECH 配置列表
+                let echConfig = '';
+                if (echCache.has(echDomain)) {
+                    echConfig = echCache.get(echDomain);
+                } else {
+                    echConfig = await getECHConfig(echDomain);
+                    echCache.set(echDomain, echConfig);
+                }
+                if (echConfig) {
+                    params.set('echconfiglist', echConfig);
+                }
             }
             
             links.push(`vless://${user}@${safeIP}:${port}?${params.toString()}#${encodeURIComponent(wsNodeName)}`);
@@ -6225,6 +6285,7 @@
         const CF_HTTPS_PORTS = [443, 2053, 2083, 2087, 2096, 8443];
         
         const links = [];
+        const echCache = new Map();
         
         const password = tp || user;
         
@@ -6253,11 +6314,22 @@
                     path: currentNodePath
                 });
                 
-                // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
+                // 如果启用了ECH，添加ech和echconfiglist参数
                 if (enableECH) {
                     const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
                     const echDomain = customECHDomain || getRandomHost(workerDomain);
                     wsParams.set('ech', `${echDomain}+${dnsServer}`);
+                    
+                    let echConfig = '';
+                    if (echCache.has(echDomain)) {
+                        echConfig = echCache.get(echDomain);
+                    } else {
+                        echConfig = await getECHConfig(echDomain);
+                        echCache.set(echDomain, echConfig);
+                    }
+                    if (echConfig) {
+                        wsParams.set('echconfiglist', echConfig);
+                    }
                 }
                 
                 links.push(`${atob('dHJvamFuOi8v')}${password}@${safeIP}:${port}?${wsParams.toString()}#${encodeURIComponent(wsNodeName)}`);
@@ -6285,11 +6357,22 @@
                     path: currentNodePath
                 });
                 
-                // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
+                // 如果启用了ECH，添加ech和echconfiglist参数
                 if (enableECH) {
                     const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
                     const echDomain = customECHDomain || getRandomHost(workerDomain);
                     wsParams.set('ech', `${echDomain}+${dnsServer}`);
+                    
+                    let echConfig = '';
+                    if (echCache.has(echDomain)) {
+                        echConfig = echCache.get(echDomain);
+                    } else {
+                        echConfig = await getECHConfig(echDomain);
+                        echCache.set(echDomain, echConfig);
+                    }
+                    if (echConfig) {
+                        wsParams.set('echconfiglist', echConfig);
+                    }
                 }
                 
                 links.push(`${atob('dHJvamFuOi8v')}${password}@${safeIP}:${port}?${wsParams.toString()}#${encodeURIComponent(wsNodeName)}`);
