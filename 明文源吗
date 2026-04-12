@@ -3128,10 +3128,17 @@
                 .card { padding: 15px; }
                 .title { font-size: 2.2rem; }
                 .header { margin-bottom: 20px; }
+                #latencyTestResults {
+                    max-height: 85vh !important;
+                    display: flex !important;
+                    flex-direction: column;
+                }
                 #latencyResultsList { 
-                    max-height: 380px; 
+                    flex: 1 !important;
+                    max-height: none !important;
+                    height: auto !important;
                     -webkit-overflow-scrolling: touch; 
-                    overscroll-behavior-y: contain;
+                    overflow-y: auto !important;
                     touch-action: pan-y;
                 }
                 #latencyTestFixedHeader { padding: 10px; }
@@ -3378,7 +3385,7 @@
                                 </div>
 
                                 <!-- 可滚动的IP列表 -->
-                                <div id="latencyResultsList" style="max-height: 450px; overflow-y: auto; background: rgba(0, 0, 0, 0.4); padding: 5px; scrollbar-width: thin; scrollbar-color: #00ff00 rgba(0, 30, 0, 0.5);"></div>
+                                <div id="latencyResultsList" style="flex: 1; overflow-y: auto; background: rgba(0, 0, 0, 0.4); padding: 5px; scrollbar-width: thin; scrollbar-color: #00ff00 rgba(0, 30, 0, 0.5); min-height: 200px;"></div>
                             </div>
                         </div>
                         
