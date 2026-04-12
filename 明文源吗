@@ -3351,7 +3351,7 @@
                                         <span style="color: #00ff00; font-weight: bold; font-size: 1rem; text-shadow: 0 0 5px #00ff00;">📊 ${t.testResult}</span>
                                         <div style="display: flex; gap: 8px;">
                                             <button type="button" id="selectAllResults" class="terminal-btn" style="padding: 5px 12px; font-size: 0.85rem;">${t.selectAll}</button>
-                                            <button type="button" id="deselectAllResults" class="terminal-btn" style="padding: 5px 12px; font-size: 0.85rem; background: transparent; border-color: #00aa00; color: #00aa00;">${t.deselectAll}</button>
+                                            <button type="button" id="deselectAllResults" class="terminal-btn" style="padding: 5px 12px; font-size: 0.85rem;">${t.deselectAll}</button>
                                         </div>
                                     </div>
                                     
@@ -3373,7 +3373,7 @@
                                     <!-- 操作按钮：覆盖添加/追加添加 (固定在顶部) -->
                                     <div style="display: flex; gap: 10px; padding-top: 5px;">
                                         <button type="button" id="overwriteSelectedToYx" class="terminal-btn" style="flex: 1; padding: 10px;">🚀 ${isFarsi ? '覆盖添加' : '覆盖添加'}</button>
-                                        <button type="button" id="appendSelectedToYx" class="terminal-btn" style="flex: 1; padding: 10px; border-color: #00aa00; color: #00aa00;">➕ ${isFarsi ? '追加添加' : '追加添加'}</button>
+                                        <button type="button" id="appendSelectedToYx" class="terminal-btn" style="flex: 1; padding: 10px;">➕ ${isFarsi ? '追加添加' : '追加添加'}</button>
                                     </div>
                                 </div>
 
