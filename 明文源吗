@@ -3152,11 +3152,10 @@
                 .card { padding: 15px; }
                 .title { font-size: 2.2rem; }
                 .header { margin-bottom: 20px; }
+                #latencyTestResults { max-height: 90vh; }
                 #latencyResultsList { 
-                    max-height: 380px; 
+                    max-height: 350px; 
                     -webkit-overflow-scrolling: touch; 
-                    overscroll-behavior-y: contain;
-                    touch-action: pan-y;
                 }
                 #latencyTestFixedHeader { padding: 10px; }
                 #cityCheckboxesContainer { max-height: 120px; }
