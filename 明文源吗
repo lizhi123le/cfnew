@@ -1785,16 +1785,39 @@
         
         const finalLinks = [];
         const workerDomain = url.hostname;
-        const target = url.searchParams.get('target') || 'base64';
+        let target = url.searchParams.get('target');
+        
+        // 自动检测 User-Agent
+        if (!target) {
+            const ua = request.headers.get('User-Agent') || '';
+            if (ua.includes('Surge')) target = atob('c3VyZ2U=');
+            else if (ua.includes('Clash')) target = atob('Y2xhc2g=');
+            else if (ua.includes('Quantumult')) target = atob('cXVhbnR1bXVsdA==');
+            else if (ua.includes('Loon')) target = atob('bG9vbg==');
+            else if (ua.includes('Stash')) target = atob('Y2xhc2g=');
+            else if (ua.includes('V2Ray') || ua.includes('v2rayNG')) target = atob('djJyYXk=');
+            else target = 'base64';
+        }
+        
+        // 微调：确保在获取surge订阅时，不管前端设置什么协议，默认只下发Trojan协议节点
+        let currentEv = ev;
+        let currentEt = et;
+        let currentEx = ex;
+        const isSurge = [atob('c3VyZ2U='), atob('c3VyZ2Uy'), atob('c3VyZ2Uz'), atob('c3VyZ2U0')].includes(target.toLowerCase());
+        if (isSurge) {
+            currentEv = false;
+            currentEt = true;
+            currentEx = false;
+        }
 
         async function addNodesFromList(list) {
-            if (ev) {
+            if (currentEv) {
                 finalLinks.push(...await generateLinksFromSource(list, user, workerDomain));
             }
-            if (et) {
+            if (currentEt) {
                 finalLinks.push(...await generateTrojanLinksFromSource(list, user, workerDomain));
             }
-            if (ex) {
+            if (currentEx) {
                 finalLinks.push(...await generateXhttpLinksFromSource(list, user, workerDomain));
             }
         }
@@ -1878,7 +1901,7 @@
         // --- 统一生成节点链路，按要求排序：VLESS -> Trojan -> xhttp ---
 
         // A. VLESS 节点 (最前面)
-        if (ev) {
+        if (currentEv) {
             for (const source of allSources) {
                 finalLinks.push(...await generateLinksFromSource(source.list, user, workerDomain));
             }
@@ -1888,7 +1911,7 @@
         }
 
         // B. Trojan 节点 (中间)
-        if (et) {
+        if (currentEt) {
             for (const source of allSources) {
                 finalLinks.push(...await generateTrojanLinksFromSource(source.list, user, workerDomain));
             }
@@ -1898,7 +1921,7 @@
         }
 
         // C. xhttp 节点 (最后面)
-        if (ex) {
+        if (currentEx) {
             for (const source of allSources) {
                 finalLinks.push(...await generateXhttpLinksFromSource(source.list, user, workerDomain));
             }
