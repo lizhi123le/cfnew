@@ -3797,7 +3797,8 @@
                         // 其他情况使用订阅转换服务
                         var encodedUrl = encodeURIComponent(subscriptionUrl);
                         if (clientType === atob('c3VyZ2U=')) {
-                        	finalUrl = SUB_CONVERTER_URL + "?target=" + clientType + "&ver=4" + "&url=" + encodedUrl + "&insert=false&config=" + encodeURIComponent(REMOTE_CONFIG_URL) + "&emoji=true&list=false&tls13=true&xudp=false&udp=true&tfo=false&expand=true&scv=false&fdn=false&new_name=true";
+                            var surgeUrl = encodeURIComponent(subscriptionUrl + "?target=surge");
+                        	finalUrl = SUB_CONVERTER_URL + "?target=" + clientType + "&ver=4" + "&url=" + surgeUrl + "&insert=false&config=" + encodeURIComponent(REMOTE_CONFIG_URL) + "&emoji=true&list=false&tls13=true&xudp=false&udp=true&tfo=false&expand=true&scv=false&fdn=false&new_name=true";
                         } else {
 							finalUrl = SUB_CONVERTER_URL + "?target=" + clientType + "&url=" + encodedUrl + "&insert=false&config=" + encodeURIComponent(REMOTE_CONFIG_URL) + "&emoji=true&list=false&xudp=false&udp=false&tfo=false&expand=true&scv=false&fdn=false&new_name=true";
 						}
