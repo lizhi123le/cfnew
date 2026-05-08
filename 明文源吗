@@ -158,24 +158,25 @@
             return;
         }
         
-        // 方案1：检查内存缓存（使用深拷贝避免跨请求修改）
-        if (kvConfigCache && Date.now() - kvConfigCacheTime < CACHE_TTL) {
-            kvConfig = JSON.parse(JSON.stringify(kvConfigCache));
-            return;
-        }
-        
         try {
+            // 方案1：检查内存缓存
+            if (kvConfigCache && Date.now() - kvConfigCacheTime < CACHE_TTL) {
+                kvConfig = JSON.parse(JSON.stringify(kvConfigCache));
+                return;
+            }
+
+            // 缓解并发冲击：增加 0-300ms 随机延迟
+            await new Promise(r => setTimeout(r, Math.random() * 300));
+            
             const configData = await kvStore.get('c');
             
             if (configData) {
                 kvConfig = JSON.parse(configData);
-                // 更新内存缓存
                 kvConfigCache = kvConfig;
                 kvConfigCacheTime = Date.now();
             } else {
-                // KV为空时也要更新缓存，避免每次请求都重新读取
                 kvConfig = kvConfig || {};
-                kvConfigCache = kvConfig; // 缓存空对象
+                kvConfigCache = kvConfig;
                 kvConfigCacheTime = Date.now();
             }
         } catch (error) {
@@ -2323,6 +2324,7 @@
                 }
                 
                 if (!protocolType) {
+                    if (chunk.byteLength > 16384) throw new Error('Header too large'); // 安全限制
                     
                     if (ev && chunk.byteLength >= 24) {
                         const vlessResult = parseWsPacketHeader(chunk, at);
@@ -2432,9 +2434,14 @@
         try {
             const initialSocket = await connectAndSend(host, portNum, enableSocksDowngrade ? false : effectiveSocksEnabled);
             remoteConnWrapper.socket = initialSocket;
-            connectStreams(initialSocket, ws, respHeader, retryConnection);
+            await connectStreams(initialSocket, ws, respHeader, retryConnection);
         } catch (err) {
-            retryConnection();
+            await retryConnection();
+        } finally {
+            // 确保没有残留引用
+            if (!remoteConnWrapper.socket) {
+                try { ws.close(); } catch(e) {}
+            }
         }
     }
 
@@ -2474,52 +2481,84 @@
         });
     }
 
+    async function WebSocket发送并等待(ws, payload) {
+        // 增加反压控制，防止 WS 发送队列撑爆内存
+        if (ws.bufferedAmount > 1024 * 1024) {
+            await new Promise(r => setTimeout(r, 10));
+        }
+        const sendResult = ws.send(payload);
+        if (sendResult && typeof sendResult.then === 'function') await sendResult;
+    }
+
     async function connectStreams(remoteSocket, webSocket, headerData, retryFunc) {
-        let header = headerData, hasData = false;
-        let wsDownloadChunkCount = 0;
-        await remoteSocket.readable.pipeTo(
-            new WritableStream({
-                async write(chunk, controller) {
-                    hasData = true;
-                    if (webSocket.readyState !== 1) controller.error(E_WS_NOT_OPEN);
-                    
-                    let dataChunk = chunk;
-                    wsDownloadChunkCount++;
-                    if (wsDownloadChunkCount % 100 === 0) {
-                        await new Promise(r => setTimeout(r, 0));
-                    }
-                    
-                    if (header) { webSocket.send(await new Blob([header, dataChunk]).arrayBuffer()); header = null; } 
-                    else { webSocket.send(dataChunk); }
-                },
-                abort(reason) { },
-            })
-        ).catch((error) => { closeSocketQuietly(webSocket); });
-        if (!hasData && retryFunc) retryFunc();
+        let header = headerData, hasData = false, reader;
+        const BYOB_BUF_SIZE = 128 * 1024;
+
+        try {
+            // 尝试使用 BYOB 模式提高内存利用率
+            try { reader = remoteSocket.readable.getReader({ mode: 'byob' }); }
+            catch (e) { reader = remoteSocket.readable.getReader(); }
+
+            while (true) {
+                const { done, value } = (reader.read instanceof Function && reader.constructor.name.includes('BYOB')) 
+                    ? await reader.read(new Uint8Array(new ArrayBuffer(BYOB_BUF_SIZE)))
+                    : await reader.read();
+
+                if (done) break;
+                hasData = true;
+                
+                if (webSocket.readyState !== 1) break;
+                
+                if (header) {
+                    const merged = new Uint8Array(header.length + value.byteLength);
+                    merged.set(header, 0); merged.set(value, header.length);
+                    await WebSocket发送并等待(webSocket, merged.buffer);
+                    header = null;
+                } else {
+                    await WebSocket发送并等待(webSocket, value.buffer || value);
+                }
+            }
+        } catch (error) {
+            closeSocketQuietly(webSocket);
+        } finally {
+            try { await reader.cancel(); } catch (e) {}
+            try { reader.releaseLock(); } catch (e) {}
+            try { remoteSocket.close(); } catch (e) {}
+            reader = null; header = null; // 显式清理内存
+        }
+        if (!hasData && retryFunc) await retryFunc();
     }
 
     async function forwardUDP(udpChunk, webSocket, respHeader) {
-        try {
-            const tcpSocket = connect({ hostname: '8.8.4.4', port: 53 });
-            let header = respHeader;
-            const writer = tcpSocket.writable.getWriter();
-            await writer.write(udpChunk);
-            writer.releaseLock();
-            let udpDownloadChunkCount = 0;
-            await tcpSocket.readable.pipeTo(new WritableStream({
-                async write(chunk) {
-                    let dataChunk = chunk;
-                    udpDownloadChunkCount++;
-                    if (udpDownloadChunkCount % 100 === 0) {
-                        await new Promise(r => setTimeout(r, 0));
+        const 请求数据 = 数据转Uint8Array(udpChunk);
+        const DNS上游列表 = [customDNS, 'https://1.1.1.1/dns-query', 'https://8.8.8.8/dns-query'];
+        
+        for (const dnsUrl of DNS上游列表) {
+            try {
+                const response = await withTimeout(fetch(dnsUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/dns-message', 'Accept': 'application/dns-message' },
+                    body: 请求数据
+                }), 5000);
+                
+                if (!response.ok) continue;
+                
+                const 原始响应 = new Uint8Array(await response.arrayBuffer());
+                if (webSocket.readyState === 1) {
+                    if (respHeader) {
+                        const merged = new Uint8Array(respHeader.length + 原始响应.byteLength);
+                        merged.set(respHeader, 0); merged.set(原始响应, respHeader.length);
+                        await WebSocket发送并等待(webSocket, merged.buffer);
+                        respHeader = null;
+                    } else {
+                        await WebSocket发送并等待(webSocket, 原始响应.buffer);
                     }
-                    if (webSocket.readyState === 1) {
-                        if (header) { webSocket.send(await new Blob([header, dataChunk]).arrayBuffer()); header = null; } 
-                        else { webSocket.send(dataChunk); }
-                    }
-                },
-            }));
-        } catch (error) { }
+                }
+                return; // 成功则退出
+            } catch (err) {
+                continue; // 尝试下一个
+            }
+        }
     }
 
     async function establishSocksConnection(addrType, address, port, socksConfig = parsedSocks5Config) {
