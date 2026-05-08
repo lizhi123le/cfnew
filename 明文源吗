@@ -29,6 +29,9 @@
     // 自定义ECH域名（默认：节点host）
     let customECHDomain = '';
 
+    const globalEchCache = new Map();
+    const globalIpv4Regex = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
+
     let scu = 'https://url.v1.mk/sub';  
     // 远程配置URL（可配置）
     let remoteConfigUrl = 'https://raw.githubusercontent.com/lizhi123le/ACL4SSR/master/Clash/config/ACL4SSR_Online_Full_MultiMode.ini';
@@ -52,7 +55,7 @@
     // KV配置缓存（方案1：内存缓存）
     let kvConfigCache = null;
     let kvConfigCacheTime = 0;
-    const CACHE_TTL = 12 * 60 * 1000; // 1小时缓存
+    const CACHE_TTL = 3 * 24 * 60 * 60 * 1000; // 3天缓存，降低KV读取次数
 
     const regionMapping = {
         'HK': ['🇭🇰 香港', 'HK', 'Hong Kong'],
@@ -124,8 +127,7 @@
     }
 
     function isValidIP(ip) {
-        const ipv4Regex = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
-        if (ipv4Regex.test(ip)) return true;
+        if (globalIpv4Regex.test(ip)) return true;
         
         const ipv6Regex = /^(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$/;
         if (ipv6Regex.test(ip)) return true;
@@ -142,7 +144,7 @@
             try {
                 kvStore = env.C;
                 await loadKVConfig();
-                updateConfigVariables(); // 更新配置变量
+                updateConfigVariables(env); // 更新配置变量，传入 env 以便处理回退
             } catch (error) {
                 kvStore = null;
             }
@@ -156,9 +158,9 @@
             return;
         }
         
-        // 方案1：检查内存缓存（简单缓存，无版本验证）
+        // 方案1：检查内存缓存（使用深拷贝避免跨请求修改）
         if (kvConfigCache && Date.now() - kvConfigCacheTime < CACHE_TTL) {
-            kvConfig = kvConfigCache;
+            kvConfig = JSON.parse(JSON.stringify(kvConfigCache));
             return;
         }
         
@@ -209,9 +211,13 @@
     async function setConfigValue(key, value) {
         kvConfig[key] = value;
         await saveKVConfig();
-        // 方案2：清除内存缓存，强制下次读取最新配置
-        kvConfigCache = null;
-        kvConfigCacheTime = 0;
+        
+        // 更新内存缓存，确保当前 Isolate 的后续请求能立即看到更新
+        kvConfigCache = JSON.parse(JSON.stringify(kvConfig));
+        kvConfigCacheTime = Date.now();
+        
+        // 同步更新所有内存变量
+        updateConfigVariables();
     }
 
     async function detectWorkerRegion(request) {
@@ -1467,10 +1473,9 @@
                 let i = 0;
 
                 let linesProcessedCount = 0;
-                let lastLinesYieldTime = Date.now();
                 while (i < lines.length) {
-                    if (Date.now() - lastLinesYieldTime > 20) {
-                        lastLinesYieldTime = Date.now();
+                    linesProcessedCount++;
+                    if (linesProcessedCount % 200 === 0) {
                         await new Promise(r => setTimeout(r, 0));
                     }
                     const line = lines[i];
@@ -1576,14 +1581,12 @@
             if (enableECH) {
                 const workerDomain = new URL(request.url).hostname;
                 const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
-                const echCache = new Map();
                 
                 if (config.outbounds) {
                     let sbProcessedCount = 0;
-                    let lastSbYieldTime = Date.now();
                     for (const outbound of config.outbounds) {
-                        if (Date.now() - lastSbYieldTime > 20) {
-                            lastSbYieldTime = Date.now();
+                        sbProcessedCount++;
+                        if (sbProcessedCount % 200 === 0) {
                             await new Promise(r => setTimeout(r, 0));
                         }
                         // 匹配凭据以识别需要注入 ECH 的节点 (VLESS/Trojan/xhttp)
@@ -1595,11 +1598,11 @@
                             
                             // 使用缓存避免重复请求
                             let echData;
-                            if (echCache.has(nodeECHDomain)) {
-                                echData = echCache.get(nodeECHDomain);
+                            if (globalEchCache.has(nodeECHDomain)) {
+                                echData = globalEchCache.get(nodeECHDomain);
                             } else {
                                 echData = await getECHConfig(nodeECHDomain);
-                                if (echData) echCache.set(nodeECHDomain, echData);
+                                if (echData) globalEchCache.set(nodeECHDomain, echData);
                             }
                             
                             if (echData) {
@@ -1866,8 +1869,7 @@
         const globalFilter = (item) => {
             const host = item.ip || '';
             const isIPv6 = host.includes(':') || (host.includes('[') && host.includes(']'));
-            const ipv4Regex = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
-            const isIPv4 = !isIPv6 && ipv4Regex.test(host);
+            const isIPv4 = !isIPv6 && globalIpv4Regex.test(host);
             const isDomain = !isIPv6 && !isIPv4;
             
             // IP 版本与域名过滤
@@ -2005,12 +2007,11 @@
         const defaultHttpPorts = disableNonTLS ? [] : [80];
         const links = [];
         const proto = atob('dmxlc3M=');
-        const echCache = new Map();
 
-        let lastLinkYieldTime = Date.now();
+        let linksProcessedCount = 0;
         for (let i = 0; i < list.length; i++) {
-            if (Date.now() - lastLinkYieldTime > 20) {
-                lastLinkYieldTime = Date.now();
+            linksProcessedCount++;
+            if (linksProcessedCount % 200 === 0) {
                 await new Promise(r => setTimeout(r, 0));
             }
             const item = list[i];
@@ -2071,11 +2072,11 @@
                         wsParams.set('ech', `${echDomain}+${dnsServer}`);
                         
                         let echConfig = '';
-                        if (echCache.has(echDomain)) {
-                            echConfig = echCache.get(echDomain);
+                        if (globalEchCache.has(echDomain)) {
+                            echConfig = globalEchCache.get(echDomain);
                         } else {
                             echConfig = await getECHConfig(echDomain);
-                            echCache.set(echDomain, echConfig);
+                            globalEchCache.set(echDomain, echConfig);
                         }
                         if (echConfig) {
                             wsParams.set('echconfiglist', echConfig);
@@ -2109,14 +2110,13 @@
         const defaultHttpsPorts = [443];
         const defaultHttpPorts = disableNonTLS ? [] : [80];
         const links = [];
-        const echCache = new Map();
         
         const password = tp || user;
 
-        let lastTrojanYieldTime = Date.now();
+        let trojanLinksProcessedCount = 0;
         for (let i = 0; i < list.length; i++) {
-            if (Date.now() - lastTrojanYieldTime > 20) {
-                lastTrojanYieldTime = Date.now();
+            trojanLinksProcessedCount++;
+            if (trojanLinksProcessedCount % 200 === 0) {
                 await new Promise(r => setTimeout(r, 0));
             }
             const item = list[i];
@@ -2171,11 +2171,11 @@
                         wsParams.set('ech', `${echDomain}+${dnsServer}`);
                         
                         let echConfig = '';
-                        if (echCache.has(echDomain)) {
-                            echConfig = echCache.get(echDomain);
+                        if (globalEchCache.has(echDomain)) {
+                            echConfig = globalEchCache.get(echDomain);
                         } else {
                             echConfig = await getECHConfig(echDomain);
-                            echCache.set(echDomain, echConfig);
+                            globalEchCache.set(echDomain, echConfig);
                         }
                         if (echConfig) {
                             wsParams.set('echconfiglist', echConfig);
@@ -2305,16 +2305,12 @@
         const earlyData = request.headers.get(atob('c2VjLXdlYnNvY2tldC1wcm90b2NvbA==')) || '';
         const readable = makeReadableStream(serverSock, earlyData);
 
-        let wsUploadCpuYieldByteCounter = 0;
-        let lastWsUpYieldTime = Date.now();
+        let wsUploadChunkCount = 0;
         readable.pipeTo(new WritableStream({
             async write(chunk) {
                 let dataChunk = chunk;
-                wsUploadCpuYieldByteCounter += dataChunk.byteLength || dataChunk.length || 0;
-                if (Date.now() - lastWsUpYieldTime > 20) {
-                    lastWsUpYieldTime = Date.now();
-                    if (dataChunk instanceof ArrayBuffer) dataChunk = dataChunk.slice(0);
-                    else if (dataChunk.buffer && dataChunk.buffer instanceof ArrayBuffer) dataChunk = new Uint8Array(dataChunk).slice();
+                wsUploadChunkCount++;
+                if (wsUploadChunkCount % 100 === 0) {
                     await new Promise(r => setTimeout(r, 0));
                 }
                 
@@ -2480,8 +2476,7 @@
 
     async function connectStreams(remoteSocket, webSocket, headerData, retryFunc) {
         let header = headerData, hasData = false;
-        let wsDownloadCpuYieldByteCounter = 0;
-        let lastWsDownYieldTime = Date.now();
+        let wsDownloadChunkCount = 0;
         await remoteSocket.readable.pipeTo(
             new WritableStream({
                 async write(chunk, controller) {
@@ -2489,11 +2484,8 @@
                     if (webSocket.readyState !== 1) controller.error(E_WS_NOT_OPEN);
                     
                     let dataChunk = chunk;
-                    wsDownloadCpuYieldByteCounter += dataChunk.byteLength || dataChunk.length || 0;
-                    if (Date.now() - lastWsDownYieldTime > 20) {
-                        lastWsDownYieldTime = Date.now();
-                        if (dataChunk instanceof ArrayBuffer) dataChunk = dataChunk.slice(0);
-                        else if (dataChunk.buffer && dataChunk.buffer instanceof ArrayBuffer) dataChunk = new Uint8Array(dataChunk).slice();
+                    wsDownloadChunkCount++;
+                    if (wsDownloadChunkCount % 100 === 0) {
                         await new Promise(r => setTimeout(r, 0));
                     }
                     
@@ -2513,16 +2505,12 @@
             const writer = tcpSocket.writable.getWriter();
             await writer.write(udpChunk);
             writer.releaseLock();
-            let udpDownloadCpuYieldByteCounter = 0;
-            let lastUdpYieldTime = Date.now();
+            let udpDownloadChunkCount = 0;
             await tcpSocket.readable.pipeTo(new WritableStream({
                 async write(chunk) {
                     let dataChunk = chunk;
-                    udpDownloadCpuYieldByteCounter += dataChunk.byteLength || dataChunk.length || 0;
-                    if (Date.now() - lastUdpYieldTime > 20) {
-                        lastUdpYieldTime = Date.now();
-                        if (dataChunk instanceof ArrayBuffer) dataChunk = dataChunk.slice(0);
-                        else if (dataChunk.buffer && dataChunk.buffer instanceof ArrayBuffer) dataChunk = new Uint8Array(dataChunk).slice();
+                    udpDownloadChunkCount++;
+                    if (udpDownloadChunkCount % 100 === 0) {
                         await new Promise(r => setTimeout(r, 0));
                     }
                     if (webSocket.readyState === 1) {
@@ -6153,12 +6141,11 @@
         
         const links = [];
         const proto = atob('dmxlc3M=');
-        const echCache = new Map();
         
-        let lastNewIPYieldTime = Date.now();
+        let newIPLinksProcessedCount = 0;
         for (let i = 0; i < list.length; i++) {
-            if (Date.now() - lastNewIPYieldTime > 20) {
-                lastNewIPYieldTime = Date.now();
+            newIPLinksProcessedCount++;
+            if (newIPLinksProcessedCount % 200 === 0) {
                 await new Promise(r => setTimeout(r, 0));
             }
             const item = list[i];
@@ -6188,11 +6175,11 @@
                     wsParams.set('ech', `${echDomain}+${dnsServer}`);
                     
                     let echConfig = '';
-                    if (echCache.has(echDomain)) {
-                        echConfig = echCache.get(echDomain);
+                    if (globalEchCache.has(echDomain)) {
+                        echConfig = globalEchCache.get(echDomain);
                     } else {
                         echConfig = await getECHConfig(echDomain);
-                        echCache.set(echDomain, echConfig);
+                        globalEchCache.set(echDomain, echConfig);
                     }
                     if (echConfig) {
                         wsParams.set('echconfiglist', echConfig);
@@ -6233,11 +6220,11 @@
                     wsParams.set('ech', `${echDomain}+${dnsServer}`);
                     
                     let echConfig = '';
-                    if (echCache.has(echDomain)) {
-                        echConfig = echCache.get(echDomain);
+                    if (globalEchCache.has(echDomain)) {
+                        echConfig = globalEchCache.get(echDomain);
                     } else {
                         echConfig = await getECHConfig(echDomain);
-                        echCache.set(echDomain, echConfig);
+                        globalEchCache.set(echDomain, echConfig);
                     }
                     if (echConfig) {
                         wsParams.set('echconfiglist', echConfig);
@@ -6253,12 +6240,11 @@
     async function generateXhttpLinksFromSource(list, user, workerDomain) {
         const links = [];
         const nodePath = user.substring(0, 8);
-        const echCache = new Map();
         
-        let lastXhttpYieldTime = Date.now();
+        let xhttpLinksProcessedCount = 0;
         for (let i = 0; i < list.length; i++) {
-            if (Date.now() - lastXhttpYieldTime > 20) {
-                lastXhttpYieldTime = Date.now();
+            xhttpLinksProcessedCount++;
+            if (xhttpLinksProcessedCount % 200 === 0) {
                 await new Promise(r => setTimeout(r, 0));
             }
             const item = list[i];
@@ -6290,11 +6276,11 @@
                 
                 // 获取并添加 ECH 配置列表
                 let echConfig = '';
-                if (echCache.has(echDomain)) {
-                    echConfig = echCache.get(echDomain);
+                if (globalEchCache.has(echDomain)) {
+                    echConfig = globalEchCache.get(echDomain);
                 } else {
                     echConfig = await getECHConfig(echDomain);
-                    echCache.set(echDomain, echConfig);
+                    globalEchCache.set(echDomain, echConfig);
                 }
                 if (echConfig) {
                     params.set('echconfiglist', echConfig);
@@ -6313,14 +6299,13 @@
         const CF_HTTPS_PORTS = [443, 2053, 2083, 2087, 2096, 8443];
         
         const links = [];
-        const echCache = new Map();
         
         const password = tp || user;
         
-        let lastTrojanNewIPYieldTime = Date.now();
+        let trojanNewIPProcessedCount = 0;
         for (let i = 0; i < list.length; i++) {
-            if (Date.now() - lastTrojanNewIPYieldTime > 20) {
-                lastTrojanNewIPYieldTime = Date.now();
+            trojanNewIPProcessedCount++;
+            if (trojanNewIPProcessedCount % 200 === 0) {
                 await new Promise(r => setTimeout(r, 0));
             }
             const item = list[i];
@@ -6349,11 +6334,11 @@
                     wsParams.set('ech', `${echDomain}+${dnsServer}`);
                     
                     let echConfig = '';
-                    if (echCache.has(echDomain)) {
-                        echConfig = echCache.get(echDomain);
+                    if (globalEchCache.has(echDomain)) {
+                        echConfig = globalEchCache.get(echDomain);
                     } else {
                         echConfig = await getECHConfig(echDomain);
-                        echCache.set(echDomain, echConfig);
+                        globalEchCache.set(echDomain, echConfig);
                     }
                     if (echConfig) {
                         wsParams.set('echconfiglist', echConfig);
@@ -6392,11 +6377,11 @@
                     wsParams.set('ech', `${echDomain}+${dnsServer}`);
                     
                     let echConfig = '';
-                    if (echCache.has(echDomain)) {
-                        echConfig = echCache.get(echDomain);
+                    if (globalEchCache.has(echDomain)) {
+                        echConfig = globalEchCache.get(echDomain);
                     } else {
                         echConfig = await getECHConfig(echDomain);
-                        echCache.set(echDomain, echConfig);
+                        globalEchCache.set(echDomain, echConfig);
                     }
                     if (echConfig) {
                         wsParams.set('echconfiglist', echConfig);
@@ -6453,15 +6438,11 @@
                 
                 await saveKVConfig();
                 
-                // 方案2：清除内存缓存，强制下次读取最新配置
-                kvConfigCache = null;
-                kvConfigCacheTime = 0;
+                // 更新内存缓存，确保当前 Isolate 的后续请求能立即看到更新
+                kvConfigCache = JSON.parse(JSON.stringify(kvConfig));
+                kvConfigCacheTime = Date.now();
                 
                 updateConfigVariables();
-                
-                if (newConfig.yx !== undefined) {
-                    updateCustomPreferredFromYx();
-                }
                 
                 return new Response(JSON.stringify({
                     success: true,
@@ -6589,7 +6570,6 @@
                 if (addedIPs.length > 0) {
                     const newYxValue = arrayToYx(pi);
                     await setConfigValue('yx', newYxValue);
-                    updateCustomPreferredFromYx();
                 }
                 
                 return new Response(JSON.stringify({
@@ -6618,7 +6598,6 @@
                     const deletedCount = pi.length;
                     
                     await setConfigValue('yx', '');
-                    updateCustomPreferredFromYx();
                     
                     return new Response(JSON.stringify({
                         success: true,
@@ -6663,7 +6642,7 @@
                 
                 const newYxValue = arrayToYx(filteredIPs);
                 await setConfigValue('yx', newYxValue);
-                updateCustomPreferredFromYx();
+                
                 
                 return new Response(JSON.stringify({
                     success: true,
@@ -6695,126 +6674,109 @@
         }
     }
 
-    function updateConfigVariables() {
-        const manualRegion = getConfigValue('wk', '');
-        if (manualRegion && manualRegion.trim()) {
-            manualWorkerRegion = manualRegion.trim().toUpperCase();
+    function updateConfigVariables(env = {}) {
+        // 1. 区域与匹配模式
+        const wk = getConfigValue('wk', env.wk || env.WK || '');
+        if (wk && wk.trim()) {
+            manualWorkerRegion = wk.trim().toUpperCase();
             currentWorkerRegion = manualWorkerRegion;
         } else {
-            const ci = getConfigValue('p', '');
-            if (ci && ci.trim()) {
+            const p = getConfigValue('p', env.p || env.P || '');
+            if (p && p.trim()) {
                 currentWorkerRegion = 'CUSTOM';
+                fallbackAddress = p.trim();
             } else {
                 manualWorkerRegion = '';
             }
         }
         
-        const regionMatchingControl = getConfigValue('rm', '');
-        if (regionMatchingControl && regionMatchingControl.toLowerCase() === 'no') {
-            enableRegionMatching = false;
-        } else {
-            enableRegionMatching = true;
+        const rm = getConfigValue('rm', env.rm || env.RM || '');
+        if (rm !== '') {
+            enableRegionMatching = (rm.toLowerCase() !== 'no' && rm !== false && rm !== 'false');
         }
         
-        const vlessControl = getConfigValue('ev', '');
-        if (vlessControl !== undefined && vlessControl !== '') {
-            ev = vlessControl === 'yes' || vlessControl === true || vlessControl === 'true';
+        // 2. 协议开关 (VLESS, Trojan, xhttp)
+        const evVal = getConfigValue('ev', env.ev);
+        if (evVal !== undefined && evVal !== '') {
+            ev = evVal === 'yes' || evVal === true || evVal === 'true';
         }
         
-        const tjControl = getConfigValue('et', '');
-        if (tjControl !== undefined && tjControl !== '') {
-            et = tjControl === 'yes' || tjControl === true || tjControl === 'true';
+        const etVal = getConfigValue('et', env.et);
+        if (etVal !== undefined && etVal !== '') {
+            et = etVal === 'yes' || etVal === true || etVal === 'true';
         }
         
-        tp = getConfigValue('tp', '') || '';
-        
-        const xhttpControl = getConfigValue('ex', '');
-        if (xhttpControl !== undefined && xhttpControl !== '') {
-            ex = xhttpControl === 'yes' || xhttpControl === true || xhttpControl === 'true';
+        const exVal = getConfigValue('ex', env.ex);
+        if (exVal !== undefined && exVal !== '') {
+            ex = exVal === 'yes' || exVal === true || exVal === 'true';
         }
         
-        if (!ev && !et && !ex) {
-            ev = true;
-        }
+        // 默认至少启用 VLESS
+        if (!ev && !et && !ex) ev = true;
         
-        scu = getConfigValue('scu', '') || 'https://url.v1.mk/sub';
-        
-        const getBoolConfig = (key, def = true) => {
-            const val = getConfigValue(key, '');
-            if (val === '') return def;
-            return val === 'yes' || val === true || val === 'true';
+        tp = getConfigValue('tp', env.tp) || '';
+        scu = getConfigValue('scu', env.scu) || 'https://url.v1.mk/sub';
+        remoteConfigUrl = getConfigValue('remoteConfigUrl', env.remoteConfigUrl) || 'https://raw.githubusercontent.com/lizhi123le/ACL4SSR/master/Clash/config/ACL4SSR_Online_Full_MultiMode.ini';
+
+        // 3. 订阅与节点过滤逻辑
+        const getBoolConfig = (key, envVal, def = true) => {
+            const val = getConfigValue(key, envVal);
+            if (val === '' || val === undefined) return def;
+            return val !== 'no' && val !== false && val !== 'false' && val !== '0' && val !== 0;
         };
 
-        epd = getBoolConfig('epd', true);
-        epi = getBoolConfig('epi', true);
-        egi = getBoolConfig('egi', false);
-        ena = getBoolConfig('ena', false);
-        domainEnabled = getBoolConfig('domain', true);
-        ipv4Enabled = getBoolConfig('ipv4', true);
-        ipv6Enabled = getBoolConfig('ipv6', true);
-        ispMobile = getBoolConfig('ispMobile', true);
-        ispUnicom = getBoolConfig('ispUnicom', true);
-        ispTelecom = getBoolConfig('ispTelecom', true);
+        epd = getBoolConfig('epd', env.epd, true);
+        epi = getBoolConfig('epi', env.epi, true);
+        egi = getBoolConfig('egi', env.egi, false);
+        ena = getBoolConfig('ena', env.ena, false);
+        domainEnabled = getBoolConfig('domain', env.domain, true);
+        ipv4Enabled = getBoolConfig('ipv4', env.ipv4, true);
+        ipv6Enabled = getBoolConfig('ipv6', env.ipv6, true);
+        ispMobile = getBoolConfig('ispMobile', env.ispMobile, true);
+        ispUnicom = getBoolConfig('ispUnicom', env.ispUnicom, true);
+        ispTelecom = getBoolConfig('ispTelecom', env.ispTelecom, true);
         
-        const echControl = getConfigValue('ech', '');
-        if (echControl !== undefined && echControl !== '') {
-            enableECH = echControl === 'yes' || echControl === true || echControl === 'true';
+        // 4. ECH 与 DNS 设置
+        const echVal = getConfigValue('ech', env.ech);
+        if (echVal !== undefined && echVal !== '') {
+            enableECH = echVal === 'yes' || echVal === true || echVal === 'true';
         }
         
-        const randomPathControl = getConfigValue('randomPath', '');
-        if (randomPathControl !== undefined && randomPathControl !== '') {
-            enableRandomPath = randomPathControl === 'yes' || randomPathControl === true || randomPathControl === 'true';
+        const randomPathVal = getConfigValue('randomPath', env.randomPath || env.RANDOMPATH);
+        if (randomPathVal !== undefined && randomPathVal !== '') {
+            enableRandomPath = randomPathVal === 'yes' || randomPathVal === true || randomPathVal === 'true';
         }
         
-        // 更新自定义DNS和ECH域名
-        const customDNSValue = getConfigValue('customDNS', '');
-        if (customDNSValue && customDNSValue.trim()) {
-            customDNS = customDNSValue.trim();
-        } else {
-            customDNS = 'https://223.5.5.5/dns-query';
-        }
+        const dnsVal = getConfigValue('customDNS', env.customDNS);
+        customDNS = (dnsVal && dnsVal.trim()) ? dnsVal.trim() : 'https://223.5.5.5/dns-query';
         
-        const customECHDomainValue = getConfigValue('customECHDomain', '');
-        if (customECHDomainValue && customECHDomainValue.trim()) {
-            customECHDomain = customECHDomainValue.trim();
-        } else {
-            customECHDomain = '';
-        }
+        const echDomainVal = getConfigValue('customECHDomain', env.customECHDomain);
+        customECHDomain = (echDomainVal && echDomainVal.trim()) ? echDomainVal.trim() : '';
         
-        // 如果启用了ECH，自动启用仅TLS模式（避免80端口干扰）
-        // ECH需要TLS才能工作，所以必须禁用非TLS节点
-        if (enableECH) {
+        // 5. 传输安全与回退
+        if (enableECH) disableNonTLS = true;
+        
+        const dkbyVal = getConfigValue('dkby', env.dkby || env.DKBY);
+        if (dkbyVal && dkbyVal.toLowerCase() === 'yes') {
             disableNonTLS = true;
         }
         
-        // 检查dkby配置（如果手动设置了dkby=yes，也会启用仅TLS）
-        const dkbyControl = getConfigValue('dkby', '');
-        if (dkbyControl && dkbyControl.toLowerCase() === 'yes') {
-            disableNonTLS = true;
-        }
-        
-        cp = getConfigValue('d', '') || '';
-        host = getConfigValue('host', '') || '';
+        cp = getConfigValue('d', env.d || env.D) || '';
+        host = getConfigValue('host', env.host || env.HOST) || '';
         if (host && host.trim()) {
             hostList = host.split(',').map(h => h.trim()).filter(h => h).sort(() => Math.random() - 0.5);
         } else {
             hostList = [];
         }
         
-        piu = getConfigValue('yxURL', '') || '';
+        piu = getConfigValue('yxURL', env.yxURL || env.YXURL) || '';
         
-        const envFallback = getConfigValue('p', '');
-        if (envFallback) {
-            fallbackAddress = envFallback.trim();
-        } else {
-            fallbackAddress = '';
-        }
-        
-        socks5Config = getConfigValue('s', '') || '';
-        if (socks5Config) {
+        const socksVal = getConfigValue('s', env.s || env.S) || '';
+        if (socksVal) {
             try {
-                parsedSocks5Config = parseSocksConfig(socks5Config);
+                parsedSocks5Config = parseSocksConfig(socksVal);
                 isSocksEnabled = true;
+                socks5Config = socksVal;
             } catch (err) {
                 isSocksEnabled = false;
             }
@@ -6822,12 +6784,11 @@
             isSocksEnabled = false;
         }
         
-        const yxbyControl = getConfigValue('yxby', '');
-        if (yxbyControl && yxbyControl.toLowerCase() === 'yes') {
-            disablePreferred = true;
-        } else {
-            disablePreferred = false;
-        }
+        const yxbyVal = getConfigValue('yxby', env.yxby || env.YXBY);
+        disablePreferred = (yxbyVal && yxbyVal.toLowerCase() === 'yes');
+
+        // 6. 联动更新优选IP内存状态
+        updateCustomPreferredFromYx();
     }
 
     function updateCustomPreferredFromYx() {
