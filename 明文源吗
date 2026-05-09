@@ -6054,6 +6054,22 @@
         catch (error) { return { error }; }
     }
 
+    function 数据转Uint8Array(data) {
+        if (data instanceof Uint8Array) return data;
+        if (data instanceof ArrayBuffer) return new Uint8Array(data);
+        if (ArrayBuffer.isView(data)) return new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
+        if (typeof data === 'string') return new TextEncoder().encode(data);
+        return new Uint8Array(data || []);
+    }
+
+    async function withTimeout(promise, timeoutMs, errorMsg = 'Operation timed out') {
+        let timeoutId;
+        const timeoutPromise = new Promise((_, reject) => {
+            timeoutId = setTimeout(() => reject(new Error(errorMsg)), timeoutMs);
+        });
+        return Promise.race([promise, timeoutPromise]).finally(() => clearTimeout(timeoutId));
+    }
+
     function closeSocketQuietly(socket) { try { if (socket.readyState === 1 || socket.readyState === 2) socket.close(); } catch (error) {} }
 
     const hexTable = Array.from({ length: 256 }, (v, i) => (i + 256).toString(16).slice(1));
