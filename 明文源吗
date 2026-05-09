@@ -2491,20 +2491,28 @@
     }
 
     async function connectStreams(remoteSocket, webSocket, headerData, retryFunc) {
-        let header = headerData, hasData = false, reader;
-        const BYOB_BUF_SIZE = 128 * 1024;
+        let header = headerData, hasData = false, reader, useBYOB = false;
+        const BYOB_BUF_SIZE = 64 * 1024;
 
         try {
-            // 尝试使用 BYOB 模式提高内存利用率
-            try { reader = remoteSocket.readable.getReader({ mode: 'byob' }); }
-            catch (e) { reader = remoteSocket.readable.getReader(); }
+            // 更加鲁棒的 BYOB 探测方式
+            try { 
+                reader = remoteSocket.readable.getReader({ mode: 'byob' }); 
+                useBYOB = true;
+            } catch (e) { 
+                reader = remoteSocket.readable.getReader(); 
+            }
 
             while (true) {
-                const { done, value } = (reader.read instanceof Function && reader.constructor.name.includes('BYOB')) 
-                    ? await reader.read(new Uint8Array(new ArrayBuffer(BYOB_BUF_SIZE)))
-                    : await reader.read();
+                let result;
+                if (useBYOB) {
+                    result = await reader.read(new Uint8Array(BYOB_BUF_SIZE));
+                } else {
+                    result = await reader.read();
+                }
 
-                if (done) break;
+                if (result.done) break;
+                const value = result.value;
                 hasData = true;
                 
                 if (webSocket.readyState !== 1) break;
@@ -2512,10 +2520,10 @@
                 if (header) {
                     const merged = new Uint8Array(header.length + value.byteLength);
                     merged.set(header, 0); merged.set(value, header.length);
-                    await WebSocket发送并等待(webSocket, merged.buffer);
+                    await WebSocket发送并等待(webSocket, merged); // 直接发送视图
                     header = null;
                 } else {
-                    await WebSocket发送并等待(webSocket, value.buffer || value);
+                    await WebSocket发送并等待(webSocket, value); // 关键：直接发送 Uint8Array 视图
                 }
             }
         } catch (error) {
@@ -2524,7 +2532,7 @@
             try { await reader.cancel(); } catch (e) {}
             try { reader.releaseLock(); } catch (e) {}
             try { remoteSocket.close(); } catch (e) {}
-            reader = null; header = null; // 显式清理内存
+            reader = null; header = null;
         }
         if (!hasData && retryFunc) await retryFunc();
     }
@@ -2548,10 +2556,10 @@
                     if (respHeader) {
                         const merged = new Uint8Array(respHeader.length + 原始响应.byteLength);
                         merged.set(respHeader, 0); merged.set(原始响应, respHeader.length);
-                        await WebSocket发送并等待(webSocket, merged.buffer);
+                        await WebSocket发送并等待(webSocket, merged);
                         respHeader = null;
                     } else {
-                        await WebSocket发送并等待(webSocket, 原始响应.buffer);
+                        await WebSocket发送并等待(webSocket, 原始响应);
                     }
                 }
                 return; // 成功则退出
