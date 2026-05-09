@@ -2434,14 +2434,10 @@
         try {
             const initialSocket = await connectAndSend(host, portNum, enableSocksDowngrade ? false : effectiveSocksEnabled);
             remoteConnWrapper.socket = initialSocket;
-            await connectStreams(initialSocket, ws, respHeader, retryConnection);
+            // 关键：不能 await connectStreams，它必须在后台运行以避免阻塞上行 write 循环
+            connectStreams(initialSocket, ws, respHeader, retryConnection);
         } catch (err) {
-            await retryConnection();
-        } finally {
-            // 确保没有残留引用
-            if (!remoteConnWrapper.socket) {
-                try { ws.close(); } catch(e) {}
-            }
+            retryConnection();
         }
     }
 
