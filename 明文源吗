@@ -1797,11 +1797,11 @@
         const cache = caches.default;
         const cacheUrl = new URL(request.url);
         if (configVersion) cacheUrl.searchParams.set('v', configVersion);
-        const cacheKey = new Request(cacheUrl.toString(), request);
+        let cacheKey = new Request(cacheUrl.toString(), request);
         let cachedResponse = await cache.match(cacheKey);
         if (cachedResponse) return cachedResponse;
         
-        // 缓存未命中 → 读取最新 config_version（最多 1 次 KV 读 / 180s / 节点），构造版本化键重试
+        // 缓存未命中 → 读取最新 config_version（最多 1 次 KV 读 / 180s / 节点），更新缓存键
         if (kvStore) {
             try {
                 const v = await kvStore.get('config_version');
@@ -1809,8 +1809,8 @@
                     configVersion = v;
                     const vUrl = new URL(request.url);
                     vUrl.searchParams.set('v', configVersion);
-                    const vKey = new Request(vUrl.toString(), request);
-                    const vHit = await cache.match(vKey);
+                    cacheKey = new Request(vUrl.toString(), request);
+                    const vHit = await cache.match(cacheKey);
                     if (vHit) return vHit;
                 }
             } catch (e) { /* 读取失败则静默继续，使用无版本键生成 */ }
