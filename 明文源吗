@@ -56,6 +56,9 @@
     let kvConfigCache = null;
     let kvConfigCacheTime = 0;
     const CACHE_TTL = 3 * 24 * 60 * 60 * 1000; // 3天缓存，降低KV读取次数
+    
+    // 全局订阅缓存版本号 - 用于 Cache API 缓存失效，仅在缓存未命中时从 KV 读取
+    let configVersion = null;
 
     const regionMapping = {
         'HK': ['🇭🇰 香港', 'HK', 'Hong Kong'],
@@ -196,6 +199,9 @@
             // 写入配置
             await kvStore.put('c', configString);
             
+            // 同步更新缓存版本号，触发全球节点 Cache API 失效
+            await kvStore.put('config_version', Date.now().toString());
+            configVersion = null;
         } catch (error) {
             throw error; 
         }
@@ -1787,6 +1793,29 @@
     async function handleSubscriptionRequest(request, user, url = null) {
         if (!url) url = new URL(request.url);
         
+        // Cache API 缓存查询 — 仅在缓存未命中时读取 config_version，避免轮询 KV
+        const cache = caches.default;
+        const cacheUrl = new URL(request.url);
+        if (configVersion) cacheUrl.searchParams.set('v', configVersion);
+        const cacheKey = new Request(cacheUrl.toString(), request);
+        let cachedResponse = await cache.match(cacheKey);
+        if (cachedResponse) return cachedResponse;
+        
+        // 缓存未命中 → 读取最新 config_version（最多 1 次 KV 读 / 180s / 节点），构造版本化键重试
+        if (kvStore) {
+            try {
+                const v = await kvStore.get('config_version');
+                if (v && v !== configVersion) {
+                    configVersion = v;
+                    const vUrl = new URL(request.url);
+                    vUrl.searchParams.set('v', configVersion);
+                    const vKey = new Request(vUrl.toString(), request);
+                    const vHit = await cache.match(vKey);
+                    if (vHit) return vHit;
+                }
+            } catch (e) { /* 读取失败则静默继续，使用无版本键生成 */ }
+        }
+        
         const finalLinks = [];
         const workerDomain = url.hostname;
         let target = url.searchParams.get('target');
@@ -1986,7 +2015,7 @@
         
         const responseHeaders = { 
             'Content-Type': contentType,
-            'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+            'Cache-Control': 'public, max-age=180, s-maxage=180',
         };
         
         // 添加ECH状态到响应头
@@ -1994,9 +2023,10 @@
             responseHeaders['X-ECH-Status'] = 'ENABLED';
         }
         
-        return new Response(subscriptionContent, {
-            headers: responseHeaders,
-        });
+        const subResponse = new Response(subscriptionContent, { headers: responseHeaders });
+        // 写入 Cache API（配置变更后会因 config_version 变化而自动失效）
+        if (kvStore) ctx.waitUntil(cache.put(cacheKey, subResponse.clone()));
+        return subResponse;
     }
 
     async function generateLinksFromSource(list, user, workerDomain) {
