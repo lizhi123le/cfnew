@@ -2015,7 +2015,7 @@
         
         const responseHeaders = { 
             'Content-Type': contentType,
-            'Cache-Control': 'public, max-age=180, s-maxage=180',
+            'Cache-Control': 'public, max-age=360, s-maxage=360',
         };
         
         // 添加ECH状态到响应头
@@ -2025,7 +2025,7 @@
         
         const subResponse = new Response(subscriptionContent, { headers: responseHeaders });
         // 写入 Cache API（配置变更后会因 config_version 变化而自动失效）
-        if (kvStore) ctx.waitUntil(cache.put(cacheKey, subResponse.clone()));
+        if (kvStore) await cache.put(cacheKey, subResponse.clone());
         return subResponse;
     }
 
