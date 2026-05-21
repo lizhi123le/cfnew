@@ -3955,10 +3955,11 @@
                 .title { font-size: 2rem; }
                 .cp-hud { font-size: 9px; }
                 .cp-action-bar {
-                    right: 50%;
+                    right: auto;
+                    left: 10px;
                     bottom: 14px;
-                    transform: translateX(50%);
-                    gap: 8px;
+                    transform: none;
+                    gap: 6px;
                 }
                 .cp-fab-save {
                     min-width: 0;
@@ -3966,7 +3967,6 @@
                     font-size: 0.8rem !important;
                     letter-spacing: 0.16em !important;
                 }
-                .cp-fab-save .cp-fab-label { display: none; }
                 .cp-action-btn { width: 42px; height: 42px; }
                 .cp-action-status { right: 50%; transform: translate(50%, 8px); }
                 .cp-action-status.cp-show { transform: translate(50%, 0); }
