@@ -1,5 +1,5 @@
-    // CFnew - 终端 v2.9.6
-    // 版本: v2.9.6 
+    // CFnew - 终端 v2.9.7
+    // 版本: v2.9.7 
     import { connect } from 'cloudflare:sockets';
     let at = '351c9981-04b6-4103-aa4b-864aa9c91469';
     let fallbackAddress = '';
@@ -29,6 +29,9 @@
     // 自定义ECH域名（默认：节点host）
     let customECHDomain = '';
 
+    const globalEchCache = new Map();
+    const globalIpv4Regex = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
+
     let scu = 'https://url.v1.mk/sub';  
     // 远程配置URL（可配置）
     let remoteConfigUrl = 'https://raw.githubusercontent.com/lizhi123le/ACL4SSR/master/Clash/config/ACL4SSR_Online_Full_MultiMode.ini';
@@ -52,7 +55,10 @@
     // KV配置缓存（方案1：内存缓存）
     let kvConfigCache = null;
     let kvConfigCacheTime = 0;
-    const CACHE_TTL = 1 * 60 * 60 * 1000; // 1小时缓存
+    const CACHE_TTL = 3 * 24 * 60 * 60 * 1000; // 3天缓存，降低KV读取次数
+    
+    // 全局订阅缓存版本号 - 用于 Cache API 缓存失效，仅在缓存未命中时从 KV 读取
+    let configVersion = null;
 
     const regionMapping = {
         'HK': ['🇭🇰 香港', 'HK', 'Hong Kong'],
@@ -124,8 +130,7 @@
     }
 
     function isValidIP(ip) {
-        const ipv4Regex = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
-        if (ipv4Regex.test(ip)) return true;
+        if (globalIpv4Regex.test(ip)) return true;
         
         const ipv6Regex = /^(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$/;
         if (ipv6Regex.test(ip)) return true;
@@ -142,7 +147,7 @@
             try {
                 kvStore = env.C;
                 await loadKVConfig();
-                updateConfigVariables(); // 更新配置变量
+                updateConfigVariables(env); // 更新配置变量，传入 env 以便处理回退
             } catch (error) {
                 kvStore = null;
             }
@@ -156,24 +161,25 @@
             return;
         }
         
-        // 方案1：检查内存缓存（简单缓存，无版本验证）
-        if (kvConfigCache && Date.now() - kvConfigCacheTime < CACHE_TTL) {
-            kvConfig = kvConfigCache;
-            return;
-        }
-        
         try {
+            // 方案1：检查内存缓存
+            if (kvConfigCache && Date.now() - kvConfigCacheTime < CACHE_TTL) {
+                kvConfig = JSON.parse(JSON.stringify(kvConfigCache));
+                return;
+            }
+
+            // 缓解并发冲击：增加 0-300ms 随机延迟
+            await new Promise(r => setTimeout(r, Math.random() * 300));
+            
             const configData = await kvStore.get('c');
             
             if (configData) {
                 kvConfig = JSON.parse(configData);
-                // 更新内存缓存
                 kvConfigCache = kvConfig;
                 kvConfigCacheTime = Date.now();
             } else {
-                // KV为空时也要更新缓存，避免每次请求都重新读取
                 kvConfig = kvConfig || {};
-                kvConfigCache = kvConfig; // 缓存空对象
+                kvConfigCache = kvConfig;
                 kvConfigCacheTime = Date.now();
             }
         } catch (error) {
@@ -193,6 +199,9 @@
             // 写入配置
             await kvStore.put('c', configString);
             
+            // 同步更新缓存版本号，触发全球节点 Cache API 失效
+            await kvStore.put('config_version', Date.now().toString());
+            configVersion = null;
         } catch (error) {
             throw error; 
         }
@@ -209,9 +218,13 @@
     async function setConfigValue(key, value) {
         kvConfig[key] = value;
         await saveKVConfig();
-        // 方案2：清除内存缓存，强制下次读取最新配置
-        kvConfigCache = null;
-        kvConfigCacheTime = 0;
+        
+        // 更新内存缓存，确保当前 Isolate 的后续请求能立即看到更新
+        kvConfigCache = JSON.parse(JSON.stringify(kvConfig));
+        kvConfigCacheTime = Date.now();
+        
+        // 同步更新所有内存变量
+        updateConfigVariables();
     }
 
     async function detectWorkerRegion(request) {
@@ -512,8 +525,7 @@
                 if (customECHDomainValue && customECHDomainValue.trim()) {
                     customECHDomain = customECHDomainValue.trim();
                 } else {
-                    // 默认使用当前节点的主机名 (url.hostname)
-                    customECHDomain = url.hostname;
+                    customECHDomain = '';
                 }
                 
                 // 如果启用了ECH，自动启用仅TLS模式（避免80端口干扰）
@@ -1354,7 +1366,9 @@
                 }
                 
                 if (ech) {
-                    const echDomain = customECHDomain;
+                    // 从 ech 参数中提取域名（格式为 domain+dnsServer）
+                    const echParts = ech.split('+');
+                    const echDomain = echParts[0] || customECHDomain || getRandomHost(workerDomain);
                     delete node.alpn; // ECH 开启时不设置 ALPN
                     node['ech-opts'] = {
                         enable: true,
@@ -1403,7 +1417,9 @@
                 }
                 
                 if (ech) {
-                    const echDomain = customECHDomain;
+                    // 从 ech 参数中提取域名（格式为 domain+dnsServer）
+                    const echParts = ech.split('+');
+                    const echDomain = echParts[0] || customECHDomain || getRandomHost(workerDomain);
                     delete node.alpn; // ECH 开启时不设置 ALPN
                     node['ech-opts'] = {
                         enable: true,
@@ -1463,7 +1479,12 @@
                 const processedLines = [];
                 let i = 0;
 
+                let linesProcessedCount = 0;
                 while (i < lines.length) {
+                    linesProcessedCount++;
+                    if (linesProcessedCount % 200 === 0) {
+                        await new Promise(r => setTimeout(r, 0));
+                    }
                     const line = lines[i];
                     const trimmedLine = line.trim();
 
@@ -1567,10 +1588,14 @@
             if (enableECH) {
                 const workerDomain = new URL(request.url).hostname;
                 const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
-                const echCache = new Map();
                 
                 if (config.outbounds) {
+                    let sbProcessedCount = 0;
                     for (const outbound of config.outbounds) {
+                        sbProcessedCount++;
+                        if (sbProcessedCount % 200 === 0) {
+                            await new Promise(r => setTimeout(r, 0));
+                        }
                         // 匹配凭据以识别需要注入 ECH 的节点 (VLESS/Trojan/xhttp)
                         const isUUIDMatch = outbound.uuid && (outbound.uuid === at || outbound.uuid === user);
                         const isPasswordMatch = outbound.password && (outbound.password === at || outbound.password === user || (typeof tp !== 'undefined' && tp && outbound.password === tp));
@@ -1580,11 +1605,11 @@
                             
                             // 使用缓存避免重复请求
                             let echData;
-                            if (echCache.has(nodeECHDomain)) {
-                                echData = echCache.get(nodeECHDomain);
+                            if (globalEchCache.has(nodeECHDomain)) {
+                                echData = globalEchCache.get(nodeECHDomain);
                             } else {
                                 echData = await getECHConfig(nodeECHDomain);
-                                if (echData) echCache.set(nodeECHDomain, echData);
+                                if (echData) globalEchCache.set(nodeECHDomain, echData);
                             }
                             
                             if (echData) {
@@ -1768,22 +1793,65 @@
     async function handleSubscriptionRequest(request, user, url = null) {
         if (!url) url = new URL(request.url);
         
-        const finalLinks = [];
-        let workerDomain = url.hostname;
-        const target = url.searchParams.get('target') || 'base64';
+        // Cache API 缓存查询 — 仅在缓存未命中时读取 config_version，避免轮询 KV
+        const cache = caches.default;
+        const cacheUrl = new URL(request.url);
+        if (configVersion) cacheUrl.searchParams.set('v', configVersion);
+        let cacheKey = new Request(cacheUrl.toString(), request);
+        let cachedResponse = await cache.match(cacheKey);
+        if (cachedResponse) return cachedResponse;
         
-        // 使用 getRandomHost(workerDomain) 获取一个主 worker 域名，用于一些全局回退
-        workerDomain = getRandomHost(workerDomain);
+        // 缓存未命中 → 读取最新 config_version（最多 1 次 KV 读 / 180s / 节点），更新缓存键
+        if (kvStore) {
+            try {
+                const v = await kvStore.get('config_version');
+                if (v && v !== configVersion) {
+                    configVersion = v;
+                    const vUrl = new URL(request.url);
+                    vUrl.searchParams.set('v', configVersion);
+                    cacheKey = new Request(vUrl.toString(), request);
+                    const vHit = await cache.match(cacheKey);
+                    if (vHit) return vHit;
+                }
+            } catch (e) { /* 读取失败则静默继续，使用无版本键生成 */ }
+        }
+        
+        const finalLinks = [];
+        const workerDomain = url.hostname;
+        let target = url.searchParams.get('target');
+        
+        // 自动检测 User-Agent
+        if (!target) {
+            const ua = request.headers.get('User-Agent') || '';
+            if (ua.includes('Surge')) target = atob('c3VyZ2U=');
+            else if (ua.includes('Clash')) target = atob('Y2xhc2g=');
+            else if (ua.includes('Quantumult')) target = atob('cXVhbnR1bXVsdA==');
+            else if (ua.includes('Loon')) target = atob('bG9vbg==');
+            else if (ua.includes('Stash')) target = atob('Y2xhc2g=');
+            else if (ua.includes('V2Ray') || ua.includes('v2rayNG')) target = atob('djJyYXk=');
+            else target = 'base64';
+        }
+        
+        // 微调：确保在获取surge订阅时，不管前端设置什么协议，默认只下发Trojan协议节点
+        let currentEv = ev;
+        let currentEt = et;
+        let currentEx = ex;
+        const isSurge = [atob('c3VyZ2U='), atob('c3VyZ2Uy'), atob('c3VyZ2Uz'), atob('c3VyZ2U0')].includes(target.toLowerCase());
+        if (isSurge) {
+            currentEv = false;
+            currentEt = true;
+            currentEx = false;
+        }
 
         async function addNodesFromList(list) {
-            if (ev) {
-                finalLinks.push(...generateLinksFromSource(list, user, workerDomain));
+            if (currentEv) {
+                finalLinks.push(...await generateLinksFromSource(list, user, workerDomain));
             }
-            if (et) {
+            if (currentEt) {
                 finalLinks.push(...await generateTrojanLinksFromSource(list, user, workerDomain));
             }
-            if (ex) {
-                finalLinks.push(...generateXhttpLinksFromSource(list, user, workerDomain));
+            if (currentEx) {
+                finalLinks.push(...await generateXhttpLinksFromSource(list, user, workerDomain));
             }
         }
 
@@ -1831,8 +1899,7 @@
         const globalFilter = (item) => {
             const host = item.ip || '';
             const isIPv6 = host.includes(':') || (host.includes('[') && host.includes(']'));
-            const ipv4Regex = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
-            const isIPv4 = !isIPv6 && ipv4Regex.test(host);
+            const isIPv4 = !isIPv6 && globalIpv4Regex.test(host);
             const isDomain = !isIPv6 && !isIPv4;
             
             // IP 版本与域名过滤
@@ -1866,17 +1933,17 @@
         // --- 统一生成节点链路，按要求排序：VLESS -> Trojan -> xhttp ---
 
         // A. VLESS 节点 (最前面)
-        if (ev) {
+        if (currentEv) {
             for (const source of allSources) {
-                finalLinks.push(...generateLinksFromSource(source.list, user, workerDomain));
+                finalLinks.push(...await generateLinksFromSource(source.list, user, workerDomain));
             }
             if (newIPList.length > 0) {
-                finalLinks.push(...generateLinksFromNewIPs(newIPList, user, workerDomain));
+                finalLinks.push(...await generateLinksFromNewIPs(newIPList, user, workerDomain));
             }
         }
 
         // B. Trojan 节点 (中间)
-        if (et) {
+        if (currentEt) {
             for (const source of allSources) {
                 finalLinks.push(...await generateTrojanLinksFromSource(source.list, user, workerDomain));
             }
@@ -1886,9 +1953,9 @@
         }
 
         // C. xhttp 节点 (最后面)
-        if (ex) {
+        if (currentEx) {
             for (const source of allSources) {
-                finalLinks.push(...generateXhttpLinksFromSource(source.list, user, workerDomain));
+                finalLinks.push(...await generateXhttpLinksFromSource(source.list, user, workerDomain));
             }
             if (newIPList.length > 0) {
                 // 确保 yxURL 解析出来的 IP 也支持 xhttp
@@ -1897,7 +1964,7 @@
                     port: item.port,
                     isp: item.name || item.ip
                 }));
-                finalLinks.push(...generateXhttpLinksFromSource(xhttpList, user, workerDomain));
+                finalLinks.push(...await generateXhttpLinksFromSource(xhttpList, user, workerDomain));
             }
         }
 
@@ -1948,7 +2015,7 @@
         
         const responseHeaders = { 
             'Content-Type': contentType,
-            'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+            'Cache-Control': 'public, max-age=360, s-maxage=360',
         };
         
         // 添加ECH状态到响应头
@@ -1956,12 +2023,13 @@
             responseHeaders['X-ECH-Status'] = 'ENABLED';
         }
         
-        return new Response(subscriptionContent, {
-            headers: responseHeaders,
-        });
+        const subResponse = new Response(subscriptionContent, { headers: responseHeaders });
+        // 写入 Cache API（配置变更后会因 config_version 变化而自动失效）
+        if (kvStore) await cache.put(cacheKey, subResponse.clone());
+        return subResponse;
     }
 
-    function generateLinksFromSource(list, user, workerDomain) {
+    async function generateLinksFromSource(list, user, workerDomain) {
         
         const CF_HTTP_PORTS = [80, 8080, 8880, 2052, 2082, 2086, 2095];
         const CF_HTTPS_PORTS = [443, 2053, 2083, 2087, 2096, 8443];
@@ -1971,7 +2039,13 @@
         const links = [];
         const proto = atob('dmxlc3M=');
 
-        list.forEach(item => {
+        let linksProcessedCount = 0;
+        for (let i = 0; i < list.length; i++) {
+            linksProcessedCount++;
+            if (linksProcessedCount % 200 === 0) {
+                await new Promise(r => setTimeout(r, 0));
+            }
+            const item = list[i];
             let nodeNameBase = item.isp.replace(/\s/g, '_');
             if (item.colo && item.colo.trim()) {
                 nodeNameBase = `${nodeNameBase}-${item.colo.trim()}`;
@@ -2007,7 +2081,7 @@
                 });
             }
 
-            portsToGenerate.forEach(({ port, tls }) => {
+            for (const { port, tls } of portsToGenerate) {
                 if (tls) {
                     
                     const wsNodeName = `${nodeNameBase}-${port}-WS-TLS`;
@@ -2022,11 +2096,22 @@
                         path: currentNodePath
                     });
                     
-                    // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
+                    // 如果启用了ECH，添加ech和echconfiglist参数
                     if (enableECH) {
                         const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
-                        const echDomain = customECHDomain || randomHost;
+                        const echDomain = customECHDomain || getRandomHost(workerDomain);
                         wsParams.set('ech', `${echDomain}+${dnsServer}`);
+                        
+                        let echConfig = '';
+                        if (globalEchCache.has(echDomain)) {
+                            echConfig = globalEchCache.get(echDomain);
+                        } else {
+                            echConfig = await getECHConfig(echDomain);
+                            globalEchCache.set(echDomain, echConfig);
+                        }
+                        if (echConfig) {
+                            wsParams.set('echconfiglist', echConfig);
+                        }
                     }
                     
                     links.push(`${proto}://${user}@${safeIP}:${port}?${wsParams.toString()}#${encodeURIComponent(wsNodeName)}`);
@@ -2043,8 +2128,8 @@
                     });
                     links.push(`${proto}://${user}@${safeIP}:${port}?${wsParams.toString()}#${encodeURIComponent(wsNodeName)}`);
                 }
-            });
-        });
+            }
+        }
         return links;
     }
 
@@ -2059,7 +2144,13 @@
         
         const password = tp || user;
 
-        list.forEach(item => {
+        let trojanLinksProcessedCount = 0;
+        for (let i = 0; i < list.length; i++) {
+            trojanLinksProcessedCount++;
+            if (trojanLinksProcessedCount % 200 === 0) {
+                await new Promise(r => setTimeout(r, 0));
+            }
+            const item = list[i];
             let nodeNameBase = item.isp.replace(/\s/g, '_');
             if (item.colo && item.colo.trim()) {
                 nodeNameBase = `${nodeNameBase}-${item.colo.trim()}`;
@@ -2090,7 +2181,7 @@
                 });
             }
 
-            portsToGenerate.forEach(({ port, tls }) => {
+            for (const { port, tls } of portsToGenerate) {
                 if (tls) {
                     
                     const wsNodeName = `${nodeNameBase}-${port}-${atob('VHJvamFu')}-WS-TLS`;
@@ -2104,11 +2195,22 @@
                         path: currentNodePath
                     });
                     
-                    // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
+                    // 如果启用了ECH，添加ech和echconfiglist参数
                     if (enableECH) {
                         const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
-                        const echDomain = customECHDomain || randomHost;
+                        const echDomain = customECHDomain || getRandomHost(workerDomain);
                         wsParams.set('ech', `${echDomain}+${dnsServer}`);
+                        
+                        let echConfig = '';
+                        if (globalEchCache.has(echDomain)) {
+                            echConfig = globalEchCache.get(echDomain);
+                        } else {
+                            echConfig = await getECHConfig(echDomain);
+                            globalEchCache.set(echDomain, echConfig);
+                        }
+                        if (echConfig) {
+                            wsParams.set('echconfiglist', echConfig);
+                        }
                     }
                     
                     links.push(`${atob('dHJvamFuOi8v')}${password}@${safeIP}:${port}?${wsParams.toString()}#${encodeURIComponent(wsNodeName)}`);
@@ -2124,8 +2226,8 @@
                     });
                     links.push(`${atob('dHJvamFuOi8v')}${password}@${safeIP}:${port}?${wsParams.toString()}#${encodeURIComponent(wsNodeName)}`);
                 }
-            });
-        });
+            }
+        }
         return links;
     }
 
@@ -2234,17 +2336,25 @@
         const earlyData = request.headers.get(atob('c2VjLXdlYnNvY2tldC1wcm90b2NvbA==')) || '';
         const readable = makeReadableStream(serverSock, earlyData);
 
+        let wsUploadChunkCount = 0;
         readable.pipeTo(new WritableStream({
             async write(chunk) {
-                if (isDnsQuery) return await forwardUDP(chunk, serverSock, null);
+                let dataChunk = chunk;
+                wsUploadChunkCount++;
+                if (wsUploadChunkCount % 100 === 0) {
+                    await new Promise(r => setTimeout(r, 0));
+                }
+                
+                if (isDnsQuery) return await forwardUDP(dataChunk, serverSock, null);
                 if (remoteConnWrapper.socket) {
                     const writer = remoteConnWrapper.socket.writable.getWriter();
-                    await writer.write(chunk);
+                    await writer.write(dataChunk);
                     writer.releaseLock();
                     return;
                 }
                 
                 if (!protocolType) {
+                    if (chunk.byteLength > 16384) throw new Error('Header too large'); // 安全限制
                     
                     if (ev && chunk.byteLength >= 24) {
                         const vlessResult = parseWsPacketHeader(chunk, at);
@@ -2354,6 +2464,7 @@
         try {
             const initialSocket = await connectAndSend(host, portNum, enableSocksDowngrade ? false : effectiveSocksEnabled);
             remoteConnWrapper.socket = initialSocket;
+            // 关键：不能 await connectStreams，它必须在后台运行以避免阻塞上行 write 循环
             connectStreams(initialSocket, ws, respHeader, retryConnection);
         } catch (err) {
             retryConnection();
@@ -2396,38 +2507,92 @@
         });
     }
 
+    async function WebSocket发送并等待(ws, payload) {
+        // 增加反压控制，防止 WS 发送队列撑爆内存
+        if (ws.bufferedAmount > 1024 * 1024) {
+            await new Promise(r => setTimeout(r, 10));
+        }
+        const sendResult = ws.send(payload);
+        if (sendResult && typeof sendResult.then === 'function') await sendResult;
+    }
+
     async function connectStreams(remoteSocket, webSocket, headerData, retryFunc) {
-        let header = headerData, hasData = false;
-        await remoteSocket.readable.pipeTo(
-            new WritableStream({
-                async write(chunk, controller) {
-                    hasData = true;
-                    if (webSocket.readyState !== 1) controller.error(E_WS_NOT_OPEN);
-                    if (header) { webSocket.send(await new Blob([header, chunk]).arrayBuffer()); header = null; } 
-                    else { webSocket.send(chunk); }
-                },
-                abort(reason) { },
-            })
-        ).catch((error) => { closeSocketQuietly(webSocket); });
-        if (!hasData && retryFunc) retryFunc();
+        let header = headerData, hasData = false, reader, useBYOB = false;
+        const BYOB_BUF_SIZE = 64 * 1024;
+
+        try {
+            // 更加鲁棒的 BYOB 探测方式
+            try { 
+                reader = remoteSocket.readable.getReader({ mode: 'byob' }); 
+                useBYOB = true;
+            } catch (e) { 
+                reader = remoteSocket.readable.getReader(); 
+            }
+
+            while (true) {
+                let result;
+                if (useBYOB) {
+                    result = await reader.read(new Uint8Array(BYOB_BUF_SIZE));
+                } else {
+                    result = await reader.read();
+                }
+
+                if (result.done) break;
+                const value = result.value;
+                hasData = true;
+                
+                if (webSocket.readyState !== 1) break;
+                
+                if (header) {
+                    const merged = new Uint8Array(header.length + value.byteLength);
+                    merged.set(header, 0); merged.set(value, header.length);
+                    await WebSocket发送并等待(webSocket, merged); // 直接发送视图
+                    header = null;
+                } else {
+                    await WebSocket发送并等待(webSocket, value); // 关键：直接发送 Uint8Array 视图
+                }
+            }
+        } catch (error) {
+            closeSocketQuietly(webSocket);
+        } finally {
+            try { await reader.cancel(); } catch (e) {}
+            try { reader.releaseLock(); } catch (e) {}
+            try { remoteSocket.close(); } catch (e) {}
+            reader = null; header = null;
+        }
+        if (!hasData && retryFunc) await retryFunc();
     }
 
     async function forwardUDP(udpChunk, webSocket, respHeader) {
-        try {
-            const tcpSocket = connect({ hostname: '8.8.4.4', port: 53 });
-            let header = respHeader;
-            const writer = tcpSocket.writable.getWriter();
-            await writer.write(udpChunk);
-            writer.releaseLock();
-            await tcpSocket.readable.pipeTo(new WritableStream({
-                async write(chunk) {
-                    if (webSocket.readyState === 1) {
-                        if (header) { webSocket.send(await new Blob([header, chunk]).arrayBuffer()); header = null; } 
-                        else { webSocket.send(chunk); }
+        const 请求数据 = 数据转Uint8Array(udpChunk);
+        const DNS上游列表 = [customDNS, 'https://1.1.1.1/dns-query', 'https://8.8.8.8/dns-query'];
+        
+        for (const dnsUrl of DNS上游列表) {
+            try {
+                const response = await withTimeout(fetch(dnsUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/dns-message', 'Accept': 'application/dns-message' },
+                    body: 请求数据
+                }), 5000);
+                
+                if (!response.ok) continue;
+                
+                const 原始响应 = new Uint8Array(await response.arrayBuffer());
+                if (webSocket.readyState === 1) {
+                    if (respHeader) {
+                        const merged = new Uint8Array(respHeader.length + 原始响应.byteLength);
+                        merged.set(respHeader, 0); merged.set(原始响应, respHeader.length);
+                        await WebSocket发送并等待(webSocket, merged);
+                        respHeader = null;
+                    } else {
+                        await WebSocket发送并等待(webSocket, 原始响应);
                     }
-                },
-            }));
-        } catch (error) { }
+                }
+                return; // 成功则退出
+            } catch (err) {
+                continue; // 尝试下一个
+            }
+        }
     }
 
     async function establishSocksConnection(addrType, address, port, socksConfig = parsedSocks5Config) {
@@ -2632,7 +2797,7 @@
                         KR: '🇰🇷 韩国', DE: '🇩🇪 德国', SE: '🇸🇪 瑞典', NL: '🇳🇱 荷兰',
                         FI: '🇫🇮 芬兰', GB: '🇬🇧 英国'
                     },
-                    terminal: '终端 v2.9.6',
+                    terminal: '终端 v2.9.7',
                     githubProject: 'GitHub 项目',
                     autoDetectClient: '自动识别',
                 selectionLogicText: '同地区 → 邻近地区 → 其他地区',
@@ -2779,7 +2944,7 @@
                         KR: '🇰🇷 کره جنوبی', DE: '🇩🇪 آلمان', SE: '🇸🇪 سوئد', NL: '🇳▌ هلند',
                         FI: '🇫🇮 فنلاند', GB: '🇬🇧 بریتانیا'
                     },
-                    terminal: 'ترمینال v2.9.6',
+                    terminal: 'ترمینال v2.9.7',
                     githubProject: 'پروژه GitHub',
                     autoDetectClient: 'تشخیص خودکار',
                 selectionLogicText: 'هم‌منطقه → منطقه مجاور → سایر مناطق',
@@ -2980,6 +3145,55 @@
                 transform: translateY(-4px) scale(1.08);
                 text-shadow: 0 0 15px #00ff00, 0 0 25px #00ff00;
             }
+            .terminal-btn {
+                background: rgba(0, 20, 0, 0.8);
+                border: 2px solid #00ff00;
+                padding: 10px 20px;
+                color: #00ff00;
+                font-family: "Courier New", monospace;
+                font-weight: bold;
+                cursor: pointer;
+                transition: all 0.3s ease;
+                text-shadow: 0 0 5px #00ff00;
+                box-shadow: 0 0 10px rgba(0, 255, 0, 0.2);
+                position: relative;
+                overflow: hidden;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                gap: 8px;
+            }
+            .terminal-btn::before {
+                content: ""; position: absolute; top: 0; left: -100%;
+                width: 100%; height: 100%;
+                background: linear-gradient(90deg, transparent, rgba(0,255,0,0.3), transparent);
+                transition: left 0.6s ease;
+            }
+            .terminal-btn:hover::before { left: 100%; }
+            .terminal-btn:hover {
+                background: rgba(0, 35, 0, 0.9);
+                box-shadow: 0 0 20px rgba(0, 255, 0, 0.4);
+                transform: translateY(-2px);
+                text-shadow: 0 0 8px #00ff00;
+            }
+            .terminal-btn:active { transform: translateY(0); }
+            
+            .terminal-btn-red { border-color: #ff4444; color: #ff4444; text-shadow: 0 0 5px #ff4444; }
+            .terminal-btn-red::before { background: linear-gradient(90deg, transparent, rgba(255,68,68,0.3), transparent); }
+            .terminal-btn-red:hover { 
+                background: rgba(30, 0, 0, 0.9); 
+                box-shadow: 0 0 20px rgba(255, 0, 0, 0.3);
+                text-shadow: 0 0 8px #ff4444;
+            }
+            
+            .terminal-btn-blue { border-color: #00aaff; color: #00aaff; text-shadow: 0 0 5px #00aaff; }
+            .terminal-btn-blue::before { background: linear-gradient(90deg, transparent, rgba(0,170,255,0.3), transparent); }
+            .terminal-btn-blue:hover { 
+                background: rgba(0, 20, 30, 0.9); 
+                box-shadow: 0 0 20px rgba(0, 170, 255, 0.3);
+                text-shadow: 0 0 8px #00aaff;
+            }
+            
             .atob('c3Vic2NyaXB0aW9u')-url {
                 background: rgba(0, 0, 0, 0.9);
                 border: 2px solid #00ff00; padding: 15px;
@@ -3014,6 +3228,26 @@
             @keyframes matrix-flicker {
                 0%, 100% { opacity: 0.6; }
                 50% { opacity: 1; }
+            }
+            
+            /* 移动端优化 */
+            @media (max-width: 600px) {
+                .container { padding: 10px; }
+                .card { padding: 15px; }
+                .title { font-size: 2.2rem; }
+                .header { margin-bottom: 20px; }
+                #latencyTestResults { 
+                    max-height: 90vh; 
+                    overflow: hidden;
+                }
+                #latencyResultsList { 
+                    max-height: calc(90vh - 180px);
+                    overflow-y: auto;
+                    -webkit-overflow-scrolling: touch;
+                    touch-action: pan-y;
+                }
+                #latencyTestFixedHeader { padding: 10px; }
+                #cityCheckboxesContainer { max-height: 120px; }
             }
         </style>
     </head>
@@ -3086,7 +3320,7 @@
                             </select>
                                 <small id="wkRegionHint" style="color: #00aa00; font-size: 0.85rem; display: none;">⚠️ ${t.customIPDisabledHint}</small>
                         </div>
-                            <button type="submit" style="background: rgba(0, 255, 0, 0.15); border: 2px solid #00ff00; padding: 12px 24px; color: #00ff00; font-family: 'Courier New', monospace; font-weight: bold; cursor: pointer; margin-right: 10px; text-shadow: 0 0 8px #00ff00; transition: all 0.4s ease;">${t.saveRegion}</button>
+                            <button type="submit" class="terminal-btn" style="padding: 12px 24px; margin-right: 10px;">${t.saveRegion}</button>
                     </form>
                     <form id="otherConfigForm" style="margin-bottom: 20px;">
                         <div style="margin-bottom: 15px;">
@@ -3142,7 +3376,7 @@
                                         <small style="color: #00aa00; font-size: 0.8rem; display: block; margin-top: 5px;">${t.trojanPasswordHint}</small>
                                 </div>
                                     <small style="color: #00aa00; font-size: 0.85rem; display: block; margin-top: 10px;">${t.protocolHint}</small>
-                                    <button type="button" id="saveProtocolBtn" style="margin-top: 15px; background: rgba(0, 255, 0, 0.15); border: 2px solid #00ff00; padding: 10px 20px; color: #00ff00; font-family: 'Courier New', monospace; font-weight: bold; cursor: pointer; text-shadow: 0 0 8px #00ff00; transition: all 0.4s ease; width: 100%;">${t.saveProtocol}</button>
+                                    <button type="button" id="saveProtocolBtn" class="terminal-btn" style="margin-top: 15px; width: 100%;">${t.saveProtocol}</button>
                             </div>
                         </div>
                         <div style="margin-bottom: 15px;">
@@ -3208,43 +3442,55 @@
                                 <label style="display: block; margin-bottom: 5px; color: #00ff00; font-size: 0.9rem;">${t.fetchURL}</label>
                                 <div style="display: flex; gap: 8px;">
                                     <input type="text" id="fetchURLInput" placeholder="${t.fetchURLPlaceholder}" style="flex: 1; padding: 10px; background: rgba(0, 0, 0, 0.8); border: 1px solid #00ff00; color: #00ff00; font-family: 'Courier New', monospace; font-size: 13px;">
-                                    <button type="button" id="fetchIPBtn" style="background: rgba(0, 200, 255, 0.2); border: 1px solid #00aaff; padding: 8px 16px; color: #00aaff; font-family: 'Courier New', monospace; cursor: pointer; white-space: nowrap;">⬇ ${t.fetchIP}</button>
+                                    <button type="button" id="fetchIPBtn" class="terminal-btn terminal-btn-blue" style="padding: 8px 16px; white-space: nowrap;">⬇ ${t.fetchIP}</button>
                                 </div>
                             </div>
                             <div id="cfRandomDiv" style="margin-bottom: 10px; display: none;">
-                                <button type="button" id="generateCFIPBtn" style="background: rgba(0, 255, 0, 0.15); border: 1px solid #00ff00; padding: 10px 20px; color: #00ff00; font-family: 'Courier New', monospace; cursor: pointer; width: 100%; transition: all 0.3s;">🎲 ${t.generateIP}</button>
+                                <button type="button" id="generateCFIPBtn" class="terminal-btn" style="padding: 10px 20px; width: 100%;">🎲 ${t.generateIP}</button>
                             </div>
                             <div style="display: flex; gap: 10px; margin-bottom: 15px;">
-                                <button type="button" id="startLatencyTest" style="background: rgba(0, 255, 0, 0.2); border: 1px solid #00ff00; padding: 8px 16px; color: #00ff00; font-family: 'Courier New', monospace; cursor: pointer; transition: all 0.3s;">▶ ${t.startTest}</button>
-                                <button type="button" id="stopLatencyTest" style="background: rgba(255, 0, 0, 0.2); border: 1px solid #ff4444; padding: 8px 16px; color: #ff4444; font-family: 'Courier New', monospace; cursor: pointer; display: none; transition: all 0.3s;">⏹ ${t.stopTest}</button>
+                                <button type="button" id="startLatencyTest" class="terminal-btn" style="padding: 8px 16px;">▶ ${t.startTest}</button>
+                                <button type="button" id="stopLatencyTest" class="terminal-btn terminal-btn-red" style="padding: 8px 16px; display: none;">⏹ ${t.stopTest}</button>
                             </div>
-                            <div id="latencyTestStatus" style="color: #00aa00; font-size: 0.9rem; margin-bottom: 10px; display: none;"></div>
-                            <div id="latencyTestResults" style="max-height: 250px; overflow-y: auto; display: none;">
-                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                                    <span style="color: #00ff00; font-weight: bold;">${t.testResult}</span>
-                                    <div style="display: flex; gap: 8px;">
-                                        <button type="button" id="selectAllResults" style="background: transparent; border: 1px solid #00aa00; padding: 4px 10px; color: #00aa00; font-size: 0.8rem; cursor: pointer;">${t.selectAll}</button>
-                                        <button type="button" id="deselectAllResults" style="background: transparent; border: 1px solid #00aa00; padding: 4px 10px; color: #00aa00; font-size: 0.8rem; cursor: pointer;">${t.deselectAll}</button>
+                            <!-- 测试状态和进度 -->
+                            <div id="latencyTestStatus" style="color: #00ff00; font-size: 0.95rem; font-weight: bold; margin-bottom: 12px; padding: 8px 12px; background: rgba(0, 255, 0, 0.1); border-left: 3px solid #00ff00; display: none; text-shadow: 0 0 5px #00ff00;"></div>
+                            
+                            <!-- 测试结果容器：使用Flex布局实现内部固定与滚动 -->
+                            <div id="latencyTestResults" style="display: none; flex-direction: column; border: 1px solid #00aa00; border-radius: 8px; background: rgba(0, 10, 0, 0.8); margin-top: 10px; max-height: 80vh; overflow: hidden;">
+                                <!-- 固定头部：包含操作按钮和城市筛选 -->
+                                <div id="latencyTestFixedHeader" style="padding: 12px; border-bottom: 1px solid #004400; background: rgba(0, 20, 0, 0.95); z-index: 10;">
+                                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 10px;">
+                                        <span style="color: #00ff00; font-weight: bold; font-size: 1rem; text-shadow: 0 0 5px #00ff00;">📊 ${t.testResult}</span>
+                                        <div style="display: flex; gap: 8px;">
+                                            <button type="button" id="selectAllResults" class="terminal-btn" style="padding: 5px 12px; font-size: 0.85rem;">${t.selectAll}</button>
+                                            <button type="button" id="deselectAllResults" class="terminal-btn" style="padding: 5px 12px; font-size: 0.85rem;">${t.deselectAll}</button>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- 城市筛选 -->
+                                    <div id="cityFilterContainer" style="margin-bottom: 12px; padding: 10px; background: rgba(0, 30, 0, 0.6); border: 1px solid #008800; border-radius: 6px; display: none;">
+                                        <div style="margin-bottom: 10px; display: flex; gap: 15px; flex-wrap: wrap;">
+                                            <label style="display: inline-flex; align-items: center; cursor: pointer; color: #00ff00; font-size: 0.9rem;">
+                                                <input type="radio" name="cityFilterMode" value="all" checked style="margin-right: 6px; width: 18px; height: 18px; cursor: pointer;">
+                                                <span>${isFarsi ? '全部城市' : '全部城市'}</span>
+                                            </label>
+                                            <label style="display: inline-flex; align-items: center; cursor: pointer; color: #00ff00; font-size: 0.9rem;">
+                                                <input type="radio" name="cityFilterMode" value="fastest10" style="margin-right: 6px; width: 18px; height: 18px; cursor: pointer;">
+                                                <span>${isFarsi ? '只选择最快的10个' : '只选择最快的10个'}</span>
+                                            </label>
+                                        </div>
+                                        <div id="cityCheckboxesContainer" style="display: flex; flex-wrap: wrap; gap: 6px; max-height: 100px; overflow-y: auto; padding: 5px; border-top: 1px solid rgba(0, 255, 0, 0.1); padding-top: 8px;"></div>
+                                    </div>
+
+                                    <!-- 操作按钮：覆盖添加/追加添加 (固定在顶部) -->
+                                    <div style="display: flex; gap: 10px; padding-top: 5px;">
+                                        <button type="button" id="overwriteSelectedToYx" class="terminal-btn" style="flex: 1; padding: 10px;">🚀 ${isFarsi ? '覆盖添加' : '覆盖添加'}</button>
+                                        <button type="button" id="appendSelectedToYx" class="terminal-btn" style="flex: 1; padding: 10px;">➕ ${isFarsi ? '追加添加' : '追加添加'}</button>
                                     </div>
                                 </div>
-                                <div id="cityFilterContainer" style="margin-bottom: 10px; padding: 10px; background: rgba(0, 20, 0, 0.6); border: 1px solid #00aa00; border-radius: 4px; display: none;">
-                                    <div style="margin-bottom: 8px;">
-                                        <label style="display: inline-flex; align-items: center; cursor: pointer; color: #00ff00; font-size: 0.9rem;">
-                                            <input type="radio" name="cityFilterMode" value="all" checked style="margin-right: 6px; width: 16px; height: 16px; cursor: pointer;">
-                                            <span>${isFarsi ? '全部城市' : '全部城市'}</span>
-                                        </label>
-                                        <label style="display: inline-flex; align-items: center; cursor: pointer; color: #00ff00; font-size: 0.9rem; margin-left: 15px;">
-                                            <input type="radio" name="cityFilterMode" value="fastest10" style="margin-right: 6px; width: 16px; height: 16px; cursor: pointer;">
-                                            <span>${isFarsi ? '只选择最快的10个' : '只选择最快的10个'}</span>
-                                        </label>
-                                    </div>
-                                    <div id="cityCheckboxesContainer" style="display: flex; flex-wrap: wrap; gap: 8px; max-height: 80px; overflow-y: auto; padding: 5px;"></div>
-                                </div>
-                                <div id="latencyResultsList" style="background: rgba(0, 0, 0, 0.5); border: 1px solid #004400; border-radius: 4px; padding: 10px;"></div>
-                                <div style="margin-top: 10px; display: flex; gap: 10px;">
-                                    <button type="button" id="overwriteSelectedToYx" style="flex: 1; background: rgba(0, 200, 0, 0.3); border: 1px solid #00ff00; padding: 10px 20px; color: #00ff00; font-family: 'Courier New', monospace; font-weight: bold; cursor: pointer; transition: all 0.3s;">${isFarsi ? '覆盖添加' : '覆盖添加'}</button>
-                                    <button type="button" id="appendSelectedToYx" style="flex: 1; background: rgba(0, 150, 0, 0.3); border: 1px solid #00aa00; padding: 10px 20px; color: #00aa00; font-family: 'Courier New', monospace; font-weight: bold; cursor: pointer; transition: all 0.3s;">${isFarsi ? '追加添加' : '追加添加'}</button>
-                                </div>
+
+                                <!-- 可滚动的IP列表 -->
+                                <div id="latencyResultsList" style="max-height: 450px; overflow-y: auto; background: rgba(0, 0, 0, 0.4); padding: 5px; scrollbar-width: thin; scrollbar-color: #00ff00 rgba(0, 30, 0, 0.5);"></div>
                             </div>
                         </div>
                         
@@ -3253,7 +3499,7 @@
                                 <input type="text" id="socksConfig" placeholder="${isFarsi ? 'مثال: user:pass@host:port یا host:port' : '例如: user:pass@host:port 或 host:port'}" style="width: 100%; padding: 12px; background: rgba(0, 0, 0, 0.8); border: 2px solid #00ff00; color: #00ff00; font-family: 'Courier New', monospace; font-size: 14px;">
                                 <small style="color: #00aa00; font-size: 0.85rem;">${isFarsi ? 'آدرس پروکسی SOCKS5، برای انتقال تمام ترافیک خروجی استفاده می‌شود' : 'SOCKS5代理地址，用于转发所有出站流量'}</small>
                         </div>
-                            <button type="submit" style="background: rgba(0, 255, 0, 0.15); border: 2px solid #00ff00; padding: 12px 24px; color: #00ff00; font-family: 'Courier New', monospace; font-weight: bold; cursor: pointer; margin-right: 10px; text-shadow: 0 0 8px #00ff00; transition: all 0.4s ease;">${t.saveConfig}</button>
+                            <button type="submit" class="terminal-btn" style="padding: 12px 24px; margin-right: 10px;">${t.saveConfig}</button>
                     </form>
                     
                         <h3 style="color: #00ff00; margin: 20px 0 15px 0; font-size: 1.2rem;">${t.advancedControl}</h3>
@@ -3291,7 +3537,7 @@
                                 </div>
                                 <div style="margin-bottom: 10px;">
                                     <label style="display: inline-flex; align-items: center; cursor: pointer; color: #00ff00;">
-                                        <input type="checkbox" id="egi" checked style="margin-right: 8px; width: 18px; height: 18px; cursor: pointer;">
+                                        <input type="checkbox" id="egi" style="margin-right: 8px; width: 18px; height: 18px; cursor: pointer;">
                                             <span style="font-size: 1.1rem;">${t.enableGitHubPreferred}</span>
                                     </label>
                                 </div>
@@ -3612,7 +3858,8 @@
                         // 其他情况使用订阅转换服务
                         var encodedUrl = encodeURIComponent(subscriptionUrl);
                         if (clientType === atob('c3VyZ2U=')) {
-                        	finalUrl = SUB_CONVERTER_URL + "?target=" + clientType + "&ver=4" + "&url=" + encodedUrl + "&insert=false&config=" + encodeURIComponent(REMOTE_CONFIG_URL) + "&emoji=true&list=false&tls13=true&xudp=false&udp=true&tfo=false&expand=true&scv=false&fdn=false&new_name=true";
+                            var surgeUrl = encodeURIComponent(subscriptionUrl + "?target=surge");
+                        	finalUrl = SUB_CONVERTER_URL + "?target=" + clientType + "&ver=4" + "&url=" + surgeUrl + "&insert=false&config=" + encodeURIComponent(REMOTE_CONFIG_URL) + "&emoji=true&list=false&tls13=true&xudp=false&udp=true&tfo=false&expand=true&scv=false&fdn=false&new_name=true";
                         } else {
 							finalUrl = SUB_CONVERTER_URL + "?target=" + clientType + "&url=" + encodedUrl + "&insert=false&config=" + encodeURIComponent(REMOTE_CONFIG_URL) + "&emoji=true&list=false&xudp=false&udp=false&tfo=false&expand=true&scv=false&fdn=false&new_name=true";
 						}
@@ -4702,7 +4949,7 @@
                         startTestBtn.style.display = 'none';
                         stopTestBtn.style.display = 'inline-block';
                         testStatus.style.display = 'block';
-                        testResultsDiv.style.display = 'block';
+                        testResultsDiv.style.display = 'flex';
                         resultsList.innerHTML = '';
                         testResults = [];
                         if (cityFilterContainer) {
@@ -5591,13 +5838,15 @@
         try {
             await inner_upload(httpx.data);
             let chunkCount = 0;
+            let lastXhttpUpTime = Date.now();
             while (!httpx.done) {
                 const r = await httpx.reader.read(get_xhttp_buffer());
                 if (r.done) break;
                 await inner_upload(r.value);
                 httpx.done = r.done;
                 chunkCount++;
-                if (chunkCount % 10 === 0) {
+                if (Date.now() - lastXhttpUpTime > 20) {
+                    lastXhttpUpTime = Date.now();
                     await xhttp_sleep(0);
                 }
                 if (!r.value || r.value.length === 0) {
@@ -5676,6 +5925,7 @@
             ;(async () => {
                 try {
                     let chunkCount = 0;
+                    let lastXhttpDownTime = Date.now();
                     while (true) {
                         const r = await reader.read();
                         if (r.done) {
@@ -5684,7 +5934,8 @@
                         lastActivity = Date.now();
                         await writer.write(r.value);
                         chunkCount++;
-                        if (chunkCount % 5 === 0) {
+                        if (Date.now() - lastXhttpDownTime > 20) {
+                            lastXhttpDownTime = Date.now();
                             await xhttp_sleep(0);
                         }
                     }
@@ -5833,6 +6084,22 @@
         catch (error) { return { error }; }
     }
 
+    function 数据转Uint8Array(data) {
+        if (data instanceof Uint8Array) return data;
+        if (data instanceof ArrayBuffer) return new Uint8Array(data);
+        if (ArrayBuffer.isView(data)) return new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
+        if (typeof data === 'string') return new TextEncoder().encode(data);
+        return new Uint8Array(data || []);
+    }
+
+    async function withTimeout(promise, timeoutMs, errorMsg = 'Operation timed out') {
+        let timeoutId;
+        const timeoutPromise = new Promise((_, reject) => {
+            timeoutId = setTimeout(() => reject(new Error(errorMsg)), timeoutMs);
+        });
+        return Promise.race([promise, timeoutPromise]).finally(() => clearTimeout(timeoutId));
+    }
+
     function closeSocketQuietly(socket) { try { if (socket.readyState === 1 || socket.readyState === 2) socket.close(); } catch (error) {} }
 
     const hexTable = Array.from({ length: 256 }, (v, i) => (i + 256).toString(16).slice(1));
@@ -5956,7 +6223,7 @@
         return replaceWildcards(defaultHost);
     }
 
-    function generateLinksFromNewIPs(list, user, workerDomain) {
+    async function generateLinksFromNewIPs(list, user, workerDomain) {
         
         const CF_HTTP_PORTS = [80, 8080, 8880, 2052, 2082, 2086, 2095];
         const CF_HTTPS_PORTS = [443, 2053, 2083, 2087, 2096, 8443];
@@ -5964,7 +6231,13 @@
         const links = [];
         const proto = atob('dmxlc3M=');
         
-        list.forEach(item => {
+        let newIPLinksProcessedCount = 0;
+        for (let i = 0; i < list.length; i++) {
+            newIPLinksProcessedCount++;
+            if (newIPLinksProcessedCount % 200 === 0) {
+                await new Promise(r => setTimeout(r, 0));
+            }
+            const item = list[i];
             const nodeName = item.name.replace(/\s/g, '_');
             const port = item.port;
             const currentNodePath = enableRandomPath ? randomPath('/?ed=2560') : '/?ed=2560';
@@ -5984,11 +6257,22 @@
                     path: currentNodePath
                 });
                 
-                // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
+                // 如果启用了ECH，添加ech和echconfiglist参数
                 if (enableECH) {
                     const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
-                    const echDomain = customECHDomain || randomHost;
+                    const echDomain = customECHDomain || getRandomHost(workerDomain);
                     wsParams.set('ech', `${echDomain}+${dnsServer}`);
+                    
+                    let echConfig = '';
+                    if (globalEchCache.has(echDomain)) {
+                        echConfig = globalEchCache.get(echDomain);
+                    } else {
+                        echConfig = await getECHConfig(echDomain);
+                        globalEchCache.set(echDomain, echConfig);
+                    }
+                    if (echConfig) {
+                        wsParams.set('echconfiglist', echConfig);
+                    }
                 }
                 
                 links.push(`${proto}://${user}@${safeIP}:${port}?${wsParams.toString()}#${encodeURIComponent(wsNodeName)}`);
@@ -6018,24 +6302,41 @@
                     path: currentNodePath
                 });
                 
-                // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
+                // 如果启用了ECH，添加ech和echconfiglist参数
                 if (enableECH) {
                     const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
-                    const echDomain = customECHDomain || randomHost;
+                    const echDomain = customECHDomain || getRandomHost(workerDomain);
                     wsParams.set('ech', `${echDomain}+${dnsServer}`);
+                    
+                    let echConfig = '';
+                    if (globalEchCache.has(echDomain)) {
+                        echConfig = globalEchCache.get(echDomain);
+                    } else {
+                        echConfig = await getECHConfig(echDomain);
+                        globalEchCache.set(echDomain, echConfig);
+                    }
+                    if (echConfig) {
+                        wsParams.set('echconfiglist', echConfig);
+                    }
                 }
                 
                 links.push(`${proto}://${user}@${safeIP}:${port}?${wsParams.toString()}#${encodeURIComponent(wsNodeName)}`);
             }
-        });
+        }
         return links;
     }
 
-    function generateXhttpLinksFromSource(list, user, workerDomain) {
+    async function generateXhttpLinksFromSource(list, user, workerDomain) {
         const links = [];
         const nodePath = user.substring(0, 8);
         
-        list.forEach(item => {
+        let xhttpLinksProcessedCount = 0;
+        for (let i = 0; i < list.length; i++) {
+            xhttpLinksProcessedCount++;
+            if (xhttpLinksProcessedCount % 200 === 0) {
+                await new Promise(r => setTimeout(r, 0));
+            }
+            const item = list[i];
             let nodeNameBase = item.isp.replace(/\s/g, '_');
             if (item.colo && item.colo.trim()) {
                 nodeNameBase = `${nodeNameBase}-${item.colo.trim()}`;
@@ -6056,15 +6357,27 @@
                 mode: 'stream-one'
             });
             
-            // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
+            // 如果启用了ECH，添加ech和echconfiglist参数
             if (enableECH) {
                 const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
-                const echDomain = customECHDomain || randomHost;
+                const echDomain = customECHDomain || getRandomHost(workerDomain);
                 params.set('ech', `${echDomain}+${dnsServer}`);
+                
+                // 获取并添加 ECH 配置列表
+                let echConfig = '';
+                if (globalEchCache.has(echDomain)) {
+                    echConfig = globalEchCache.get(echDomain);
+                } else {
+                    echConfig = await getECHConfig(echDomain);
+                    globalEchCache.set(echDomain, echConfig);
+                }
+                if (echConfig) {
+                    params.set('echconfiglist', echConfig);
+                }
             }
             
             links.push(`vless://${user}@${safeIP}:${port}?${params.toString()}#${encodeURIComponent(wsNodeName)}`);
-        });
+        }
         
         return links;
     }
@@ -6078,7 +6391,13 @@
         
         const password = tp || user;
         
-        list.forEach(item => {
+        let trojanNewIPProcessedCount = 0;
+        for (let i = 0; i < list.length; i++) {
+            trojanNewIPProcessedCount++;
+            if (trojanNewIPProcessedCount % 200 === 0) {
+                await new Promise(r => setTimeout(r, 0));
+            }
+            const item = list[i];
             const nodeName = item.name.replace(/\s/g, '_');
             const port = item.port;
             const currentNodePath = enableRandomPath ? randomPath('/?ed=2560') : '/?ed=2560';
@@ -6097,11 +6416,22 @@
                     path: currentNodePath
                 });
                 
-                // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
+                // 如果启用了ECH，添加ech和echconfiglist参数
                 if (enableECH) {
                     const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
-                    const echDomain = customECHDomain || randomHost;
+                    const echDomain = customECHDomain || getRandomHost(workerDomain);
                     wsParams.set('ech', `${echDomain}+${dnsServer}`);
+                    
+                    let echConfig = '';
+                    if (globalEchCache.has(echDomain)) {
+                        echConfig = globalEchCache.get(echDomain);
+                    } else {
+                        echConfig = await getECHConfig(echDomain);
+                        globalEchCache.set(echDomain, echConfig);
+                    }
+                    if (echConfig) {
+                        wsParams.set('echconfiglist', echConfig);
+                    }
                 }
                 
                 links.push(`${atob('dHJvamFuOi8v')}${password}@${safeIP}:${port}?${wsParams.toString()}#${encodeURIComponent(wsNodeName)}`);
@@ -6129,16 +6459,27 @@
                     path: currentNodePath
                 });
                 
-                // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
+                // 如果启用了ECH，添加ech和echconfiglist参数
                 if (enableECH) {
                     const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
-                    const echDomain = customECHDomain || randomHost;
+                    const echDomain = customECHDomain || getRandomHost(workerDomain);
                     wsParams.set('ech', `${echDomain}+${dnsServer}`);
+                    
+                    let echConfig = '';
+                    if (globalEchCache.has(echDomain)) {
+                        echConfig = globalEchCache.get(echDomain);
+                    } else {
+                        echConfig = await getECHConfig(echDomain);
+                        globalEchCache.set(echDomain, echConfig);
+                    }
+                    if (echConfig) {
+                        wsParams.set('echconfiglist', echConfig);
+                    }
                 }
                 
                 links.push(`${atob('dHJvamFuOi8v')}${password}@${safeIP}:${port}?${wsParams.toString()}#${encodeURIComponent(wsNodeName)}`);
             }
-        });
+        }
         return links;
     }
 
@@ -6186,15 +6527,11 @@
                 
                 await saveKVConfig();
                 
-                // 方案2：清除内存缓存，强制下次读取最新配置
-                kvConfigCache = null;
-                kvConfigCacheTime = 0;
+                // 更新内存缓存，确保当前 Isolate 的后续请求能立即看到更新
+                kvConfigCache = JSON.parse(JSON.stringify(kvConfig));
+                kvConfigCacheTime = Date.now();
                 
                 updateConfigVariables();
-                
-                if (newConfig.yx !== undefined) {
-                    updateCustomPreferredFromYx();
-                }
                 
                 return new Response(JSON.stringify({
                     success: true,
@@ -6322,7 +6659,6 @@
                 if (addedIPs.length > 0) {
                     const newYxValue = arrayToYx(pi);
                     await setConfigValue('yx', newYxValue);
-                    updateCustomPreferredFromYx();
                 }
                 
                 return new Response(JSON.stringify({
@@ -6351,7 +6687,6 @@
                     const deletedCount = pi.length;
                     
                     await setConfigValue('yx', '');
-                    updateCustomPreferredFromYx();
                     
                     return new Response(JSON.stringify({
                         success: true,
@@ -6396,7 +6731,7 @@
                 
                 const newYxValue = arrayToYx(filteredIPs);
                 await setConfigValue('yx', newYxValue);
-                updateCustomPreferredFromYx();
+                
                 
                 return new Response(JSON.stringify({
                     success: true,
@@ -6428,126 +6763,109 @@
         }
     }
 
-    function updateConfigVariables() {
-        const manualRegion = getConfigValue('wk', '');
-        if (manualRegion && manualRegion.trim()) {
-            manualWorkerRegion = manualRegion.trim().toUpperCase();
+    function updateConfigVariables(env = {}) {
+        // 1. 区域与匹配模式
+        const wk = getConfigValue('wk', env.wk || env.WK || '');
+        if (wk && wk.trim()) {
+            manualWorkerRegion = wk.trim().toUpperCase();
             currentWorkerRegion = manualWorkerRegion;
         } else {
-            const ci = getConfigValue('p', '');
-            if (ci && ci.trim()) {
+            const p = getConfigValue('p', env.p || env.P || '');
+            if (p && p.trim()) {
                 currentWorkerRegion = 'CUSTOM';
+                fallbackAddress = p.trim();
             } else {
                 manualWorkerRegion = '';
             }
         }
         
-        const regionMatchingControl = getConfigValue('rm', '');
-        if (regionMatchingControl && regionMatchingControl.toLowerCase() === 'no') {
-            enableRegionMatching = false;
-        } else {
-            enableRegionMatching = true;
+        const rm = getConfigValue('rm', env.rm || env.RM || '');
+        if (rm !== '') {
+            enableRegionMatching = (rm.toLowerCase() !== 'no' && rm !== false && rm !== 'false');
         }
         
-        const vlessControl = getConfigValue('ev', '');
-        if (vlessControl !== undefined && vlessControl !== '') {
-            ev = vlessControl === 'yes' || vlessControl === true || vlessControl === 'true';
+        // 2. 协议开关 (VLESS, Trojan, xhttp)
+        const evVal = getConfigValue('ev', env.ev);
+        if (evVal !== undefined && evVal !== '') {
+            ev = evVal === 'yes' || evVal === true || evVal === 'true';
         }
         
-        const tjControl = getConfigValue('et', '');
-        if (tjControl !== undefined && tjControl !== '') {
-            et = tjControl === 'yes' || tjControl === true || tjControl === 'true';
+        const etVal = getConfigValue('et', env.et);
+        if (etVal !== undefined && etVal !== '') {
+            et = etVal === 'yes' || etVal === true || etVal === 'true';
         }
         
-        tp = getConfigValue('tp', '') || '';
-        
-        const xhttpControl = getConfigValue('ex', '');
-        if (xhttpControl !== undefined && xhttpControl !== '') {
-            ex = xhttpControl === 'yes' || xhttpControl === true || xhttpControl === 'true';
+        const exVal = getConfigValue('ex', env.ex);
+        if (exVal !== undefined && exVal !== '') {
+            ex = exVal === 'yes' || exVal === true || exVal === 'true';
         }
         
-        if (!ev && !et && !ex) {
-            ev = true;
-        }
+        // 默认至少启用 VLESS
+        if (!ev && !et && !ex) ev = true;
         
-        scu = getConfigValue('scu', '') || 'https://url.v1.mk/sub';
-        
-        const getBoolConfig = (key, def = true) => {
-            const val = getConfigValue(key, '');
-            if (val === '') return def;
-            return val === 'yes' || val === true || val === 'true';
+        tp = getConfigValue('tp', env.tp) || '';
+        scu = getConfigValue('scu', env.scu) || 'https://url.v1.mk/sub';
+        remoteConfigUrl = getConfigValue('remoteConfigUrl', env.remoteConfigUrl) || 'https://raw.githubusercontent.com/lizhi123le/ACL4SSR/master/Clash/config/ACL4SSR_Online_Full_MultiMode.ini';
+
+        // 3. 订阅与节点过滤逻辑
+        const getBoolConfig = (key, envVal, def = true) => {
+            const val = getConfigValue(key, envVal);
+            if (val === '' || val === undefined) return def;
+            return val !== 'no' && val !== false && val !== 'false' && val !== '0' && val !== 0;
         };
 
-        epd = getBoolConfig('epd', true);
-        epi = getBoolConfig('epi', true);
-        egi = getBoolConfig('egi', false);
-        ena = getBoolConfig('ena', false);
-        domainEnabled = getBoolConfig('domain', true);
-        ipv4Enabled = getBoolConfig('ipv4', true);
-        ipv6Enabled = getBoolConfig('ipv6', true);
-        ispMobile = getBoolConfig('ispMobile', true);
-        ispUnicom = getBoolConfig('ispUnicom', true);
-        ispTelecom = getBoolConfig('ispTelecom', true);
+        epd = getBoolConfig('epd', env.epd, true);
+        epi = getBoolConfig('epi', env.epi, true);
+        egi = getBoolConfig('egi', env.egi, false);
+        ena = getBoolConfig('ena', env.ena, false);
+        domainEnabled = getBoolConfig('domain', env.domain, true);
+        ipv4Enabled = getBoolConfig('ipv4', env.ipv4, true);
+        ipv6Enabled = getBoolConfig('ipv6', env.ipv6, true);
+        ispMobile = getBoolConfig('ispMobile', env.ispMobile, true);
+        ispUnicom = getBoolConfig('ispUnicom', env.ispUnicom, true);
+        ispTelecom = getBoolConfig('ispTelecom', env.ispTelecom, true);
         
-        const echControl = getConfigValue('ech', '');
-        if (echControl !== undefined && echControl !== '') {
-            enableECH = echControl === 'yes' || echControl === true || echControl === 'true';
+        // 4. ECH 与 DNS 设置
+        const echVal = getConfigValue('ech', env.ech);
+        if (echVal !== undefined && echVal !== '') {
+            enableECH = echVal === 'yes' || echVal === true || echVal === 'true';
         }
         
-        const randomPathControl = getConfigValue('randomPath', '');
-        if (randomPathControl !== undefined && randomPathControl !== '') {
-            enableRandomPath = randomPathControl === 'yes' || randomPathControl === true || randomPathControl === 'true';
+        const randomPathVal = getConfigValue('randomPath', env.randomPath || env.RANDOMPATH);
+        if (randomPathVal !== undefined && randomPathVal !== '') {
+            enableRandomPath = randomPathVal === 'yes' || randomPathVal === true || randomPathVal === 'true';
         }
         
-        // 更新自定义DNS和ECH域名
-        const customDNSValue = getConfigValue('customDNS', '');
-        if (customDNSValue && customDNSValue.trim()) {
-            customDNS = customDNSValue.trim();
-        } else {
-            customDNS = 'https://223.5.5.5/dns-query';
-        }
+        const dnsVal = getConfigValue('customDNS', env.customDNS);
+        customDNS = (dnsVal && dnsVal.trim()) ? dnsVal.trim() : 'https://223.5.5.5/dns-query';
         
-        const customECHDomainValue = getConfigValue('customECHDomain', '');
-        if (customECHDomainValue && customECHDomainValue.trim()) {
-            customECHDomain = customECHDomainValue.trim();
-        } else {
-            customECHDomain = '';
-        }
+        const echDomainVal = getConfigValue('customECHDomain', env.customECHDomain);
+        customECHDomain = (echDomainVal && echDomainVal.trim()) ? echDomainVal.trim() : '';
         
-        // 如果启用了ECH，自动启用仅TLS模式（避免80端口干扰）
-        // ECH需要TLS才能工作，所以必须禁用非TLS节点
-        if (enableECH) {
+        // 5. 传输安全与回退
+        if (enableECH) disableNonTLS = true;
+        
+        const dkbyVal = getConfigValue('dkby', env.dkby || env.DKBY);
+        if (dkbyVal && dkbyVal.toLowerCase() === 'yes') {
             disableNonTLS = true;
         }
         
-        // 检查dkby配置（如果手动设置了dkby=yes，也会启用仅TLS）
-        const dkbyControl = getConfigValue('dkby', '');
-        if (dkbyControl && dkbyControl.toLowerCase() === 'yes') {
-            disableNonTLS = true;
-        }
-        
-        cp = getConfigValue('d', '') || '';
-        host = getConfigValue('host', '') || '';
+        cp = getConfigValue('d', env.d || env.D) || '';
+        host = getConfigValue('host', env.host || env.HOST) || '';
         if (host && host.trim()) {
             hostList = host.split(',').map(h => h.trim()).filter(h => h).sort(() => Math.random() - 0.5);
         } else {
             hostList = [];
         }
         
-        piu = getConfigValue('yxURL', '') || '';
+        piu = getConfigValue('yxURL', env.yxURL || env.YXURL) || '';
         
-        const envFallback = getConfigValue('p', '');
-        if (envFallback) {
-            fallbackAddress = envFallback.trim();
-        } else {
-            fallbackAddress = '';
-        }
-        
-        socks5Config = getConfigValue('s', '') || '';
-        if (socks5Config) {
+        const socksVal = getConfigValue('s', env.s || env.S) || '';
+        if (socksVal) {
             try {
-                parsedSocks5Config = parseSocksConfig(socks5Config);
+                parsedSocks5Config = parseSocksConfig(socksVal);
                 isSocksEnabled = true;
+                socks5Config = socksVal;
             } catch (err) {
                 isSocksEnabled = false;
             }
@@ -6555,12 +6873,11 @@
             isSocksEnabled = false;
         }
         
-        const yxbyControl = getConfigValue('yxby', '');
-        if (yxbyControl && yxbyControl.toLowerCase() === 'yes') {
-            disablePreferred = true;
-        } else {
-            disablePreferred = false;
-        }
+        const yxbyVal = getConfigValue('yxby', env.yxby || env.YXBY);
+        disablePreferred = (yxbyVal && yxbyVal.toLowerCase() === 'yes');
+
+        // 6. 联动更新优选IP内存状态
+        updateCustomPreferredFromYx();
     }
 
     function updateCustomPreferredFromYx() {
