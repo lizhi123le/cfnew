@@ -1,4 +1,4 @@
-# CFnew - 终端 v2.9.7
+# CFnew - 终端 v2.9.8
 
 > **⚠️ 重要：部署后请将兼容日期设置为 `2026-01-20`**
 > 
@@ -31,6 +31,19 @@
 - 应用唤醒：点按钮自动打开对应客户端
 - 自动识别：根据User-Agent自动返回对应格式
 - 多语言：支持中文和波斯语，根据浏览器语言自动切换
+
+## v2.9.8 更新
+
+- 订阅转换内部实现：Clash / Stash / Sing-box / Surge / Loon / Quantumult X 配置全部由 Worker 直接生成，不再依赖任何外部 sub-converter
+  - 完整规则集：Clash 使用 Loyalsoldier `rule-providers`；Sing-box 使用 MetaCubeX SRS；Surge / Loon / QuanX 使用 ACL4SSR / blackmatrix7 远端规则
+  - 各策略分组均包含「策略组 + 全部节点」，可直接切换具体节点（已移除「自动选择」url-test，避免周期性测速浪费请求）
+  - 修复 Clash IPv6 节点 `server` 被解析为数组、代理组 `🎯 全球直连` ↔ `🚀 节点选择` 循环引用等问题
+- 链接参数 ALPN 留空：生成的 VLESS / Trojan / xhttp 分享链接不再写死 `alpn=h3`，由客户端自行协商
+- KV 配置缓存：30s 短窗口 + 跨 isolate 版本键 `c_ver`，保存后无需刷新两次
+- SOCKS5 降级超时：直连 3.5s 无数据自动走 fallback
+- 标签：「启用 GitHub 默认优选」改为「启用自定义优选」
+- 页面特效开关：`FX: ON / OFF`，选择 localStorage 持久化
+- 提供混淆版本 `少年你相信光吗`，逻辑与 `明文源吗` 完全一致
 
 ## v2.9.7 更新
 
