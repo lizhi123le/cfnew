@@ -42,7 +42,7 @@ const obfuscationOptions = {
   renameProperties: false,
   renamePropertiesMode: 'safe',
   ignoreImports: false,
-  target: 'browser-no-eval',
+  target: 'browser',
   numbersToExpressions: false,
   simplify: false,
   splitStrings: true,
@@ -52,7 +52,7 @@ const obfuscationOptions = {
   selfDefending: false,
   debugProtection: false,
   debugProtectionInterval: 0,
-  disableConsoleOutput: true,
+  disableConsoleOutput: false,
   domainLock: []
 };
 
