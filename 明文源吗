@@ -7566,11 +7566,37 @@
                 
                 for (const item of apiResults) {
                     const match = item.match(regex);
+                    const isIPv6 = item.includes(':') && !item.includes('[') && (item.split(':').length > 2);
+                    
                     if (match) {
+                        // 去除中括号，统一存储为无括号格式，避免下游生成链路时双层括号
+                        const rawIP = match[1].replace(/^\[|\]$/g, '');
                         results.push({
-                            ip: match[1],
+                            ip: rawIP,
                             port: parseInt(match[2] || '443', 10),
-                            name: match[3]?.trim() || match[1]
+                            name: match[3]?.trim() || rawIP
+                        });
+                    } else if (isIPv6) {
+                        // 处理未加中括号的 raw IPv6
+                        const hashIndex = item.indexOf('#');
+                        let hostPart = hashIndex > -1 ? item.substring(0, hashIndex) : item;
+                        const remark = hashIndex > -1 ? item.substring(hashIndex + 1) : '';
+                        
+                        // 简单判断末尾是否带端口 (如 :443)
+                        const lastColonIndex = hostPart.lastIndexOf(':');
+                        const possiblePort = hostPart.substring(lastColonIndex + 1);
+                        let port = 443;
+                        let ip = hostPart;
+                        
+                        if (lastColonIndex > 0 && /^\d+$/.test(possiblePort) && !hostPart.includes('::' + possiblePort)) {
+                            port = parseInt(possiblePort, 10);
+                            ip = hostPart.substring(0, lastColonIndex);
+                        }
+                        
+                        results.push({
+                            ip: ip,
+                            port: port,
+                            name: remark.trim() || ip
                         });
                     }
                 }
@@ -7588,11 +7614,34 @@
                 const trimmedLine = line.trim();
                 if (!trimmedLine) continue;
                 const match = trimmedLine.match(simpleRegex);
+                const isIPv6 = trimmedLine.includes(':') && (trimmedLine.split(':').length > 2);
+                
                 if (match) {
                     results.push({
                         ip: match[1],
                         port: parseInt(match[2], 10),
                         name: match[3].trim() || match[1]
+                    });
+                } else if (isIPv6) {
+                    // 处理文本源中的 raw IPv6 行
+                    const hashIndex = trimmedLine.indexOf('#');
+                    let hostPart = hashIndex > -1 ? trimmedLine.substring(0, hashIndex) : trimmedLine;
+                    const remark = hashIndex > -1 ? trimmedLine.substring(hashIndex + 1) : '';
+                    
+                    const lastColonIndex = hostPart.lastIndexOf(':');
+                    const possiblePort = hostPart.substring(lastColonIndex + 1);
+                    let port = 443;
+                    let ip = hostPart;
+                    
+                    if (lastColonIndex > 0 && /^\d+$/.test(possiblePort) && !hostPart.includes('::' + possiblePort)) {
+                        port = parseInt(possiblePort, 10);
+                        ip = hostPart.substring(0, lastColonIndex);
+                    }
+                    
+                    results.push({
+                        ip: ip,
+                        port: port,
+                        name: remark.trim() || ip
                     });
                 }
             }
