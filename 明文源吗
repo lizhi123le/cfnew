@@ -2572,29 +2572,29 @@
             echConfig = `${echDomain}+${dnsServer}`;
         }
 
+        // 全局过滤：IP 版本、域名类型、运营商（提取为函数级，同时给 addNodesFromList 和 yxURL 使用）
+        const filterDomainEnabled = getConfigValue('domain', '') === '' || getConfigValue('domain', 'yes') !== 'no';
+        const filterIpv4Enabled = getConfigValue('ipv4', '') === '' || getConfigValue('ipv4', 'yes') !== 'no';
+        const filterIpv6Enabled = getConfigValue('ipv6', '') === '' || getConfigValue('ipv6', 'yes') !== 'no';
+        const filterIspMobile = getConfigValue('ispMobile', '') === '' || getConfigValue('ispMobile', 'yes') !== 'no';
+        const filterIspUnicom = getConfigValue('ispUnicom', '') === '' || getConfigValue('ispUnicom', 'yes') !== 'no';
+        const filterIspTelecom = getConfigValue('ispTelecom', '') === '' || getConfigValue('ispTelecom', 'yes') !== 'no';
+        const isNodeAllowed = (item) => {
+            const host = item.ip || '';
+            const isIPv6 = host.includes(':') || (host.includes('[') && host.includes(']'));
+            const isIPv4 = !isIPv6 && globalIpv4Regex.test(host);
+            const isDomain = !isIPv6 && !isIPv4;
+            if (isIPv6 && !filterIpv6Enabled) return false;
+            if (isIPv4 && !filterIpv4Enabled) return false;
+            if (isDomain && !filterDomainEnabled) return false;
+            const isp = (item.isp || item.name || '').toLowerCase();
+            if (isp.includes('移动') || isp.includes('mobile')) { if (!filterIspMobile) return false; }
+            if (isp.includes('联通') || isp.includes('unicom')) { if (!filterIspUnicom) return false; }
+            if (isp.includes('电信') || isp.includes('telecom')) { if (!filterIspTelecom) return false; }
+            return true;
+        };
+
         async function addNodesFromList(list) {
-            // 全局过滤：IP 版本、域名类型、运营商
-            const domainEnabled = getConfigValue('domain', '') === '' || getConfigValue('domain', 'yes') !== 'no';
-            const ipv4Enabled = getConfigValue('ipv4', '') === '' || getConfigValue('ipv4', 'yes') !== 'no';
-            const ipv6Enabled = getConfigValue('ipv6', '') === '' || getConfigValue('ipv6', 'yes') !== 'no';
-            const ispMobile = getConfigValue('ispMobile', '') === '' || getConfigValue('ispMobile', 'yes') !== 'no';
-            const ispUnicom = getConfigValue('ispUnicom', '') === '' || getConfigValue('ispUnicom', 'yes') !== 'no';
-            const ispTelecom = getConfigValue('ispTelecom', '') === '' || getConfigValue('ispTelecom', 'yes') !== 'no';
-            const isNodeAllowed = (item) => {
-                const host = item.ip || '';
-                const isIPv6 = host.includes(':') || (host.includes('[') && host.includes(']'));
-                const isIPv4 = !isIPv6 && globalIpv4Regex.test(host);
-                const isDomain = !isIPv6 && !isIPv4;
-                if (isIPv6 && !ipv6Enabled) return false;
-                if (isIPv4 && !ipv4Enabled) return false;
-                if (isDomain && !domainEnabled) return false;
-                const isp = (item.isp || item.name || '').toLowerCase();
-                if (isp.includes('移动') || isp.includes('mobile')) { if (!ispMobile) return false; }
-                if (isp.includes('联通') || isp.includes('unicom')) { if (!ispUnicom) return false; }
-                if (isp.includes('电信') || isp.includes('telecom')) { if (!ispTelecom) return false; }
-                return true;
-            };
-            // 仅过滤并收集，延迟生成以实现 VLESS→Trojan→xhttp 排序
             const filtered = list.filter(isNodeAllowed);
             if (filtered.length > 0) allSources.push(filtered);
         }
@@ -2669,11 +2669,18 @@
                 }
             }
 
-            if (egi) {
+            }
+
+        // 4. yxURL / GitHub 源（独立于 hasCustomPreferred，与旧版共存逻辑一致）
+        if (!disablePreferred && egi) {
             try {
                 const newIPList = await fetchAndParseNewIPs();
                 if (newIPList.length > 0) {
-                    allNewIPs.push(newIPList);
+                    // 应用全局过滤（IP版本、运营商）
+                    const filteredNewIPs = newIPList.filter(item => isNodeAllowed({ ip: item.ip, name: item.name }));
+                    if (filteredNewIPs.length > 0) {
+                        allNewIPs.push(filteredNewIPs);
+                    }
                 }
             } catch (error) {
                 if (!currentWorkerRegion) {
@@ -2683,10 +2690,9 @@
                 const bestBackupIP = await getBestBackupIP(currentWorkerRegion);
                 if (bestBackupIP) {
                     fallbackAddress = bestBackupIP.domain + ':' + bestBackupIP.port;
-                    
+
                     const backupList = [{ ip: bestBackupIP.domain, isp: 'ProxyIP-' + currentWorkerRegion }];
-                        await addNodesFromList(backupList);
-                    }
+                    await addNodesFromList(backupList);
                 }
             }
         }
@@ -3423,6 +3429,8 @@
                 enableVLESS: '启用 VLESS 协议',
                 enableTrojan: '启用 Trojan 协议',
                 enableXhttp: '启用 xhttp 协议',
+                enableRandomPath: '启用随机路径',
+                enableRandomPathHint: '启用后，节点路径将随机生成，增加混淆性',
                 trojanPassword: 'Trojan 密码 (可选):',
                 customPath: '自定义路径 (d):',
                 customIP: '自定义ProxyIP (p):',
@@ -3565,6 +3573,8 @@
                 enableVLESS: 'فعال‌سازی پروتکل VLESS',
                 enableTrojan: 'فعال‌سازی پروتکل Trojan',
                 enableXhttp: 'فعال‌سازی پروتکل xhttp',
+                enableRandomPath: 'فعال‌سازی مسیر تصادفی',
+                enableRandomPathHint: 'پس از فعال‌سازی، مسیر گره به صورت تصادفی تولید می‌شود تا ابهام بیشتری ایجاد شود',
                 enableECH: 'فعال‌سازی ECH (Encrypted Client Hello)',
                 enableECHHint: 'پس از فعال‌سازی، در هر بار تازه‌سازی اشتراک، پیکربندی ECH به‌روز به‌طور خودکار از DoH دریافت شده و به لینک‌ها اضافه می‌شود',
                 customDNS: 'سرور DNS سفارشی',
@@ -4738,6 +4748,13 @@
                                         <small style="color: #7aa9c4; font-size: 0.8rem; display: block; margin-top: 5px;">${t.customECHDomainHint}</small>
                                     </div>
                                 </div>
+                                <div style="margin-bottom: 10px;">
+                                    <label style="display: inline-flex; align-items: center; cursor: pointer; color: #00f0ff;">
+                                        <input type="checkbox" id="randomPath" style="margin-right: 8px; width: 18px; height: 18px; cursor: pointer;">
+                                            <span style="font-size: 1.1rem;">${t.enableRandomPath}</span>
+                                    </label>
+                                    <small style="color: #7aa9c4; font-size: 0.8rem; display: block; margin-top: 5px; margin-left: 26px;">${t.enableRandomPathHint}</small>
+                                </div>
                                 <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid rgba(0, 240, 255, 0.3);">
                                         <label style="display: block; margin-bottom: 8px; color: #00f0ff; font-size: 0.95rem;">${t.trojanPassword}</label>
                                         <input type="text" id="tp" placeholder="${t.trojanPasswordPlaceholder}" style="width: 100%; padding: 10px; background: rgba(0, 0, 0, 0.8); border: 1px solid #00f0ff; color: #00f0ff; font-family: 'Courier New', monospace; font-size: 13px;">
@@ -5775,6 +5792,7 @@
                     document.getElementById('et').checked = config.et === 'yes';
                     document.getElementById('ex').checked = config.ex === 'yes';
                     document.getElementById('ech').checked = config.ech === 'yes';
+                    document.getElementById('randomPath').checked = config.randomPath === 'yes';
                     document.getElementById('tp').value = config.tp || '';
                     if (document.getElementById('customDNS')) {
                         document.getElementById('customDNS').value = config.customDNS || '';
@@ -5953,7 +5971,7 @@
                                 rm: '',
                                 qj: '',
                                 dkby: '',
-                                yxby: '', ev: '', et: '', ex: '', tp: '', scu: '', epd: '', epi: '', egi: '',
+                                yxby: '', ev: '', et: '', ex: '', ech: '', randomPath: '', tp: '', scu: '', epd: '', epi: '', egi: '',
                                 ipv4: '', ipv6: '', domain: '', ispMobile: '', ispUnicom: '', ispTelecom: '',
                                 homepage: ''
                             })
@@ -6080,7 +6098,7 @@
                     function chk(id, def) { const el = document.getElementById(id); if (!el) return def; return el.checked ? 'yes' : 'no'; }
                     return {
                         wk: val('wkRegion'),
-                        ev: chk('ev', 'yes'), et: chk('et', 'no'), ex: chk('ex', 'no'), ech: chk('ech', 'no'),
+                        ev: chk('ev', 'yes'), et: chk('et', 'no'), ex: chk('ex', 'no'), ech: chk('ech', 'no'), randomPath: chk('randomPath', 'no'),
                         tp: val('tp'),
                         customDNS: val('customDNS'),
                         customECHDomain: val('customECHDomain'),
