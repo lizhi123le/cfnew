@@ -563,9 +563,9 @@
                     hostList = [];
                 }
 
-                const randomPathControl = getConfigValue('randomPath', '');
+                const randomPathControl = getConfigValue('randomPath', env.randomPath || env.RANDOMPATH);
                 if (randomPathControl !== undefined && randomPathControl !== '') {
-                    enableRandomPath = randomPathControl === 'yes' || randomPathControl === true || randomPathControl === 'true';
+                    enableRandomPath = randomPathControl === 'yes' || randomPathControl === true || randomPathControl === 'true' || randomPathControl === '1';
                 }
 
                 const url = new URL(request.url);
@@ -1520,7 +1520,7 @@
 
                 const tls = params.get('security') === 'tls' || params.get('tls') === 'true';
                 const network = params.get('type') || 'ws';
-                const path = params.get('path') || '/?ed=2048';
+                const path = params.get('path') || '/?ed=2560';
                 const host = params.get('host') || server;
                 const servername = params.get('sni') || host;
                 const alpnRaw = params.get('alpn') || '';
@@ -1574,7 +1574,7 @@
                 const params = new URLSearchParams(url.search);
 
                 const network = params.get('type') || 'ws';
-                const path = params.get('path') || '/?ed=2048';
+                const path = params.get('path') || '/?ed=2560';
                 const host = params.get('host') || server;
                 const sni = params.get('sni') || host;
                 const alpnRaw = params.get('alpn') || '';
@@ -1680,7 +1680,7 @@
                     port: parseInt(url.port) || 443,
                     tls: p.get('security') === 'tls' || p.get('security') === 'reality',
                     network: p.get('type') || 'ws',
-                    path: p.get('path') || '/?ed=2048',
+                    path: p.get('path') || '/?ed=2560',
                     host: normalizeServerHost(p.get('host') || url.hostname),
                     sni: normalizeServerHost(p.get('sni') || p.get('host') || url.hostname),
                     alpn: (p.get('alpn') || '').split(',').map(s => s.trim()).filter(Boolean),
@@ -1702,7 +1702,7 @@
                     port: parseInt(url.port) || 443,
                     tls: true,
                     network: p.get('type') || 'ws',
-                    path: p.get('path') || '/?ed=2048',
+                    path: p.get('path') || '/?ed=2560',
                     host: normalizeServerHost(p.get('host') || url.hostname),
                     sni: normalizeServerHost(p.get('sni') || p.get('host') || url.hostname),
                     alpn: (p.get('alpn') || '').split(',').map(s => s.trim()).filter(Boolean),
@@ -2803,8 +2803,22 @@
         const defaultHttpsPorts = [443];
         const defaultHttpPorts = disableNonTLS ? [] : [80];
         const links = [];
+        
+        const echVal = getConfigValue('ech', env.ech);
+        if (echVal !== undefined && echVal !== '') {
+            enableECH = echVal === 'yes' || echVal === true || echVal === 'true';
+        }
+        const randomPathVal = getConfigValue('randomPath', env.randomPath || env.RANDOMPATH);
+        if (randomPathVal !== undefined && randomPathVal !== '') {
+            enableRandomPath = randomPathVal === 'yes' || randomPathVal === true || randomPathVal === 'true' || randomPathVal === '1';
+        }
+        const dnsVal = getConfigValue('customDNS', env.customDNS);
+        customDNS = (dnsVal && dnsVal.trim()) ? dnsVal.trim() : 'https://223.5.5.5/dns-query';
+        const echDomainVal = getConfigValue('customECHDomain', env.customECHDomain);
+        customECHDomain = (echDomainVal && echDomainVal.trim()) ? echDomainVal.trim() : '';
+        
         const nodeHost = host || getRandomHost(workerDomain) || workerDomain;
-        const wsPath = enableRandomPath ? randomPath('/?ed=2048') : '/?ed=2048';
+        const wsPath = enableRandomPath ? randomPath('/?ed=2560') : '/?ed=2560';
         const proto = atob('dmxlc3M=');
 
         const { namer, setSkipNumbering } = createNodeNamer(skipNumbering);
@@ -2898,8 +2912,22 @@
         const defaultHttpsPorts = [443];
         const defaultHttpPorts = disableNonTLS ? [] : [80];
         const links = [];
+        
+        const echVal = getConfigValue('ech', env.ech);
+        if (echVal !== undefined && echVal !== '') {
+            enableECH = echVal === 'yes' || echVal === true || echVal === 'true';
+        }
+        const randomPathVal = getConfigValue('randomPath', env.randomPath || env.RANDOMPATH);
+        if (randomPathVal !== undefined && randomPathVal !== '') {
+            enableRandomPath = randomPathVal === 'yes' || randomPathVal === true || randomPathVal === 'true' || randomPathVal === '1';
+        }
+        const dnsVal = getConfigValue('customDNS', env.customDNS);
+        customDNS = (dnsVal && dnsVal.trim()) ? dnsVal.trim() : 'https://223.5.5.5/dns-query';
+        const echDomainVal = getConfigValue('customECHDomain', env.customECHDomain);
+        customECHDomain = (echDomainVal && echDomainVal.trim()) ? echDomainVal.trim() : '';
+        
         const nodeHost = host || getRandomHost(workerDomain) || workerDomain;
-        const wsPath = enableRandomPath ? randomPath('/?ed=2048') : '/?ed=2048';
+        const wsPath = enableRandomPath ? randomPath('/?ed=2560') : '/?ed=2560';
 
         const password = tp || user;
 
@@ -7655,8 +7683,22 @@
         const CF_HTTP_PORTS = [80, 8080, 8880, 2052, 2082, 2086, 2095];
         const CF_HTTPS_PORTS = [443, 2053, 2083, 2087, 2096, 8443];
         const links = [];
+        
+        const echVal = getConfigValue('ech', env.ech);
+        if (echVal !== undefined && echVal !== '') {
+            enableECH = echVal === 'yes' || echVal === true || echVal === 'true';
+        }
+        const randomPathVal = getConfigValue('randomPath', env.randomPath || env.RANDOMPATH);
+        if (randomPathVal !== undefined && randomPathVal !== '') {
+            enableRandomPath = randomPathVal === 'yes' || randomPathVal === true || randomPathVal === 'true' || randomPathVal === '1';
+        }
+        const dnsVal = getConfigValue('customDNS', env.customDNS);
+        customDNS = (dnsVal && dnsVal.trim()) ? dnsVal.trim() : 'https://223.5.5.5/dns-query';
+        const echDomainVal = getConfigValue('customECHDomain', env.customECHDomain);
+        customECHDomain = (echDomainVal && echDomainVal.trim()) ? echDomainVal.trim() : '';
+        
         const nodeHost = host || getRandomHost(workerDomain) || workerDomain;
-        const wsPath = enableRandomPath ? randomPath('/?ed=2048') : '/?ed=2048';
+        const wsPath = enableRandomPath ? randomPath('/?ed=2560') : '/?ed=2560';
         const proto = atob('dmxlc3M=');
 
         const { namer, setSkipNumbering } = createNodeNamer(skipNumbering);
@@ -7789,7 +7831,7 @@
 
         const links = [];
         const nodeHost = host || getRandomHost(workerDomain) || workerDomain;
-        const wsPath = enableRandomPath ? randomPath('/?ed=2048') : '/?ed=2048';
+        const wsPath = enableRandomPath ? randomPath('/?ed=2560') : '/?ed=2560';
 
         const password = tp || user;
 
@@ -7873,14 +7915,11 @@
     }
 
     function getRandomHost(fallback) {
-        const wildcardHosts = hostList.flatMap(h => {
-            if (h.includes('*')) return [replaceWildcards(h)];
-            return [h];
-        });
-        if (wildcardHosts.length > 0) {
-            return wildcardHosts[Math.floor(Math.random() * wildcardHosts.length)];
+        if (hostList && hostList.length > 0) {
+            const randomIndex = Math.floor(Math.random() * hostList.length);
+            return replaceWildcards(hostList[randomIndex]);
         }
-        return fallback;
+        return replaceWildcards(fallback);
     }
 
     async function handleConfigAPI(request) {
