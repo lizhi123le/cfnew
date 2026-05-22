@@ -2699,16 +2699,6 @@
 
         // --- 统一生成节点链路，按要求排序：VLESS -> Trojan -> xhttp ---
         const generateFromSources = async (type) => {
-            // 链接生成前重新读取 env 配置（兼容 wrangler secret 运行时变更）
-            const reEch = getConfigValue('ech', env.ech);
-            if (reEch !== undefined && reEch !== '') enableECH = reEch === 'yes' || reEch === true || reEch === 'true';
-            const reRp = getConfigValue('randomPath', env.randomPath || env.RANDOMPATH);
-            if (reRp !== undefined && reRp !== '') enableRandomPath = reRp === 'yes' || reRp === true || reRp === 'true' || reRp === '1';
-            const reDns = getConfigValue('customDNS', env.customDNS);
-            customDNS = (reDns && reDns.trim()) ? reDns.trim() : 'https://223.5.5.5/dns-query';
-            const reEchD = getConfigValue('customECHDomain', env.customECHDomain);
-            customECHDomain = (reEchD && reEchD.trim()) ? reEchD.trim() : '';
-            
             for (const src of allSources) {
                 if (type === 'vless' && ev) finalLinks.push(...await generateLinksFromSource(src, user, workerDomain, echConfig));
                 if (type === 'trojan' && et) finalLinks.push(...await generateTrojanLinksFromSource(src, user, workerDomain, echConfig));
@@ -2716,16 +2706,6 @@
             }
         };
         const generateFromNewIPs = async (type) => {
-            // 链接生成前重新读取 env 配置（兼容 wrangler secret 运行时变更）
-            const reEch = getConfigValue('ech', env.ech);
-            if (reEch !== undefined && reEch !== '') enableECH = reEch === 'yes' || reEch === true || reEch === 'true';
-            const reRp = getConfigValue('randomPath', env.randomPath || env.RANDOMPATH);
-            if (reRp !== undefined && reRp !== '') enableRandomPath = reRp === 'yes' || reRp === true || reRp === 'true' || reRp === '1';
-            const reDns = getConfigValue('customDNS', env.customDNS);
-            customDNS = (reDns && reDns.trim()) ? reDns.trim() : 'https://223.5.5.5/dns-query';
-            const reEchD = getConfigValue('customECHDomain', env.customECHDomain);
-            customECHDomain = (reEchD && reEchD.trim()) ? reEchD.trim() : '';
-            
             for (const ipList of allNewIPs) {
                 if (type === 'vless' && ev) finalLinks.push(...await generateLinksFromNewIPs(ipList, user, workerDomain, echConfig));
                 if (type === 'trojan' && et) finalLinks.push(...await generateTrojanLinksFromNewIPs(ipList, user, workerDomain, echConfig));
