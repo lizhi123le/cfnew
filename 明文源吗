@@ -2803,8 +2803,6 @@
         const defaultHttpsPorts = [443];
         const defaultHttpPorts = disableNonTLS ? [] : [80];
         const links = [];
-        const nodeHost = host || getRandomHost(workerDomain) || workerDomain;
-        const wsPath = enableRandomPath ? randomPath('/?ed=2560') : '/?ed=2560';
         const proto = atob('dmxlc3M=');
 
         const { namer, setSkipNumbering } = createNodeNamer(skipNumbering);
@@ -2817,6 +2815,8 @@
                 nodeNameBase = `${nodeNameBase}-${item.colo.trim()}`;
             }
             const safeIP = item.ip.includes(':') ? `[${item.ip}]` : item.ip;
+            const nodeHost = getRandomHost(workerDomain) || workerDomain;
+            const wsPath = enableRandomPath ? randomPath('/?ed=2560') : '/?ed=2560';
 
             let portsToGenerate = [];
             if (item.port) {
@@ -2898,8 +2898,6 @@
         const defaultHttpsPorts = [443];
         const defaultHttpPorts = disableNonTLS ? [] : [80];
         const links = [];
-        const nodeHost = host || getRandomHost(workerDomain) || workerDomain;
-        const wsPath = enableRandomPath ? randomPath('/?ed=2560') : '/?ed=2560';
 
         const password = tp || user;
 
@@ -2913,6 +2911,8 @@
                 nodeNameBase = `${nodeNameBase}-${item.colo.trim()}`;
             }
             const safeIP = item.ip.includes(':') ? `[${item.ip}]` : item.ip;
+            const nodeHost = getRandomHost(workerDomain) || workerDomain;
+            const wsPath = enableRandomPath ? randomPath('/?ed=2560') : '/?ed=2560';
 
             let portsToGenerate = [];
             if (item.port) {
@@ -7655,8 +7655,6 @@
         const CF_HTTP_PORTS = [80, 8080, 8880, 2052, 2082, 2086, 2095];
         const CF_HTTPS_PORTS = [443, 2053, 2083, 2087, 2096, 8443];
         const links = [];
-        const nodeHost = host || getRandomHost(workerDomain) || workerDomain;
-        const wsPath = enableRandomPath ? randomPath('/?ed=2560') : '/?ed=2560';
         const proto = atob('dmxlc3M=');
 
         const { namer, setSkipNumbering } = createNodeNamer(skipNumbering);
@@ -7667,6 +7665,8 @@
             const nodeNameBase = item.name.replace(/\s/g, '_');
             const port = item.port;
             const safeIP = item.ip.includes(':') ? `[${item.ip}]` : item.ip;
+            const nodeHost = getRandomHost(workerDomain) || workerDomain;
+            const wsPath = enableRandomPath ? randomPath('/?ed=2560') : '/?ed=2560';
 
             const getNodeName = (suffix) => {
                 const nodeName = `${nodeNameBase}-${port}${suffix}`;
@@ -7730,7 +7730,6 @@
 
     async function generateXhttpLinksFromSource(list, user, workerDomain, echConfig = null, skipNumbering = false) {
         const links = [];
-        const nodeHost = host || getRandomHost(workerDomain) || workerDomain;
         const nodePath = user.substring(0, 8);
 
         const { namer, setSkipNumbering } = createNodeNamer(skipNumbering);
@@ -7744,6 +7743,7 @@
             if (item.colo) nodeNameBase = `${nodeNameBase}-${item.colo}`;
             const safeIP = item.ip.includes(':') ? `[${item.ip}]` : item.ip;
             const port = item.port || 443;
+            const nodeHost = getRandomHost(workerDomain) || workerDomain;
 
             const getNodeName = (suffix) => {
                 const nodeName = `${nodeNameBase}-${port}${suffix}`;
@@ -7788,8 +7788,6 @@
         const CF_HTTPS_PORTS = [443, 2053, 2083, 2087, 2096, 8443];
 
         const links = [];
-        const nodeHost = host || getRandomHost(workerDomain) || workerDomain;
-        const wsPath = enableRandomPath ? randomPath('/?ed=2560') : '/?ed=2560';
 
         const password = tp || user;
 
@@ -7801,6 +7799,8 @@
             const nodeNameBase = item.name.replace(/\s/g, '_');
             const port = item.port;
             const safeIP = item.ip.includes(':') ? `[${item.ip}]` : item.ip;
+            const nodeHost = getRandomHost(workerDomain) || workerDomain;
+            const wsPath = enableRandomPath ? randomPath('/?ed=2560') : '/?ed=2560';
 
             const getNodeName = (suffix) => {
                 const nodeName = `${nodeNameBase}-${port}${suffix}`;
