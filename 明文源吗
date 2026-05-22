@@ -14,6 +14,8 @@
     let manualWorkerRegion = '';
     let piu = '';
     let cp = '';  
+    let enableRandomPath = false; // 随机路径开关
+    let hostList = []; let host = ''; // 由 getConfigValue 填充
 
     let ev = true;   
     let et = false; 
@@ -25,6 +27,12 @@
     let customDNS = 'https://223.5.5.5/dns-query';
     // 自定义ECH域名（默认：cloudflare-ech.com）
     let customECHDomain = 'cloudflare-ech.com';
+    // ECH 配置缓存（域名 -> ECH config 列表）
+    const globalEchCache = new Map();
+    // Cache API 缓存
+    const cfCache = caches.default;
+    // IPv4 地址正则
+    const globalIpv4Regex = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
 
     let scu = 'https://url.v1.mk/sub';  
     // 远程配置URL（硬编码）
@@ -181,6 +189,11 @@
                 return;
             }
 
+            // 随机延迟 0-300ms，缓解 KV 并发打满
+            if (!force) {
+                await new Promise(r => setTimeout(r, Math.random() * 300));
+            }
+
             const configData = await kvStore.get('c');
             if (configData) {
                 kvConfig = JSON.parse(configData);
@@ -287,10 +300,11 @@
 
     function getNearbyRegions(region) {
         const nearbyMap = {
-            'US': ['SG', 'JP', 'KR'], 
-            'SG': ['JP', 'KR', 'US'], 
-            'JP': ['SG', 'KR', 'US'], 
-            'KR': ['JP', 'SG', 'US'], 
+            'HK': ['SG', 'JP', 'KR', 'US'],
+            'US': ['SG', 'HK', 'JP', 'KR'], 
+            'SG': ['HK', 'JP', 'KR', 'US'], 
+            'JP': ['HK', 'SG', 'KR', 'US'], 
+            'KR': ['HK', 'JP', 'SG', 'US'], 
             'DE': ['NL', 'GB', 'SE', 'FI'], 
             'SE': ['DE', 'NL', 'FI', 'GB'], 
             'NL': ['DE', 'GB', 'SE', 'FI'], 
@@ -303,7 +317,7 @@
 
     function getAllRegionsByPriority(region) {
         const nearbyRegions = getNearbyRegions(region);
-        const allRegions = ['US', 'SG', 'JP', 'KR', 'DE', 'SE', 'NL', 'FI', 'GB'];
+        const allRegions = ['HK', 'US', 'SG', 'JP', 'KR', 'DE', 'SE', 'NL', 'FI', 'GB'];
 
         return [region, ...nearbyRegions, ...allRegions.filter(r => r !== region && !nearbyRegions.includes(r))];
     }
@@ -540,6 +554,19 @@
                 piu = getConfigValue('yxURL', env.yxURL || env.YXURL) || '';
 
                 cp = getConfigValue('d', env.d || env.D) || '';
+
+                host = getConfigValue('host', env.host || env.HOST) || '';
+                // 从 host 配置填充 hostList（供 getRandomHost 使用）
+                if (host && host.trim()) {
+                    hostList = host.split(',').map(h => h.trim()).filter(h => h).sort(() => Math.random() - 0.5);
+                } else {
+                    hostList = [];
+                }
+
+                const randomPathControl = getConfigValue('randomPath', '');
+                if (randomPathControl !== undefined && randomPathControl !== '') {
+                    enableRandomPath = randomPathControl === 'yes' || randomPathControl === true || randomPathControl === 'true';
+                }
 
                 const url = new URL(request.url);
 
@@ -2529,6 +2556,10 @@
     async function handleSubscriptionRequest(request, user, url = null) {
         if (!url) url = new URL(request.url);
 
+        // Cache API: 尝试获取缓存
+        const cachedResponse = await cfCache.match(request);
+        if (cachedResponse) return cachedResponse;
+
         const finalLinks = [];
         const workerDomain = url.hostname;
         const target = url.searchParams.get('target') || 'base64';
@@ -2542,16 +2573,34 @@
         }
 
         async function addNodesFromList(list) {
-            if (ev) {
-                finalLinks.push(...generateLinksFromSource(list, user, workerDomain, echConfig));
-            }
-            if (et) {
-                finalLinks.push(...await generateTrojanLinksFromSource(list, user, workerDomain, echConfig));
-            }
-            if (ex) {
-                finalLinks.push(...generateXhttpLinksFromSource(list, user, workerDomain, echConfig));
-            }
+            // 全局过滤：IP 版本、域名类型、运营商
+            const domainEnabled = getConfigValue('domain', '') === '' || getConfigValue('domain', 'yes') !== 'no';
+            const ipv4Enabled = getConfigValue('ipv4', '') === '' || getConfigValue('ipv4', 'yes') !== 'no';
+            const ipv6Enabled = getConfigValue('ipv6', '') === '' || getConfigValue('ipv6', 'yes') !== 'no';
+            const ispMobile = getConfigValue('ispMobile', '') === '' || getConfigValue('ispMobile', 'yes') !== 'no';
+            const ispUnicom = getConfigValue('ispUnicom', '') === '' || getConfigValue('ispUnicom', 'yes') !== 'no';
+            const ispTelecom = getConfigValue('ispTelecom', '') === '' || getConfigValue('ispTelecom', 'yes') !== 'no';
+            const isNodeAllowed = (item) => {
+                const host = item.ip || '';
+                const isIPv6 = host.includes(':') || (host.includes('[') && host.includes(']'));
+                const isIPv4 = !isIPv6 && globalIpv4Regex.test(host);
+                const isDomain = !isIPv6 && !isIPv4;
+                if (isIPv6 && !ipv6Enabled) return false;
+                if (isIPv4 && !ipv4Enabled) return false;
+                if (isDomain && !domainEnabled) return false;
+                const isp = (item.isp || item.name || '').toLowerCase();
+                if (isp.includes('移动') || isp.includes('mobile')) { if (!ispMobile) return false; }
+                if (isp.includes('联通') || isp.includes('unicom')) { if (!ispUnicom) return false; }
+                if (isp.includes('电信') || isp.includes('telecom')) { if (!ispTelecom) return false; }
+                return true;
+            };
+            // 仅过滤并收集，延迟生成以实现 VLESS→Trojan→xhttp 排序
+            const filtered = list.filter(isNodeAllowed);
+            if (filtered.length > 0) allSources.push(filtered);
         }
+
+        const allSources = [];
+        const allNewIPs = [];
 
         if (ena) {
             if (currentWorkerRegion === 'CUSTOM') {
@@ -2624,15 +2673,7 @@
             try {
                 const newIPList = await fetchAndParseNewIPs();
                 if (newIPList.length > 0) {
-                    if (ev) {
-                        finalLinks.push(...generateLinksFromNewIPs(newIPList, user, workerDomain, echConfig));
-                    }
-                    if (et) {
-                        finalLinks.push(...await generateTrojanLinksFromNewIPs(newIPList, user, workerDomain, echConfig));
-                    }
-                    if (ex) {
-                         finalLinks.push(...generateXhttpLinksFromSource(newIPList, user, workerDomain, echConfig));
-                    }
+                    allNewIPs.push(newIPList);
                 }
             } catch (error) {
                 if (!currentWorkerRegion) {
@@ -2649,6 +2690,31 @@
                 }
             }
         }
+
+        // --- 统一生成节点链路，按要求排序：VLESS -> Trojan -> xhttp ---
+        const generateFromSources = async (type) => {
+            for (const src of allSources) {
+                if (type === 'vless' && ev) finalLinks.push(...await generateLinksFromSource(src, user, workerDomain, echConfig));
+                if (type === 'trojan' && et) finalLinks.push(...await generateTrojanLinksFromSource(src, user, workerDomain, echConfig));
+                if (type === 'xhttp' && ex) finalLinks.push(...await generateXhttpLinksFromSource(src, user, workerDomain, echConfig));
+            }
+        };
+        const generateFromNewIPs = async (type) => {
+            for (const ipList of allNewIPs) {
+                if (type === 'vless' && ev) finalLinks.push(...await generateLinksFromNewIPs(ipList, user, workerDomain, echConfig));
+                if (type === 'trojan' && et) finalLinks.push(...await generateTrojanLinksFromNewIPs(ipList, user, workerDomain, echConfig));
+                if (type === 'xhttp' && ex) finalLinks.push(...await generateXhttpLinksFromSource(ipList, user, workerDomain, echConfig));
+            }
+        };
+        // A. VLESS 节点 (最前面)
+        await generateFromSources('vless');
+        await generateFromNewIPs('vless');
+        // B. Trojan 节点 (中间)
+        await generateFromSources('trojan');
+        await generateFromNewIPs('trojan');
+        // C. xhttp 节点 (最后)
+        await generateFromSources('xhttp');
+        await generateFromNewIPs('xhttp');
 
         if (finalLinks.length === 0) {
             const errorRemark = "所有节点获取失败";
@@ -2705,7 +2771,7 @@
 
         const responseHeaders = { 
             'Content-Type': contentType,
-            'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+            'Cache-Control': 'public, max-age=300, s-maxage=300',
         };
 
         // 添加ECH状态到响应头
@@ -2716,24 +2782,30 @@
             }
         }
 
-        return new Response(subscriptionContent, {
+        const response = new Response(subscriptionContent, {
             headers: responseHeaders,
         });
+        // Cache API: 存储响应（异步，静默失败）
+        cfCache.put(request, response.clone()).catch(() => {});
+        return response;
     }
 
-    function generateLinksFromSource(list, user, workerDomain, echConfig = null, skipNumbering = false) {
+    async function generateLinksFromSource(list, user, workerDomain, echConfig = null, skipNumbering = false) {
         const CF_HTTP_PORTS = [80, 8080, 8880, 2052, 2082, 2086, 2095];
         const CF_HTTPS_PORTS = [443, 2053, 2083, 2087, 2096, 8443];
 
         const defaultHttpsPorts = [443];
         const defaultHttpPorts = disableNonTLS ? [] : [80];
         const links = [];
-        const wsPath = '/?ed=2048';
+        const nodeHost = host || getRandomHost(workerDomain) || workerDomain;
+        const wsPath = enableRandomPath ? randomPath('/?ed=2048') : '/?ed=2048';
         const proto = atob('dmxlc3M=');
 
         const { namer, setSkipNumbering } = createNodeNamer(skipNumbering);
 
+        let yieldCounter = 0;
         for (const item of list) {
+            if (++yieldCounter % 50 === 0) await new Promise(r => setTimeout(r, 0));
             let nodeNameBase = item.isp.replace(/\s/g, '_');
             if (item.colo && item.colo.trim()) {
                 nodeNameBase = `${nodeNameBase}-${item.colo.trim()}`;
@@ -2775,10 +2847,10 @@
                     const wsParams = new URLSearchParams({ 
                         encryption: 'none', 
                         security: 'tls', 
-                        sni: workerDomain, 
+                        sni: nodeHost, 
                         fp: enableECH ? 'chrome' : 'randomized',
                         type: 'ws', 
-                        host: workerDomain, 
+                        host: nodeHost, 
                         path: wsPath
                     });
 
@@ -2787,6 +2859,13 @@
                         const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
                         const echDomain = customECHDomain || 'cloudflare-ech.com';
                         wsParams.set('ech', `${echDomain}+${dnsServer}`);
+                        // 获取并缓存 ECH 配置列表
+                        let echConfig = globalEchCache.get(echDomain);
+                        if (!echConfig) {
+                            echConfig = await fetchECHConfig(echDomain);
+                            if (echConfig) globalEchCache.set(echDomain, echConfig);
+                        }
+                        if (echConfig) wsParams.set('echconfiglist', echConfig);
                     }
 
                     links.push(`${proto}://${user}@${safeIP}:${port}?${wsParams.toString()}#${encodeURIComponent(wsNodeName)}`);
@@ -2795,7 +2874,7 @@
                         encryption: 'none',
                         security: 'none',
                         type: 'ws',
-                        host: workerDomain,
+                        host: nodeHost,
                         path: wsPath
                     });
 
@@ -2813,13 +2892,16 @@
         const defaultHttpsPorts = [443];
         const defaultHttpPorts = disableNonTLS ? [] : [80];
         const links = [];
-        const wsPath = '/?ed=2048';
+        const nodeHost = host || getRandomHost(workerDomain) || workerDomain;
+        const wsPath = enableRandomPath ? randomPath('/?ed=2048') : '/?ed=2048';
 
         const password = tp || user;
 
         const { namer, setSkipNumbering } = createNodeNamer(skipNumbering);
 
+        let yieldCounter = 0;
         for (const item of list) {
+            if (++yieldCounter % 50 === 0) await new Promise(r => setTimeout(r, 0));
             let nodeNameBase = item.isp.replace(/\s/g, '_');
             if (item.colo && item.colo.trim()) {
                 nodeNameBase = `${nodeNameBase}-${item.colo.trim()}`;
@@ -2860,10 +2942,10 @@
                 if (tls) {
                     const wsParams = new URLSearchParams({ 
                         security: 'tls', 
-                        sni: workerDomain, 
+                        sni: nodeHost, 
                         fp: 'chrome',
                         type: 'ws', 
-                        host: workerDomain, 
+                        host: nodeHost, 
                         path: wsPath
                     });
 
@@ -2872,6 +2954,13 @@
                         const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
                         const echDomain = customECHDomain || 'cloudflare-ech.com';
                         wsParams.set('ech', `${echDomain}+${dnsServer}`);
+                        // 获取并缓存 ECH 配置列表
+                        let echConfig = globalEchCache.get(echDomain);
+                        if (!echConfig) {
+                            echConfig = await fetchECHConfig(echDomain);
+                            if (echConfig) globalEchCache.set(echDomain, echConfig);
+                        }
+                        if (echConfig) wsParams.set('echconfiglist', echConfig);
                     }
 
                     links.push(`${atob('dHJvamFuOi8v')}${password}@${safeIP}:${port}?${wsParams.toString()}#${encodeURIComponent(wsNodeName)}`);
@@ -2879,7 +2968,7 @@
                     const wsParams = new URLSearchParams({
                         security: 'none',
                         type: 'ws',
-                        host: workerDomain,
+                        host: nodeHost,
                         path: wsPath
                     });
 
@@ -3337,6 +3426,8 @@
                 trojanPassword: 'Trojan 密码 (可选):',
                 customPath: '自定义路径 (d):',
                 customIP: '自定义ProxyIP (p):',
+                hostSetting: '自定义HOST (host):',
+                hostPlaceholder: '例如: h1.com,h2.com',
                 preferredIPs: '优选IP列表 (yx):',
                 preferredIPsURL: '优选IP来源URL (yxURL):',
                 latencyTest: '延迟测试',
@@ -3485,6 +3576,8 @@
                 trojanPassword: 'رمز عبور Trojan (اختیاری):',
                 customPath: 'مسیر سفارشی (d):',
                 customIP: 'ProxyIP سفارشی (p):',
+                hostSetting: 'HOST سفارشی (host):',
+                hostPlaceholder: 'مثال: h1.com,h2.com',
                 preferredIPs: 'لیست IP ترجیحی (yx):',
                 preferredIPsURL: 'URL منبع IP ترجیحی (yxURL):',
                 latencyTest: 'تست تاخیر',
@@ -4669,6 +4762,11 @@
                                 <small style="color: #7aa9c4; font-size: 0.85rem;">${isFarsi ? 'آدرس و پورت ProxyIP سفارشی' : '自定义ProxyIP地址和端口'}</small>
                         </div>
                         <div style="margin-bottom: 15px;">
+                                <label style="display: block; margin-bottom: 8px; color: #00f0ff; font-weight: bold; text-shadow: 0 0 3px #00f0ff;">${t.hostSetting}</label>
+                                <input type="text" id="hostInput" placeholder="${t.hostPlaceholder}" style="width: 100%; padding: 12px; background: rgba(0, 0, 0, 0.8); border: 2px solid #00f0ff; color: #00f0ff; font-family: 'Courier New', monospace; font-size: 14px;">
+                                <small style="color: #7aa9c4; font-size: 0.85rem;">${isFarsi ? 'HOST سفارشی گره‌ها (اختیاری). برای انتخاب تصادفی از کاما برای جدا کردن چندین استفاده کنید.' : '自定义节点的HOST值（可选）。支持多个用逗号分隔，系统自动随机选择。'}</small>
+                        </div>
+                        <div style="margin-bottom: 15px;">
                                 <label style="display: block; margin-bottom: 8px; color: #00f0ff; font-weight: bold; text-shadow: 0 0 3px #00f0ff;">${t.preferredIPs}</label>
                                 <input type="text" id="yx" placeholder="${isFarsi ? 'مثال: 1.2.3.4:443#گره هنگ‌کنگ,5.6.7.8:80#گره آمریکا,example.com:8443#گره سنگاپور' : '例如: 1.2.3.4:443#日本节点,5.6.7.8:80#美国节点,example.com:8443#新加坡节点'}" style="width: 100%; padding: 12px; background: rgba(0, 0, 0, 0.8); border: 2px solid #00f0ff; color: #00f0ff; font-family: 'Courier New', monospace; font-size: 14px;">
                                 <small style="color: #7aa9c4; font-size: 0.85rem;">${isFarsi ? 'فرمت: IP:پورت#نام گره یا IP:پورت (بدون # از نام پیش‌فرض استفاده می‌شود). پشتیبانی از چندین مورد، با کاما جدا می‌شوند. <span style="color: #ffb400;">IP های اضافه شده از طریق API به طور خودکار در اینجا نمایش داده می‌شوند.</span>' : '格式: IP:端口#节点名称 或 IP:端口 (无#则使用默认名称)。支持多个，用逗号分隔。<span style="color: #ffb400;">API添加的IP会自动显示在这里。</span>'}</small>
@@ -4808,6 +4906,10 @@
                                         <label style="display: inline-flex; align-items: center; cursor: pointer; color: #00f0ff;">
                                             <input type="checkbox" id="ipv6Enabled" checked style="margin-right: 8px; width: 18px; height: 18px; cursor: pointer;">
                                             <span style="font-size: 1rem;">IPv6</span>
+                                        </label>
+                                        <label style="display: inline-flex; align-items: center; cursor: pointer; color: #00f0ff;">
+                                            <input type="checkbox" id="domainEnabled" checked style="margin-right: 8px; width: 18px; height: 18px; cursor: pointer;">
+                                            <span style="font-size: 1rem;">域名</span>
                                         </label>
                                     </div>
                                 </div>
@@ -5687,12 +5789,14 @@
                     document.getElementById('egi').checked = config.egi !== 'no';
                     if (document.getElementById('ipv4Enabled')) document.getElementById('ipv4Enabled').checked = config.ipv4 !== 'no';
                     if (document.getElementById('ipv6Enabled')) document.getElementById('ipv6Enabled').checked = config.ipv6 !== 'no';
+                if (document.getElementById('domainEnabled')) document.getElementById('domainEnabled').checked = config.domain !== 'no';
                     if (document.getElementById('ispMobile')) document.getElementById('ispMobile').checked = config.ispMobile !== 'no';
                     if (document.getElementById('ispUnicom')) document.getElementById('ispUnicom').checked = config.ispUnicom !== 'no';
                     if (document.getElementById('ispTelecom')) document.getElementById('ispTelecom').checked = config.ispTelecom !== 'no';
                     document.getElementById('customPath').value = config.d || '';
-                    document.getElementById('customIP').value = config.p || '';
-                    document.getElementById('yx').value = config.yx || '';
+                document.getElementById('customIP').value = config.p || '';
+                document.getElementById('hostInput').value = config.host || '';
+                document.getElementById('yx').value = config.yx || '';
                     document.getElementById('yxURL').value = config.yxURL || '';
                     document.getElementById('socksConfig').value = config.s || '';
                     document.getElementById('customHomepage').value = config.homepage || '';
@@ -5842,6 +5946,7 @@
                                 wk: '',
                                 d: '',
                                 p: '',
+                        host: '',
                                 yx: '',
                                 yxURL: '',
                                 s: '', ae: '',
@@ -5849,7 +5954,7 @@
                                 qj: '',
                                 dkby: '',
                                 yxby: '', ev: '', et: '', ex: '', tp: '', scu: '', epd: '', epi: '', egi: '',
-                                ipv4: '', ipv6: '', ispMobile: '', ispUnicom: '', ispTelecom: '',
+                                ipv4: '', ipv6: '', domain: '', ispMobile: '', ispUnicom: '', ispTelecom: '',
                                 homepage: ''
                             })
                         });
@@ -5981,6 +6086,7 @@
                         customECHDomain: val('customECHDomain'),
                         d: val('customPath'),
                         p: val('customIP'),
+                        host: val('hostInput'),
                         yx: val('yx'),
                         yxURL: val('yxURL'),
                         s: val('socksConfig'),
@@ -5994,6 +6100,7 @@
                         dkby: val('portControl'),
                         yxby: val('preferredControl'),
                         ipv4: chk('ipv4Enabled', 'yes'), ipv6: chk('ipv6Enabled', 'yes'),
+                domain: chk('domainEnabled', 'yes'),
                         ispMobile: chk('ispMobile', 'yes'), ispUnicom: chk('ispUnicom', 'yes'), ispTelecom: chk('ispTelecom', 'yes')
                     };
                 }
@@ -7477,16 +7584,19 @@
         }
     }
 
-    function generateLinksFromNewIPs(list, user, workerDomain, echConfig = null, skipNumbering = false) {
+    async function generateLinksFromNewIPs(list, user, workerDomain, echConfig = null, skipNumbering = false) {
         const CF_HTTP_PORTS = [80, 8080, 8880, 2052, 2082, 2086, 2095];
         const CF_HTTPS_PORTS = [443, 2053, 2083, 2087, 2096, 8443];
         const links = [];
-        const wsPath = '/?ed=2048';
+        const nodeHost = host || getRandomHost(workerDomain) || workerDomain;
+        const wsPath = enableRandomPath ? randomPath('/?ed=2048') : '/?ed=2048';
         const proto = atob('dmxlc3M=');
 
         const { namer, setSkipNumbering } = createNodeNamer(skipNumbering);
 
+        let yieldCounter = 0;
         for (const item of list) {
+            if (++yieldCounter % 50 === 0) await new Promise(r => setTimeout(r, 0));
             const nodeNameBase = item.name.replace(/\s/g, '_');
             const port = item.port;
             const safeIP = item.ip.includes(':') ? `[${item.ip}]` : item.ip;
@@ -7500,13 +7610,20 @@
             if (CF_HTTPS_PORTS.includes(port)) {
                 const suffix = '-WS-TLS';
                 const wsNodeName = getNodeName(suffix);
-                let link = `${proto}://${user}@${safeIP}:${port}?encryption=none&security=tls&sni=${workerDomain}&fp=${enableECH ? 'chrome' : 'randomized'}&type=ws&host=${workerDomain}&path=${wsPath}`;
+                let link = `${proto}://${user}@${safeIP}:${port}?encryption=none&security=tls&sni=${nodeHost}&fp=${enableECH ? 'chrome' : 'randomized'}&type=ws&host=${nodeHost}&path=${wsPath}`;
 
                 // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
                 if (enableECH) {
                     const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
                     const echDomain = customECHDomain || 'cloudflare-ech.com';
                     link += `&ech=${encodeURIComponent(`${echDomain}+${dnsServer}`)}`;
+                    // 获取并缓存 ECH 配置列表
+                    let echConfig = globalEchCache.get(echDomain);
+                    if (!echConfig) {
+                        echConfig = await fetchECHConfig(echDomain);
+                        if (echConfig) globalEchCache.set(echDomain, echConfig);
+                    }
+                    if (echConfig) link += `&echconfiglist=${encodeURIComponent(echConfig)}`;
                 }
 
                 link += `#${encodeURIComponent(wsNodeName)}`;
@@ -7515,19 +7632,26 @@
                 if (!disableNonTLS) {
                     const suffix = '-WS';
                     const wsNodeName = getNodeName(suffix);
-                    const link = `${proto}://${user}@${safeIP}:${port}?encryption=none&security=none&type=ws&host=${workerDomain}&path=${wsPath}#${encodeURIComponent(wsNodeName)}`;
+                    const link = `${proto}://${user}@${safeIP}:${port}?encryption=none&security=none&type=ws&host=${nodeHost}&path=${wsPath}#${encodeURIComponent(wsNodeName)}`;
                     links.push(link);
                 }
             } else {
                 const suffix = '-WS-TLS';
                 const wsNodeName = getNodeName(suffix);
-                let link = `${proto}://${user}@${safeIP}:${port}?encryption=none&security=tls&sni=${workerDomain}&fp=${enableECH ? 'chrome' : 'randomized'}&type=ws&host=${workerDomain}&path=${wsPath}`;
+                let link = `${proto}://${user}@${safeIP}:${port}?encryption=none&security=tls&sni=${nodeHost}&fp=${enableECH ? 'chrome' : 'randomized'}&type=ws&host=${nodeHost}&path=${wsPath}`;
 
                 // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
                 if (enableECH) {
                     const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
                     const echDomain = customECHDomain || 'cloudflare-ech.com';
                     link += `&ech=${encodeURIComponent(`${echDomain}+${dnsServer}`)}`;
+                    // 获取并缓存 ECH 配置列表
+                    let echConfig = globalEchCache.get(echDomain);
+                    if (!echConfig) {
+                        echConfig = await fetchECHConfig(echDomain);
+                        if (echConfig) globalEchCache.set(echDomain, echConfig);
+                    }
+                    if (echConfig) link += `&echconfiglist=${encodeURIComponent(echConfig)}`;
                 }
 
                 link += `#${encodeURIComponent(wsNodeName)}`;
@@ -7537,13 +7661,16 @@
         return links;
     }
 
-    function generateXhttpLinksFromSource(list, user, workerDomain, echConfig = null, skipNumbering = false) {
+    async function generateXhttpLinksFromSource(list, user, workerDomain, echConfig = null, skipNumbering = false) {
         const links = [];
+        const nodeHost = host || getRandomHost(workerDomain) || workerDomain;
         const nodePath = user.substring(0, 8);
 
         const { namer, setSkipNumbering } = createNodeNamer(skipNumbering);
 
+        let yieldCounter = 0;
         for (const item of list) {
+            if (++yieldCounter % 50 === 0) await new Promise(r => setTimeout(r, 0));
             let nodeNameBase = item.isp || item.name || item.ip;
             if (!nodeNameBase) continue;
             nodeNameBase = nodeNameBase.replace(/\s/g, '_');
@@ -7563,11 +7690,11 @@
             const params = new URLSearchParams({
                 encryption: 'none',
                 security: 'tls',
-                sni: workerDomain,
+                sni: nodeHost,
                 fp: 'chrome',
                 type: 'xhttp',
-                host: workerDomain,
-                path: `/${nodePath}`,
+                host: nodeHost,
+                path: enableRandomPath ? randomPath('/' + nodePath) : '/' + nodePath,
                 mode: 'stream-one'
             });
 
@@ -7575,6 +7702,13 @@
                 const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
                 const echDomain = customECHDomain || 'cloudflare-ech.com';
                 params.set('ech', `${echDomain}+${dnsServer}`);
+                // 获取并缓存 ECH 配置列表
+                let echConfig = globalEchCache.get(echDomain);
+                if (!echConfig) {
+                    echConfig = await fetchECHConfig(echDomain);
+                    if (echConfig) globalEchCache.set(echDomain, echConfig);
+                }
+                if (echConfig) params.set('echconfiglist', echConfig);
             }
 
             links.push(`vless://${user}@${safeIP}:${port}?${params.toString()}#${encodeURIComponent(wsNodeName)}`);
@@ -7587,13 +7721,16 @@
         const CF_HTTPS_PORTS = [443, 2053, 2083, 2087, 2096, 8443];
 
         const links = [];
-        const wsPath = '/?ed=2048';
+        const nodeHost = host || getRandomHost(workerDomain) || workerDomain;
+        const wsPath = enableRandomPath ? randomPath('/?ed=2048') : '/?ed=2048';
 
         const password = tp || user;
 
         const { namer, setSkipNumbering } = createNodeNamer(skipNumbering);
 
+        let yieldCounter = 0;
         for (const item of list) {
+            if (++yieldCounter % 50 === 0) await new Promise(r => setTimeout(r, 0));
             const nodeNameBase = item.name.replace(/\s/g, '_');
             const port = item.port;
             const safeIP = item.ip.includes(':') ? `[${item.ip}]` : item.ip;
@@ -7607,13 +7744,20 @@
             if (CF_HTTPS_PORTS.includes(port)) {
                 const suffix = `-${atob('VHJvamFu')}-WS-TLS`;
                 const wsNodeName = getNodeName(suffix);
-                let link = `${atob('dHJvamFuOi8v')}${password}@${safeIP}:${port}?security=tls&sni=${workerDomain}&fp=chrome&type=ws&host=${workerDomain}&path=${wsPath}`;
+                let link = `${atob('dHJvamFuOi8v')}${password}@${safeIP}:${port}?security=tls&sni=${nodeHost}&fp=chrome&type=ws&host=${nodeHost}&path=${wsPath}`;
 
                 // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
                 if (enableECH) {
                     const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
                     const echDomain = customECHDomain || 'cloudflare-ech.com';
                     link += `&ech=${encodeURIComponent(`${echDomain}+${dnsServer}`)}`;
+                    // 获取并缓存 ECH 配置列表
+                    let echConfig = globalEchCache.get(echDomain);
+                    if (!echConfig) {
+                        echConfig = await fetchECHConfig(echDomain);
+                        if (echConfig) globalEchCache.set(echDomain, echConfig);
+                    }
+                    if (echConfig) link += `&echconfiglist=${encodeURIComponent(echConfig)}`;
                 }
 
                 link += `#${encodeURIComponent(wsNodeName)}`;
@@ -7622,13 +7766,13 @@
                 if (!disableNonTLS) {
                     const suffix = `-${atob('VHJvamFu')}-WS`;
                     const wsNodeName = getNodeName(suffix);
-                    const link = `${atob('dHJvamFuOi8v')}${password}@${safeIP}:${port}?security=none&type=ws&host=${workerDomain}&path=${wsPath}#${encodeURIComponent(wsNodeName)}`;
+                    const link = `${atob('dHJvamFuOi8v')}${password}@${safeIP}:${port}?security=none&type=ws&host=${nodeHost}&path=${wsPath}#${encodeURIComponent(wsNodeName)}`;
                     links.push(link);
                 }
             } else {
                 const suffix = `-${atob('VHJvamFu')}-WS-TLS`;
                 const wsNodeName = getNodeName(suffix);
-                let link = `${atob('dHJvamFuOi8v')}${password}@${safeIP}:${port}?security=tls&sni=${workerDomain}&fp=chrome&type=ws&host=${workerDomain}&path=${wsPath}`;
+                let link = `${atob('dHJvamFuOi8v')}${password}@${safeIP}:${port}?security=tls&sni=${nodeHost}&fp=chrome&type=ws&host=${nodeHost}&path=${wsPath}`;
 
                 // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
                 if (enableECH) {
@@ -7641,6 +7785,35 @@
             }
         }
         return links;
+    }
+
+    function randomPath(fullNodePath = "/") {
+        const commonPathDirs = ["#","about","account","acg","act","activity","ad","admin","ads","ajax","album","albums","anime","api","app","apps","archive","archives","article","articles","ask","auth","avatar","bbs","bd","blog","blogs","book","books","bt","buy","cart","category","categories","cb","channel","channels","chat","china","city","class","classify","clip","clips","club","cn","code","collect","collection","comic","comics","community","company","config","contact","content","course","courses","cp","data","detail","details","dh","directory","discount","discuss","dl","dload","doc","docs","document","documents","doujin","download","downloads","drama","edu","en","ep","episode","episodes","event","events","f","faq","favorite","favourites","favs","feedback","file","files","film","films","forum","forums","friend","friends","game","games","gif","go","go.html","go.php","group","groups","help","home","hot","htm","html","image","images","img","index","info","intro","item","items","ja","jp","jump","jump.html","jump.php","jumping","knowledge","lang","lesson","lessons","lib","library","link","links","list","live","lives","login","logout","m","mag","magnet","mall","manhua","map","member","members","message","messages","mobile","movie","movies","music","my","new","news","note","novel","novels","online","order","out","out.html","out.php","outbound","p","page","pages","pay","payment","pdf","photo","photos","pic","pics","picture","pictures","play","player","playlist","post","posts","product","products","program","programs","project","qa","question","rank","ranking","read","readme","redirect","redirect.html","redirect.php","reg","register","res","resource","retrieve","sale","search","season","seasons","section","seller","series","service","services","setting","settings","share","shop","show","shows","site","soft","sort","source","special","star","stars","static","stock","store","stream","streaming","streams","student","study","tag","tags","task","teacher","team","tech","temp","temporary","test","theme","themes","tip","tips","tool","tools","top","topic","tour","tutorial","tv","uk","update","upload","url","us","user","users","v","version","video","videos","wap","web","website","win","windows","world","www","x","xml","xx","y","z","zone"];
+        const randomCount = Math.floor(Math.random() * 3 + 1);
+        const randomPath = commonPathDirs.sort(() => 0.5 - Math.random()).slice(0, randomCount).join('/');
+        if (fullNodePath === "/") return `/${randomPath}`;
+        else return `/${randomPath + fullNodePath.replace('/?', '?')}`;
+    }
+
+    function replaceWildcards(str) {
+        return str
+            .replace(/\$\{timestamp\}/g, Date.now())
+            .replace(/\$\{random\}/g, Math.random().toString(36).substring(2, 8))
+            .replace(/\$\{uuid\}/g, 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+                const r = Math.random() * 16 | 0;
+                return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+            }));
+    }
+
+    function getRandomHost(fallback) {
+        const wildcardHosts = hostList.flatMap(h => {
+            if (h.includes('*')) return [replaceWildcards(h)];
+            return [h];
+        });
+        if (wildcardHosts.length > 0) {
+            return wildcardHosts[Math.floor(Math.random() * wildcardHosts.length)];
+        }
+        return fallback;
     }
 
     async function handleConfigAPI(request) {
