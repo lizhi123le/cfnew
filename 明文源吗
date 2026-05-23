@@ -2825,7 +2825,7 @@
         let yieldCounter = 0;
         for (const item of list) {
             if (++yieldCounter % 50 === 0) await new Promise(r => setTimeout(r, 0));
-            let nodeNameBase = item.isp.replace(/\s/g, '_');
+            let nodeNameBase = (item.isp || '').split(/[?#@]/)[0].trim().replace(/\s/g, '_') || item.ip.replace(/\s/g, '_');
             if (item.colo && item.colo.trim()) {
                 nodeNameBase = `${nodeNameBase}-${item.colo.trim()}`;
             }
@@ -2923,7 +2923,7 @@
         let yieldCounter = 0;
         for (const item of list) {
             if (++yieldCounter % 50 === 0) await new Promise(r => setTimeout(r, 0));
-            let nodeNameBase = item.isp.replace(/\s/g, '_');
+            let nodeNameBase = (item.isp || '').split(/[?#@]/)[0].trim().replace(/\s/g, '_') || item.ip.replace(/\s/g, '_');
             if (item.colo && item.colo.trim()) {
                 nodeNameBase = `${nodeNameBase}-${item.colo.trim()}`;
             }
@@ -7706,7 +7706,7 @@
         let yieldCounter = 0;
         for (const item of list) {
             if (++yieldCounter % 50 === 0) await new Promise(r => setTimeout(r, 0));
-            const nodeNameBase = item.name.replace(/\s/g, '_');
+            const nodeNameBase = (item.name || '').split(/[?#@]/)[0].trim().replace(/\s/g, '_') || item.ip.replace(/\s/g, '_');
             const port = item.port;
             const safeIP = item.ip.includes(':') ? `[${item.ip}]` : item.ip;
             const nodeHost = getRandomHost(workerDomain) || workerDomain;
@@ -7785,9 +7785,8 @@
         let yieldCounter = 0;
         for (const item of list) {
             if (++yieldCounter % 50 === 0) await new Promise(r => setTimeout(r, 0));
-            let nodeNameBase = item.isp || item.name || item.ip;
+            let nodeNameBase = (item.isp || item.name || item.ip || '').split(/[?#@]/)[0].trim().replace(/\s/g, '_');
             if (!nodeNameBase) continue;
-            nodeNameBase = nodeNameBase.replace(/\s/g, '_');
             if (item.colo) nodeNameBase = `${nodeNameBase}-${item.colo}`;
             const safeIP = item.ip.includes(':') ? `[${item.ip}]` : item.ip;
             const port = item.port || 443;
@@ -7846,7 +7845,7 @@
         let yieldCounter = 0;
         for (const item of list) {
             if (++yieldCounter % 50 === 0) await new Promise(r => setTimeout(r, 0));
-            const nodeNameBase = item.name.replace(/\s/g, '_');
+            const nodeNameBase = (item.name || '').split(/[?#@]/)[0].trim().replace(/\s/g, '_') || item.ip.replace(/\s/g, '_');
             const port = item.port;
             const safeIP = item.ip.includes(':') ? `[${item.ip}]` : item.ip;
             const nodeHost = getRandomHost(workerDomain) || workerDomain;
