@@ -7586,24 +7586,7 @@
         const url = piu;
         try {
             const urls = url.includes(',') ? url.split(',').map(u => u.trim()).filter(u => u) : [url];
-
-            // 对所有 yxURL 来源注入随机路径（如果启用了随机路径）
-            const processedUrls = urls.map(u => {
-                let fetchUrl = u;
-                if (enableRandomPath) {
-                    try {
-                        const urlObj = new URL(u);
-                        const pathParts = urlObj.pathname.split('/');
-                        const randDirs = commonPathDirs.slice().sort(() => 0.5 - Math.random()).slice(0, Math.floor(Math.random() * 3 + 1)).join('/');
-                        pathParts.push(randDirs);
-                        urlObj.pathname = pathParts.join('/');
-                        fetchUrl = urlObj.toString();
-                    } catch (e) { /* URL 格式异常则保持原样 */ }
-                }
-                return fetchUrl;
-            });
-
-            const apiResults = await fetchPreferredAPI(processedUrls, '443', 5000);
+            const apiResults = await fetchPreferredAPI(urls, '443', 8000);
 
             // 检测一行是否为真正的纯 IPv6 地址（而非 URL 或其它含多冒号的字符串）
             function isGenuineIPv6(s) {
@@ -7659,8 +7642,8 @@
                 return results;
             }
 
-            // 纯文本/CSV URL 源：使用已注入随机路径的 URL 发起请求
-            const response = await fetch(processedUrls[0]);
+            // 纯文本/CSV URL 源
+            const response = await fetch(urls[0]);
             if (!response.ok) return [];
             const text = await response.text();
             const results = [];
