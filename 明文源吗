@@ -15,6 +15,7 @@
     let piu = '';
     let cp = '';  
     let enableRandomPath = false; // 随机路径开关
+    const commonPathDirs = ["#","about","account","acg","act","activity","ad","admin","ads","ajax","album","albums","anime","api","app","apps","archive","archives","article","articles","ask","auth","avatar","bbs","bd","blog","blogs","book","books","bt","buy","cart","category","categories","cb","channel","channels","chat","china","city","class","classify","clip","clips","club","cn","code","collect","collection","comic","comics","community","company","config","contact","content","course","courses","cp","data","detail","details","dh","directory","discount","discuss","dl","dload","doc","docs","document","documents","doujin","download","downloads","drama","edu","en","ep","episode","episodes","event","events","f","faq","favorite","favourites","favs","feedback","file","files","film","films","forum","forums","friend","friends","game","games","gif","go","go.html","go.php","group","groups","help","home","hot","htm","html","image","images","img","index","info","intro","item","items","ja","jp","jump","jump.html","jump.php","jumping","knowledge","lang","lesson","lessons","lib","library","link","links","list","live","lives","login","logout","m","mag","magnet","mall","manhua","map","member","members","message","messages","mobile","movie","movies","music","my","new","news","note","novel","novels","online","order","out","out.html","out.php","outbound","p","page","pages","pay","payment","pdf","photo","photos","pic","pics","picture","pictures","play","player","playlist","post","posts","product","products","program","programs","project","qa","question","rank","ranking","read","readme","redirect","redirect.html","redirect.php","reg","register","res","resource","retrieve","sale","search","season","seasons","section","seller","series","service","services","setting","settings","share","shop","show","shows","site","soft","sort","source","special","star","stars","static","stock","store","stream","streaming","streams","student","study","tag","tags","task","teacher","team","tech","temp","test","thread","tool","tools","topic","topics","torrent","trade","travel","tv","txt","type","u","upload","uploads","url","urls","user","users","v","version","video","videos","view","vip","vod","watch","web","wenku","wiki","work","www","zh","zh-cn","zh-tw","zip","about-us","access","accounting","activation","address","advertising","affiliate","agreement","alert","alerts","analytics-dashboard","announcement","api-docs","apply","archive-news","article-detail","attendance","author","auto","backup","banner","billing","board","brand","browse-all","business","calendar","campaign","career","cart-checkout","catalog","certificate","checkout-success","client","cloud","comment","company-info","competition","complaint","conference","connect","console","contact-form","contest","contract","contribute","control","cookie","copyright","coupon","create","crm","currency","custom","customer","dashboard-admin","data-center","deal","default","demo","department","design","developer","development","device","directory-list","discounts","display","donate","editor","email","employee","employment","enterprise","entry","environment","error-log","estimate","exam","example","exchange","experience","expert","export","faq-page","feature","feedback-form","finance","financial","fleet","flow","form","gallery","gateway","general","global","guide","hardware","health","history-page","holiday","host","hosting","identity","image-gallery","import","index-page","industry","info-center","information","inquiry","install","instruction","insurance","integration","interface","internal","invoice","issue","job","join","journal","key","knowledge-base","lab","landing","language","launch","legal","license","limited","location","log","logging","logs","machine","mail","manage","management","manual","map-view","market","marketing","master","media-center","member-area","menu","merchant","message-board","meta","method","metrics","misc","moderator","module","monitor","monthly","navigation","network","newsletter","notification","office","official","open","operation","opinion","option","order-detail","organization","overview","owner","package","partner","password","payment-info","people","performance","personal","phone","photo-gallery","plan","platform","policy","portal","portfolio","position","preferences","press-release","preview","pricing","print","privacy-policy","problem","process","profile-edit","project-detail","promotion","property","proposal","public","publication","purchase","quality","queue","quote","ranking-list","rate","rating","record","register-form","release","report","reporting","request","requirement","research","resource-center","response","result","resume","review","role","rule","sales","sample","schedule","school","score","screen","script","search-results","section-list","security","server","session","setting-page","setup","shop-cart","shopping","signin","signup-form","site-map","solution","staff","statistics","status-page","storage","store-front","studio","submission","subscribe-form","subscription","success","summary","support-center","survey","system","table","task-list","team-member","template","terms-of-service","test-case","ticket","timeline","toolbox","topic-list","tour","tracking-info","training","transaction","transfer","translation","tutorial","update","upgrade","upload-file","usage","user-guide","utility","validation","value","vendor","verification","version-info","visitor","voice","webmail","workflow"];
     let hostList = []; let host = ''; // 由 getConfigValue 填充
 
     let ev = true;   
@@ -7585,7 +7586,33 @@
         const url = piu;
         try {
             const urls = url.includes(',') ? url.split(',').map(u => u.trim()).filter(u => u) : [url];
-            const apiResults = await fetchPreferredAPI(urls, '443', 5000);
+
+            // 对所有 yxURL 来源注入随机路径（如果启用了随机路径）
+            const processedUrls = urls.map(u => {
+                let fetchUrl = u;
+                if (enableRandomPath) {
+                    try {
+                        const urlObj = new URL(u);
+                        const pathParts = urlObj.pathname.split('/');
+                        const randDirs = commonPathDirs.slice().sort(() => 0.5 - Math.random()).slice(0, Math.floor(Math.random() * 3 + 1)).join('/');
+                        pathParts.push(randDirs);
+                        urlObj.pathname = pathParts.join('/');
+                        fetchUrl = urlObj.toString();
+                    } catch (e) { /* URL 格式异常则保持原样 */ }
+                }
+                return fetchUrl;
+            });
+
+            const apiResults = await fetchPreferredAPI(processedUrls, '443', 5000);
+
+            // 检测一行是否为真正的纯 IPv6 地址（而非 URL 或其它含多冒号的字符串）
+            function isGenuineIPv6(s) {
+                if (s.includes('@') || s.includes('/') || s.includes('?')) return false;
+                if (s.startsWith('[')) return s.includes(']') && s.includes(':');
+                // 纯 IPv6: 最多允许一个 %(zone_id)，不含其它特殊字符
+                const clean = s.split('%')[0];
+                return clean.includes(':') && clean.split(':').length > 2 && /^[0-9a-fA-F:.:]+$/.test(clean);
+            }
 
             if (apiResults.length > 0) {
                 const results = [];
@@ -7593,14 +7620,17 @@
                 
                 for (const item of apiResults) {
                     const match = item.match(regex);
-                    const isIPv6 = item.includes(':') && !item.includes('[') && (item.split(':').length > 2);
+                    const isIPv6 = isGenuineIPv6(item);
                     
                     if (match) {
                         const rawIP = match[1].replace(/^\[|\]$/g, '');
+                        const rawName = match[3]?.trim() || '';
+                        // 确保 name 不包含 URL 特殊字符（避免取到问号后的查参）
+                        const safeName = /[?@]/.test(rawName) ? rawName.split(/[?#]/)[0].trim() || rawIP : (rawName || rawIP);
                         results.push({
                             ip: rawIP,
                             port: parseInt(match[2] || '443', 10),
-                            name: match[3]?.trim() || rawIP
+                            name: safeName
                         });
                     } else if (isIPv6) {
                         const hashIndex = item.indexOf('#');
@@ -7617,37 +7647,19 @@
                             ip = hostPart.substring(0, lastColonIndex);
                         }
                         
+                        const rawName = remark.trim();
+                        const safeName = /[?@]/.test(rawName) ? rawName.split(/[?#]/)[0].trim() || ip : (rawName || ip);
                         results.push({
                             ip: ip,
                             port: port,
-                            name: remark.trim() || ip
+                            name: safeName
                         });
                     }
                 }
                 return results;
             }
 
-            // ✅ 新增：随机路径支持 (针对纯文本/CSV URL 源)
-            const randomPathEnabled = enableRandomPath;
-            const commonPathDirs = ["#","about","account","acg","act","activity","ad","admin","ads","ajax","album","albums","anime","api","app","apps","archive","archives","article","articles","ask","auth","avatar","bbs","bd","blog","blogs","book","books","bt","buy","cart","category","categories","cb","channel","channels","chat","china","city","class","classify","clip","clips","club","cn","code","collect","collection","comic","comics","community","company","config","contact","content","course","courses","cp","data","detail","details","dh","directory","discount","discuss","dl","dload","doc","docs","document","documents","doujin","download","downloads","drama","edu","en","ep","episode","episodes","event","events","f","faq","favorite","favourites","favs","feedback","file","files","film","films","forum","forums","friend","friends","game","games","gif","go","go.html","go.php","group","groups","help","home","hot","htm","html","image","images","img","index","info","intro","item","items","ja","jp","jump","jump.html","jump.php","jumping","knowledge","lang","lesson","lessons","lib","library","link","links","list","live","lives","login","logout","m","mag","magnet","mall","manhua","map","member","members","message","messages","mobile","movie","movies","music","my","new","news","note","novel","novels","online","order","out","out.html","out.php","outbound","p","page","pages","pay","payment","pdf","photo","photos","pic","pics","picture","pictures","play","player","playlist","post","posts","product","products","program","programs","project","qa","question","rank","ranking","read","readme","redirect","redirect.html","redirect.php","reg","register","res","resource","retrieve","sale","search","season","seasons","section","seller","series","service","services","setting","settings","share","shop","show","shows","site","soft","sort","source","special","star","stars","static","stock","store","stream","streaming","streams","student","study","tag","tags","task","teacher","team","tech","temp","temporary","test","theme","themes","tip","tips","tool","tools","top","topic","tour","tutorial","tv","uk","update","upload","url","us","user","users","v","version","video","videos","wap","web","website","win","windows","world","www","x","xml","xx","y","z","zone"];
-
-            // 处理所有候选 URL，按需注入随机路径段
-            const processedUrls = urls.map(u => {
-                let fetchUrl = u;
-                if (randomPathEnabled) {
-                    try {
-                        const urlObj = new URL(u);
-                        const pathParts = urlObj.pathname.split('/');
-                        const randDirs = commonPathDirs.sort(() => 0.5 - Math.random()).slice(0, Math.floor(Math.random() * 3 + 1)).join('/');
-                        pathParts.push(randDirs);
-                        urlObj.pathname = pathParts.join('/');
-                        fetchUrl = urlObj.toString();
-                    } catch (e) { /* URL 格式异常则保持原样，避免阻断流程 */ }
-                }
-                return fetchUrl;
-            });
-
-            // 使用处理后的 URL 发起请求
+            // 纯文本/CSV URL 源：使用已注入随机路径的 URL 发起请求
             const response = await fetch(processedUrls[0]);
             if (!response.ok) return [];
             const text = await response.text();
@@ -7659,13 +7671,15 @@
                 const trimmedLine = line.trim();
                 if (!trimmedLine) continue;
                 const match = trimmedLine.match(simpleRegex);
-                const isIPv6 = trimmedLine.includes(':') && (trimmedLine.split(':').length > 2);
+                const isIPv6 = isGenuineIPv6(trimmedLine);
                 
                 if (match) {
+                    const rawName = match[3].trim();
+                    const safeName = /[?@]/.test(rawName) ? rawName.split(/[?#]/)[0].trim() || match[1] : (rawName || match[1]);
                     results.push({
                         ip: match[1],
                         port: parseInt(match[2], 10),
-                        name: match[3].trim() || match[1]
+                        name: safeName
                     });
                 } else if (isIPv6) {
                     const hashIndex = trimmedLine.indexOf('#');
@@ -7682,10 +7696,12 @@
                         ip = hostPart.substring(0, lastColonIndex);
                     }
                     
+                    const rawName = remark.trim();
+                    const safeName = /[?@]/.test(rawName) ? rawName.split(/[?#]/)[0].trim() || ip : (rawName || ip);
                     results.push({
                         ip: ip,
                         port: port,
-                        name: remark.trim() || ip
+                        name: safeName
                     });
                 }
             }
@@ -7910,9 +7926,8 @@
     }
 
     function randomPath(fullNodePath = "/") {
-        const commonPathDirs = ["#","about","account","acg","act","activity","ad","admin","ads","ajax","album","albums","anime","api","app","apps","archive","archives","article","articles","ask","auth","avatar","bbs","bd","blog","blogs","book","books","bt","buy","cart","category","categories","cb","channel","channels","chat","china","city","class","classify","clip","clips","club","cn","code","collect","collection","comic","comics","community","company","config","contact","content","course","courses","cp","data","detail","details","dh","directory","discount","discuss","dl","dload","doc","docs","document","documents","doujin","download","downloads","drama","edu","en","ep","episode","episodes","event","events","f","faq","favorite","favourites","favs","feedback","file","files","film","films","forum","forums","friend","friends","game","games","gif","go","go.html","go.php","group","groups","help","home","hot","htm","html","image","images","img","index","info","intro","item","items","ja","jp","jump","jump.html","jump.php","jumping","knowledge","lang","lesson","lessons","lib","library","link","links","list","live","lives","login","logout","m","mag","magnet","mall","manhua","map","member","members","message","messages","mobile","movie","movies","music","my","new","news","note","novel","novels","online","order","out","out.html","out.php","outbound","p","page","pages","pay","payment","pdf","photo","photos","pic","pics","picture","pictures","play","player","playlist","post","posts","product","products","program","programs","project","qa","question","rank","ranking","read","readme","redirect","redirect.html","redirect.php","reg","register","res","resource","retrieve","sale","search","season","seasons","section","seller","series","service","services","setting","settings","share","shop","show","shows","site","soft","sort","source","special","star","stars","static","stock","store","stream","streaming","streams","student","study","tag","tags","task","teacher","team","tech","temp","temporary","test","theme","themes","tip","tips","tool","tools","top","topic","tour","tutorial","tv","uk","update","upload","url","us","user","users","v","version","video","videos","wap","web","website","win","windows","world","www","x","xml","xx","y","z","zone"];
         const randomCount = Math.floor(Math.random() * 3 + 1);
-        const randomPath = commonPathDirs.sort(() => 0.5 - Math.random()).slice(0, randomCount).join('/');
+        const randomPath = commonPathDirs.slice().sort(() => 0.5 - Math.random()).slice(0, randomCount).join('/');
         if (fullNodePath === "/") return `/${randomPath}`;
         else return `/${randomPath + fullNodePath.replace('/?', '?')}`;
     }
@@ -8262,6 +8277,11 @@
         const githubIPsControl = getConfigValue('egi', '');
         if (githubIPsControl !== undefined && githubIPsControl !== '') {
             egi = githubIPsControl !== 'no' && githubIPsControl !== false && githubIPsControl !== 'false';
+        }
+
+        const randomPathControl = getConfigValue('randomPath', '');
+        if (randomPathControl !== undefined && randomPathControl !== '') {
+            enableRandomPath = randomPathControl === 'yes' || randomPathControl === true || randomPathControl === 'true' || randomPathControl === '1';
         }
 
         const nativeAddressControl = getConfigValue('ena', '');
