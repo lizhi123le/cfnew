@@ -7587,39 +7587,31 @@
         try {
             const urls = url.includes(',') ? url.split(',').map(u => u.trim()).filter(u => u) : [url];
             const apiResults = await fetchPreferredAPI(urls, '443', 8000);
-
-            // 检测一行是否为真正的纯 IPv6 地址（而非 URL 或其它含多冒号的字符串）
-            function isGenuineIPv6(s) {
-                if (s.includes('@') || s.includes('/') || s.includes('?')) return false;
-                if (s.startsWith('[')) return s.includes(']') && s.includes(':');
-                // 纯 IPv6: 最多允许一个 %(zone_id)，不含其它特殊字符
-                const clean = s.split('%')[0];
-                return clean.includes(':') && clean.split(':').length > 2 && /^[0-9a-fA-F:.:]+$/.test(clean);
-            }
-
+            
             if (apiResults.length > 0) {
                 const results = [];
                 const regex = /^(\[[\da-fA-F:]+\]|[\d.]+|[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?)*)(?::(\d+))?(?:#(.+))?$/;
                 
                 for (const item of apiResults) {
                     const match = item.match(regex);
-                    const isIPv6 = isGenuineIPv6(item);
+                    const isIPv6 = item.includes(':') && !item.includes('[') && (item.split(':').length > 2);
                     
                     if (match) {
-                        const rawIP = match[1].replace(/^\[|\]$/g, '');
+                        // 对 name 做 safe 处理，去除 ? 后方查参
                         const rawName = match[3]?.trim() || '';
-                        // 确保 name 不包含 URL 特殊字符（避免取到问号后的查参）
-                        const safeName = /[?@]/.test(rawName) ? rawName.split(/[?#]/)[0].trim() || rawIP : (rawName || rawIP);
+                        const safeName = /[?@]/.test(rawName) ? rawName.split(/[?#]/)[0].trim() || match[1] : (rawName || match[1]);
                         results.push({
-                            ip: rawIP,
+                            ip: match[1],
                             port: parseInt(match[2] || '443', 10),
                             name: safeName
                         });
                     } else if (isIPv6) {
+                        // 处理未加中括号的 raw IPv6
                         const hashIndex = item.indexOf('#');
                         let hostPart = hashIndex > -1 ? item.substring(0, hashIndex) : item;
                         const remark = hashIndex > -1 ? item.substring(hashIndex + 1) : '';
                         
+                        // 简单判断末尾是否带端口 (如 :443)
                         const lastColonIndex = hostPart.lastIndexOf(':');
                         const possiblePort = hostPart.substring(lastColonIndex + 1);
                         let port = 443;
@@ -7641,9 +7633,9 @@
                 }
                 return results;
             }
-
+            
             // 纯文本/CSV URL 源
-            const response = await fetch(urls[0]);
+            const response = await fetch(url);
             if (!response.ok) return [];
             const text = await response.text();
             const results = [];
@@ -7654,8 +7646,8 @@
                 const trimmedLine = line.trim();
                 if (!trimmedLine) continue;
                 const match = trimmedLine.match(simpleRegex);
-                const isIPv6 = isGenuineIPv6(trimmedLine);
-                
+                const isIPv6 = trimmedLine.includes(':') && (trimmedLine.split(':').length > 2);
+
                 if (match) {
                     const rawName = match[3].trim();
                     const safeName = /[?@]/.test(rawName) ? rawName.split(/[?#]/)[0].trim() || match[1] : (rawName || match[1]);
@@ -7718,59 +7710,47 @@
                 return namer(nodeNameBase, nodeName);
             };
 
-            if (CF_HTTPS_PORTS.includes(port)) {
+            if (CF_HTTPS_PORTS.includes(port) || !CF_HTTP_PORTS.includes(port)) {
+                // TLS 端口或未知端口（默认TLS）
                 const suffix = '-WS-TLS';
                 const wsNodeName = getNodeName(suffix);
-                let link = `${proto}://${user}@${safeIP}:${port}?encryption=none&security=tls&sni=${nodeHost}&fp=${enableECH ? 'chrome' : 'randomized'}&type=ws&host=${nodeHost}&path=${wsPath}`;
-
+                const wsParams = new URLSearchParams({
+                    encryption: 'none',
+                    security: 'tls',
+                    sni: nodeHost,
+                    fp: enableECH ? 'chrome' : 'randomized',
+                    type: 'ws',
+                    host: nodeHost,
+                    path: wsPath
+                });
                 // 如果配置了ALPN，添加alpn参数
-                if (customALPN) link += `&alpn=${encodeURIComponent(customALPN)}`;
-                // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
+                if (customALPN) wsParams.set('alpn', customALPN);
+                // 如果启用了ECH，添加ech参数
                 if (enableECH) {
                     const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
                     const echDomain = customECHDomain || getRandomHost(workerDomain) || workerDomain;
-                    link += `&ech=${encodeURIComponent(`${echDomain}+${dnsServer}`)}`;
-                    // 获取并缓存 ECH 配置列表
+                    wsParams.set('ech', `${echDomain}+${dnsServer}`);
                     let echConfig = globalEchCache.get(echDomain);
                     if (!echConfig) {
                         echConfig = await fetchECHConfig(echDomain);
                         if (echConfig) globalEchCache.set(echDomain, echConfig);
                     }
-                    if (echConfig) link += `&echconfiglist=${encodeURIComponent(echConfig)}`;
+                    if (echConfig) wsParams.set('echconfiglist', echConfig);
                 }
-
-                link += `#${encodeURIComponent(wsNodeName)}`;
-                links.push(link);
+                links.push(`${proto}://${user}@${safeIP}:${port}?${wsParams.toString()}#${encodeURIComponent(wsNodeName)}`);
             } else if (CF_HTTP_PORTS.includes(port)) {
                 if (!disableNonTLS) {
                     const suffix = '-WS';
                     const wsNodeName = getNodeName(suffix);
-                    const link = `${proto}://${user}@${safeIP}:${port}?encryption=none&security=none&type=ws&host=${nodeHost}&path=${wsPath}#${encodeURIComponent(wsNodeName)}`;
-                    links.push(link);
+                    const wsParams = new URLSearchParams({
+                        encryption: 'none',
+                        security: 'none',
+                        type: 'ws',
+                        host: nodeHost,
+                        path: wsPath
+                    });
+                    links.push(`${proto}://${user}@${safeIP}:${port}?${wsParams.toString()}#${encodeURIComponent(wsNodeName)}`);
                 }
-            } else {
-                const suffix = '-WS-TLS';
-                const wsNodeName = getNodeName(suffix);
-                let link = `${proto}://${user}@${safeIP}:${port}?encryption=none&security=tls&sni=${nodeHost}&fp=${enableECH ? 'chrome' : 'randomized'}&type=ws&host=${nodeHost}&path=${wsPath}`;
-
-                // 如果配置了ALPN，添加alpn参数
-                if (customALPN) link += `&alpn=${encodeURIComponent(customALPN)}`;
-                // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
-                if (enableECH) {
-                    const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
-                    const echDomain = customECHDomain || getRandomHost(workerDomain) || workerDomain;
-                    link += `&ech=${encodeURIComponent(`${echDomain}+${dnsServer}`)}`;
-                    // 获取并缓存 ECH 配置列表
-                    let echConfig = globalEchCache.get(echDomain);
-                    if (!echConfig) {
-                        echConfig = await fetchECHConfig(echDomain);
-                        if (echConfig) globalEchCache.set(echDomain, echConfig);
-                    }
-                    if (echConfig) link += `&echconfiglist=${encodeURIComponent(echConfig)}`;
-                }
-
-                link += `#${encodeURIComponent(wsNodeName)}`;
-                links.push(link);
             }
         }
         return links;
@@ -7857,51 +7837,44 @@
                 return namer(nodeNameBase, nodeName);
             };
 
-            if (CF_HTTPS_PORTS.includes(port)) {
+            if (CF_HTTPS_PORTS.includes(port) || !CF_HTTP_PORTS.includes(port)) {
                 const suffix = `-${atob('VHJvamFu')}-WS-TLS`;
                 const wsNodeName = getNodeName(suffix);
-                let link = `${atob('dHJvamFuOi8v')}${password}@${safeIP}:${port}?security=tls&sni=${nodeHost}&fp=chrome&type=ws&host=${nodeHost}&path=${wsPath}`;
-
+                const wsParams = new URLSearchParams({
+                    security: 'tls',
+                    sni: nodeHost,
+                    fp: 'chrome',
+                    type: 'ws',
+                    host: nodeHost,
+                    path: wsPath
+                });
                 // 如果配置了ALPN，添加alpn参数
-                if (customALPN) link += `&alpn=${encodeURIComponent(customALPN)}`;
-                // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
+                if (customALPN) wsParams.set('alpn', customALPN);
+                // 如果启用了ECH，添加ech参数
                 if (enableECH) {
                     const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
                     const echDomain = customECHDomain || getRandomHost(workerDomain) || workerDomain;
-                    link += `&ech=${encodeURIComponent(`${echDomain}+${dnsServer}`)}`;
-                    // 获取并缓存 ECH 配置列表
+                    wsParams.set('ech', `${echDomain}+${dnsServer}`);
                     let echConfig = globalEchCache.get(echDomain);
                     if (!echConfig) {
                         echConfig = await fetchECHConfig(echDomain);
                         if (echConfig) globalEchCache.set(echDomain, echConfig);
                     }
-                    if (echConfig) link += `&echconfiglist=${encodeURIComponent(echConfig)}`;
+                    if (echConfig) wsParams.set('echconfiglist', echConfig);
                 }
-
-                link += `#${encodeURIComponent(wsNodeName)}`;
-                links.push(link);
+                links.push(`${atob('dHJvamFuOi8v')}${password}@${safeIP}:${port}?${wsParams.toString()}#${encodeURIComponent(wsNodeName)}`);
             } else if (CF_HTTP_PORTS.includes(port)) {
                 if (!disableNonTLS) {
                     const suffix = `-${atob('VHJvamFu')}-WS`;
                     const wsNodeName = getNodeName(suffix);
-                    const link = `${atob('dHJvamFuOi8v')}${password}@${safeIP}:${port}?security=none&type=ws&host=${nodeHost}&path=${wsPath}#${encodeURIComponent(wsNodeName)}`;
-                    links.push(link);
+                    const wsParams = new URLSearchParams({
+                        security: 'none',
+                        type: 'ws',
+                        host: nodeHost,
+                        path: wsPath
+                    });
+                    links.push(`${atob('dHJvamFuOi8v')}${password}@${safeIP}:${port}?${wsParams.toString()}#${encodeURIComponent(wsNodeName)}`);
                 }
-            } else {
-                const suffix = `-${atob('VHJvamFu')}-WS-TLS`;
-                const wsNodeName = getNodeName(suffix);
-                let link = `${atob('dHJvamFuOi8v')}${password}@${safeIP}:${port}?security=tls&sni=${nodeHost}&fp=chrome&type=ws&host=${nodeHost}&path=${wsPath}`;
-
-                // 如果配置了ALPN，添加alpn参数
-                if (customALPN) link += `&alpn=${encodeURIComponent(customALPN)}`;
-                // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
-                if (enableECH) {
-                    const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
-                    const echDomain = customECHDomain || getRandomHost(workerDomain) || workerDomain;
-                    link += `&ech=${encodeURIComponent(`${echDomain}+${dnsServer}`)}`;
-                }
-                link += `#${encodeURIComponent(wsNodeName)}`;
-                links.push(link);
             }
         }
         return links;
