@@ -1554,7 +1554,7 @@
                 }
 
                 if (ech) {
-                    const echDomain = customECHDomain;
+                    const echDomain = (ech.includes('+') ? ech.split('+')[0] : ech) || getRandomHost(workerDomain) || workerDomain;
                     node['ech-opts'] = {
                         enable: true,
                         'query-server-name': echDomain
@@ -1602,7 +1602,7 @@
                 }
 
                 if (ech) {
-                    const echDomain = customECHDomain;
+                    const echDomain = (ech.includes('+') ? ech.split('+')[0] : ech) || getRandomHost(workerDomain) || workerDomain;
                     node['ech-opts'] = {
                         enable: true,
                         'query-server-name': echDomain
@@ -1755,7 +1755,7 @@
             lines.push(`      grpc-service-name: ${yq(n.path)}`);
         }
         if (n.ech) {
-            const echDomain = customECHDomain;
+            const echDomain = (n.ech.includes('+') ? n.ech.split('+')[0] : n.ech) || getRandomHost(workerDomain) || workerDomain;
             lines.push(`    ech-opts:`);
             lines.push(`      enable: true`);
             lines.push(`      query-server-name: ${yq(echDomain)}`);
@@ -8251,7 +8251,7 @@
         if (customECHDomainValue && customECHDomainValue.trim()) {
             customECHDomain = customECHDomainValue.trim();
         } else {
-            customECHDomain = 'cloudflare-ech.com';
+            customECHDomain = '';
         }
 
         // 如果启用了ECH，自动启用仅TLS模式（避免80端口干扰）
