@@ -25,8 +25,8 @@
     let enableECH = false;  
     // 自定义DNS服务器（默认：https://223.5.5.5/dns-query）
     let customDNS = 'https://223.5.5.5/dns-query';
-    // 自定义ECH域名（默认：cloudflare-ech.com）
-    let customECHDomain = 'cloudflare-ech.com';
+    // 自定义ECH域名（留空则从 hostList 随机抽取）
+    let customECHDomain = '';
     // ECH 配置缓存（域名 -> ECH config 列表）
     const globalEchCache = new Map();
     // Cache API 缓存
@@ -1554,7 +1554,7 @@
                 }
 
                 if (ech) {
-                    const echDomain = customECHDomain || 'cloudflare-ech.com';
+                    const echDomain = customECHDomain;
                     node['ech-opts'] = {
                         enable: true,
                         'query-server-name': echDomain
@@ -1602,7 +1602,7 @@
                 }
 
                 if (ech) {
-                    const echDomain = customECHDomain || 'cloudflare-ech.com';
+                    const echDomain = customECHDomain;
                     node['ech-opts'] = {
                         enable: true,
                         'query-server-name': echDomain
@@ -1610,7 +1610,7 @@
                 }
 
                 return node;
-            }
+        }
         } catch (e) {
             return null;
         }
@@ -1755,7 +1755,7 @@
             lines.push(`      grpc-service-name: ${yq(n.path)}`);
         }
         if (n.ech) {
-            const echDomain = customECHDomain || 'cloudflare-ech.com';
+            const echDomain = customECHDomain;
             lines.push(`    ech-opts:`);
             lines.push(`      enable: true`);
             lines.push(`      query-server-name: ${yq(echDomain)}`);
@@ -2568,7 +2568,7 @@
         let echConfig = null;
         if (enableECH) {
             const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
-            const echDomain = customECHDomain || 'cloudflare-ech.com';
+            const echDomain = customECHDomain || getRandomHost(workerDomain) || workerDomain;
             echConfig = `${echDomain}+${dnsServer}`;
         }
 
@@ -2863,7 +2863,7 @@
                     // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
                     if (enableECH) {
                         const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
-                        const echDomain = customECHDomain || 'cloudflare-ech.com';
+                        const echDomain = customECHDomain || getRandomHost(workerDomain) || workerDomain;
                         wsParams.set('ech', `${echDomain}+${dnsServer}`);
                         // 获取并缓存 ECH 配置列表
                         let echConfig = globalEchCache.get(echDomain);
@@ -2958,7 +2958,7 @@
                     // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
                     if (enableECH) {
                         const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
-                        const echDomain = customECHDomain || 'cloudflare-ech.com';
+                        const echDomain = customECHDomain || getRandomHost(workerDomain) || workerDomain;
                         wsParams.set('ech', `${echDomain}+${dnsServer}`);
                         // 获取并缓存 ECH 配置列表
                         let echConfig = globalEchCache.get(echDomain);
@@ -7569,7 +7569,6 @@
                     const isIPv6 = item.includes(':') && !item.includes('[') && (item.split(':').length > 2);
                     
                     if (match) {
-                        // 去除中括号，统一存储为无括号格式，避免下游生成链路时双层括号
                         const rawIP = match[1].replace(/^\[|\]$/g, '');
                         results.push({
                             ip: rawIP,
@@ -7577,12 +7576,10 @@
                             name: match[3]?.trim() || rawIP
                         });
                     } else if (isIPv6) {
-                        // 处理未加中括号的 raw IPv6
                         const hashIndex = item.indexOf('#');
                         let hostPart = hashIndex > -1 ? item.substring(0, hashIndex) : item;
                         const remark = hashIndex > -1 ? item.substring(hashIndex + 1) : '';
                         
-                        // 简单判断末尾是否带端口 (如 :443)
                         const lastColonIndex = hostPart.lastIndexOf(':');
                         const possiblePort = hostPart.substring(lastColonIndex + 1);
                         let port = 443;
@@ -7603,7 +7600,28 @@
                 return results;
             }
 
-            const response = await fetch(url);
+            // ✅ 新增：随机路径支持 (针对纯文本/CSV URL 源)
+            const randomPathEnabled = enableRandomPath;
+            const commonPathDirs = ["#","about","account","acg","act","activity","ad","admin","ads","ajax","album","albums","anime","api","app","apps","archive","archives","article","articles","ask","auth","avatar","bbs","bd","blog","blogs","book","books","bt","buy","cart","category","categories","cb","channel","channels","chat","china","city","class","classify","clip","clips","club","cn","code","collect","collection","comic","comics","community","company","config","contact","content","course","courses","cp","data","detail","details","dh","directory","discount","discuss","dl","dload","doc","docs","document","documents","doujin","download","downloads","drama","edu","en","ep","episode","episodes","event","events","f","faq","favorite","favourites","favs","feedback","file","files","film","films","forum","forums","friend","friends","game","games","gif","go","go.html","go.php","group","groups","help","home","hot","htm","html","image","images","img","index","info","intro","item","items","ja","jp","jump","jump.html","jump.php","jumping","knowledge","lang","lesson","lessons","lib","library","link","links","list","live","lives","login","logout","m","mag","magnet","mall","manhua","map","member","members","message","messages","mobile","movie","movies","music","my","new","news","note","novel","novels","online","order","out","out.html","out.php","outbound","p","page","pages","pay","payment","pdf","photo","photos","pic","pics","picture","pictures","play","player","playlist","post","posts","product","products","program","programs","project","qa","question","rank","ranking","read","readme","redirect","redirect.html","redirect.php","reg","register","res","resource","retrieve","sale","search","season","seasons","section","seller","series","service","services","setting","settings","share","shop","show","shows","site","soft","sort","source","special","star","stars","static","stock","store","stream","streaming","streams","student","study","tag","tags","task","teacher","team","tech","temp","temporary","test","theme","themes","tip","tips","tool","tools","top","topic","tour","tutorial","tv","uk","update","upload","url","us","user","users","v","version","video","videos","wap","web","website","win","windows","world","www","x","xml","xx","y","z","zone"];
+
+            // 处理所有候选 URL，按需注入随机路径段
+            const processedUrls = urls.map(u => {
+                let fetchUrl = u;
+                if (randomPathEnabled) {
+                    try {
+                        const urlObj = new URL(u);
+                        const pathParts = urlObj.pathname.split('/');
+                        const randDirs = commonPathDirs.sort(() => 0.5 - Math.random()).slice(0, Math.floor(Math.random() * 3 + 1)).join('/');
+                        pathParts.push(randDirs);
+                        urlObj.pathname = pathParts.join('/');
+                        fetchUrl = urlObj.toString();
+                    } catch (e) { /* URL 格式异常则保持原样，避免阻断流程 */ }
+                }
+                return fetchUrl;
+            });
+
+            // 使用处理后的 URL 发起请求
+            const response = await fetch(processedUrls[0]);
             if (!response.ok) return [];
             const text = await response.text();
             const results = [];
@@ -7623,7 +7641,6 @@
                         name: match[3].trim() || match[1]
                     });
                 } else if (isIPv6) {
-                    // 处理文本源中的 raw IPv6 行
                     const hashIndex = trimmedLine.indexOf('#');
                     let hostPart = hashIndex > -1 ? trimmedLine.substring(0, hashIndex) : trimmedLine;
                     const remark = hashIndex > -1 ? trimmedLine.substring(hashIndex + 1) : '';
@@ -7650,6 +7667,7 @@
             return [];
         }
     }
+
 
     async function generateLinksFromNewIPs(list, user, workerDomain, echConfig = null, skipNumbering = false) {
         const CF_HTTP_PORTS = [80, 8080, 8880, 2052, 2082, 2086, 2095];
@@ -7682,7 +7700,7 @@
                 // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
                 if (enableECH) {
                     const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
-                    const echDomain = customECHDomain || 'cloudflare-ech.com';
+                    const echDomain = customECHDomain || getRandomHost(workerDomain) || workerDomain;
                     link += `&ech=${encodeURIComponent(`${echDomain}+${dnsServer}`)}`;
                     // 获取并缓存 ECH 配置列表
                     let echConfig = globalEchCache.get(echDomain);
@@ -7710,7 +7728,7 @@
                 // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
                 if (enableECH) {
                     const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
-                    const echDomain = customECHDomain || 'cloudflare-ech.com';
+                    const echDomain = customECHDomain || getRandomHost(workerDomain) || workerDomain;
                     link += `&ech=${encodeURIComponent(`${echDomain}+${dnsServer}`)}`;
                     // 获取并缓存 ECH 配置列表
                     let echConfig = globalEchCache.get(echDomain);
@@ -7767,7 +7785,7 @@
 
             if (enableECH) {
                 const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
-                const echDomain = customECHDomain || 'cloudflare-ech.com';
+                const echDomain = customECHDomain || getRandomHost(workerDomain) || workerDomain;
                 params.set('ech', `${echDomain}+${dnsServer}`);
                 // 获取并缓存 ECH 配置列表
                 let echConfig = globalEchCache.get(echDomain);
@@ -7816,7 +7834,7 @@
                 // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
                 if (enableECH) {
                     const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
-                    const echDomain = customECHDomain || 'cloudflare-ech.com';
+                    const echDomain = customECHDomain || getRandomHost(workerDomain) || workerDomain;
                     link += `&ech=${encodeURIComponent(`${echDomain}+${dnsServer}`)}`;
                     // 获取并缓存 ECH 配置列表
                     let echConfig = globalEchCache.get(echDomain);
@@ -7844,7 +7862,7 @@
                 // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
                 if (enableECH) {
                     const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
-                    const echDomain = customECHDomain || 'cloudflare-ech.com';
+                    const echDomain = customECHDomain || getRandomHost(workerDomain) || workerDomain;
                     link += `&ech=${encodeURIComponent(`${echDomain}+${dnsServer}`)}`;
                 }
                 link += `#${encodeURIComponent(wsNodeName)}`;
