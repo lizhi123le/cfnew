@@ -25,6 +25,7 @@
     let customDNS = 'https://223.5.5.5/dns-query';
     // 自定义ECH域名（默认：cloudflare-ech.com）
     let customECHDomain = 'cloudflare-ech.com';
+    let customALPN = '';
 
     let scu = 'https://url.v1.mk/sub';  
     // 远程配置URL（硬编码）
@@ -104,6 +105,16 @@
     const ADDRESS_TYPE_IPV4 = 1;
     const ADDRESS_TYPE_URL = 2;
     const ADDRESS_TYPE_IPV6 = 3;
+    const TRANSPORT_CHUNK_SIZE = 64 * 1024;
+    const TRANSPORT_DN_PACK = 32 * 1024;
+    const TRANSPORT_DN_TAIL = 512;
+    const TRANSPORT_DN_DELAY = 0;
+    const TRANSPORT_UP_PACK = 16 * 1024;
+    const TRANSPORT_UP_Q_MAX = 256 * 1024;
+    const TRANSPORT_CONNECT_RACE = 2;
+    const FIRST_BYTE_TIMEOUT = 3500;
+    const sharedDecoder = new TextDecoder();
+    const uuidByteCache = new Map();
 
 	function isValidFormat(str) {
         const userRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -146,6 +157,52 @@
         }
 
         return { namer, setSkipNumbering };
+    }
+
+    function normalizeNodeHost(host) {
+        return String(host || '').trim().replace(/^\[([^\]]+)\]$/, '$1');
+    }
+
+    function compactNodeAliasPart(value, fallback = 'Node') {
+        let text = String(value || '').trim();
+        if (!text || /^自定义优选-/i.test(text)) text = fallback;
+        text = text
+            .replace(/^\[([^\]]+)\]$/, '$1')
+            .replace(/^https?:\/\//i, '')
+            .replace(/[/?#].*$/, '')
+            .replace(/\s+/g, '_');
+        return text || fallback;
+    }
+
+    function getCompactNodeAliasBase(item) {
+        const host = normalizeNodeHost(item?.ip || item?.domain || '');
+        if (host && host.includes(':') && /^[0-9a-fA-F:.]+$/.test(host)) return 'IPv6优选';
+        if (host && !isValidIP(host)) return '优选域名';
+
+        const isp = compactNodeAliasPart(item?.isp || item?.name || '', 'IPv4优选');
+        const colo = compactNodeAliasPart(item?.colo || '', '');
+        return colo ? `${isp}-${colo}` : isp;
+    }
+
+    function createCompactNodeNamer(skipNumbering = false) {
+        const counters = {};
+        return (item) => {
+            const base = getCompactNodeAliasBase(item);
+            if (skipNumbering) return base;
+            counters[base] = (counters[base] || 0) + 1;
+            return `${base}-${String(counters[base]).padStart(2, '0')}`;
+        };
+    }
+
+    function normalizeALPN(value) {
+        const allowed = ['', 'h3', 'h2', 'http/1.1', 'h3,h2', 'h2,http/1.1', 'h3,h2,http/1.1'];
+        const alpn = String(value || '').trim();
+        return allowed.includes(alpn) ? alpn : '';
+    }
+
+    function applyALPNParam(params) {
+        const alpn = normalizeALPN(customALPN);
+        if (alpn) params.set('alpn', alpn);
     }
 
     async function initKVStore(env) {
@@ -521,6 +578,8 @@
                 if (customECHDomainValue && customECHDomainValue.trim()) {
                     customECHDomain = customECHDomainValue.trim();
                 }
+
+                customALPN = normalizeALPN(getConfigValue('alpn', env.alpn || env.ALPN || ''));
 
                 // 如果启用了ECH，自动启用仅TLS模式（避免80端口干扰）
                 // ECH需要TLS才能工作，所以必须禁用非TLS节点
@@ -1876,8 +1935,8 @@
             `  ${name}:`,
             `    type: http`,
             `    behavior: ${behavior}`,
-            `    url: "${RP_BASE}/${name}.yaml"`,
-            `    path: ./rulesets/loyalsoldier/${name}.yaml`,
+            `    url: "${RP_BASE}/${name}.txt"`,
+            `    path: ./rulesets/loyalsoldier/${name}.txt`,
             `    interval: 86400`
         ].join('\n');
 
@@ -2530,6 +2589,7 @@
         const finalLinks = [];
         const workerDomain = url.hostname;
         const target = url.searchParams.get('target') || 'base64';
+        const aliasNamer = createCompactNodeNamer(false);
 
         // 如果启用了ECH，使用自定义值
         let echConfig = null;
@@ -2541,13 +2601,13 @@
 
         async function addNodesFromList(list) {
             if (ev) {
-                finalLinks.push(...generateLinksFromSource(list, user, workerDomain, echConfig));
+                finalLinks.push(...generateLinksFromSource(list, user, workerDomain, echConfig, false, aliasNamer));
             }
             if (et) {
-                finalLinks.push(...await generateTrojanLinksFromSource(list, user, workerDomain, echConfig));
+                finalLinks.push(...await generateTrojanLinksFromSource(list, user, workerDomain, echConfig, false, aliasNamer));
             }
             if (ex) {
-                finalLinks.push(...generateXhttpLinksFromSource(list, user, workerDomain, echConfig));
+                finalLinks.push(...generateXhttpLinksFromSource(list, user, workerDomain, echConfig, false, aliasNamer));
             }
         }
 
@@ -2620,16 +2680,16 @@
 
             if (egi) {
             try {
-                const newIPList = await fetchAndParseNewIPs();
+                    const newIPList = await fetchAndParseNewIPs();
                 if (newIPList.length > 0) {
                     if (ev) {
-                        finalLinks.push(...generateLinksFromNewIPs(newIPList, user, workerDomain, echConfig));
+                        finalLinks.push(...generateLinksFromNewIPs(newIPList, user, workerDomain, echConfig, false, aliasNamer));
                     }
                     if (et) {
-                        finalLinks.push(...await generateTrojanLinksFromNewIPs(newIPList, user, workerDomain, echConfig));
+                        finalLinks.push(...await generateTrojanLinksFromNewIPs(newIPList, user, workerDomain, echConfig, false, aliasNamer));
                     }
                     if (ex) {
-                         finalLinks.push(...generateXhttpLinksFromSource(newIPList, user, workerDomain, echConfig));
+                         finalLinks.push(...generateXhttpLinksFromSource(newIPList, user, workerDomain, echConfig, false, aliasNamer));
                     }
                 }
             } catch (error) {
@@ -2719,7 +2779,7 @@
         });
     }
 
-    function generateLinksFromSource(list, user, workerDomain, echConfig = null, skipNumbering = false) {
+    function generateLinksFromSource(list, user, workerDomain, echConfig = null, skipNumbering = false, aliasNamer = null) {
         const CF_HTTP_PORTS = [80, 8080, 8880, 2052, 2082, 2086, 2095];
         const CF_HTTPS_PORTS = [443, 2053, 2083, 2087, 2096, 8443];
 
@@ -2729,13 +2789,9 @@
         const wsPath = '/?ed=2048';
         const proto = atob('dmxlc3M=');
 
-        const { namer, setSkipNumbering } = createNodeNamer(skipNumbering);
+        const makeNodeName = aliasNamer || createCompactNodeNamer(skipNumbering);
 
         for (const item of list) {
-            let nodeNameBase = item.isp.replace(/\s/g, '_');
-            if (item.colo && item.colo.trim()) {
-                nodeNameBase = `${nodeNameBase}-${item.colo.trim()}`;
-            }
             const safeIP = item.ip.includes(':') ? `[${item.ip}]` : item.ip;
 
             let portsToGenerate = [];
@@ -2760,14 +2816,7 @@
             }
 
             for (const { port, tls } of portsToGenerate) {
-                const suffix = tls ? '-WS-TLS' : '-WS';
-                const nodeName = `${nodeNameBase}-${port}${suffix}`;
-                let wsNodeName;
-                if (skipNumbering) {
-                    wsNodeName = nodeName;           // 不编号
-                } else {
-                    wsNodeName = namer(nodeNameBase, nodeName);  // 编号
-                }
+                const wsNodeName = makeNodeName(item);
 
                 if (tls) {
                     const wsParams = new URLSearchParams({ 
@@ -2779,6 +2828,7 @@
                         host: workerDomain, 
                         path: wsPath
                     });
+                    applyALPNParam(wsParams);
 
                     // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
                     if (enableECH) {
@@ -2804,7 +2854,7 @@
         return links;
     }
 
-    async function generateTrojanLinksFromSource(list, user, workerDomain, echConfig = null, skipNumbering = false) {
+    async function generateTrojanLinksFromSource(list, user, workerDomain, echConfig = null, skipNumbering = false, aliasNamer = null) {
         const CF_HTTP_PORTS = [80, 8080, 8880, 2052, 2082, 2086, 2095];
         const CF_HTTPS_PORTS = [443, 2053, 2083, 2087, 2096, 8443];
 
@@ -2815,13 +2865,9 @@
 
         const password = tp || user;
 
-        const { namer, setSkipNumbering } = createNodeNamer(skipNumbering);
+        const makeNodeName = aliasNamer || createCompactNodeNamer(skipNumbering);
 
         for (const item of list) {
-            let nodeNameBase = item.isp.replace(/\s/g, '_');
-            if (item.colo && item.colo.trim()) {
-                nodeNameBase = `${nodeNameBase}-${item.colo.trim()}`;
-            }
             const safeIP = item.ip.includes(':') ? `[${item.ip}]` : item.ip;
 
             let portsToGenerate = [];
@@ -2846,14 +2892,7 @@
             }
 
             for (const { port, tls } of portsToGenerate) {
-                const suffix = tls ? `-${atob('VHJvamFu')}-WS-TLS` : `-${atob('VHJvamFu')}-WS`;
-                const nodeName = `${nodeNameBase}-${port}${suffix}`;
-                let wsNodeName;
-                if (skipNumbering) {
-                    wsNodeName = nodeName;           // 不编号
-                } else {
-                    wsNodeName = namer(nodeNameBase, nodeName);  // 编号
-                }
+                const wsNodeName = makeNodeName(item);
 
                 if (tls) {
                     const wsParams = new URLSearchParams({ 
@@ -2864,6 +2903,7 @@
                         host: workerDomain, 
                         path: wsPath
                     });
+                    applyALPNParam(wsParams);
 
                     // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
                     if (enableECH) {
@@ -3001,27 +3041,84 @@
         const wsPair = new WebSocketPair();
         const [clientSock, serverSock] = Object.values(wsPair);
         serverSock.accept();
+        serverSock.binaryType = 'arraybuffer';
 
-        let remoteConnWrapper = { socket: null };
+        let remoteConnWrapper = { socket: null, writer: null, drainUpload: null };
         let isDnsQuery = false;
         let protocolType = null; 
+        let uploadBusy = false;
+        let transportClosed = false;
+        const uploadQueue = createChunkQueue(TRANSPORT_UP_PACK, TRANSPORT_UP_Q_MAX, TRANSPORT_UP_Q_MAX >> 8);
+        const requestFetcher = request.fetcher;
+
+        function releaseRemoteWriter() {
+            try { remoteConnWrapper.writer?.releaseLock(); } catch (_) {}
+            remoteConnWrapper.writer = null;
+        }
+
+        function closeTransport() {
+            if (transportClosed) return;
+            transportClosed = true;
+            uploadQueue.clear();
+            releaseRemoteWriter();
+            try { remoteConnWrapper.socket?.close(); } catch (_) {}
+            closeSocketQuietly(serverSock);
+        }
+
+        function queueUpload(chunk) {
+            const data = toUint8Array(chunk);
+            if (!data.byteLength) return true;
+            if (!uploadQueue.sow(data)) {
+                closeTransport();
+                return false;
+            }
+            remoteConnWrapper.drainUpload();
+            return true;
+        }
+
+        async function drainUpload() {
+            if (uploadBusy || transportClosed || !remoteConnWrapper.writer) return;
+            uploadBusy = true;
+            try {
+                for (;;) {
+                    if (transportClosed || !remoteConnWrapper.writer) break;
+                    const [data] = uploadQueue.bundle();
+                    if (!data) break;
+                    await remoteConnWrapper.writer.write(data);
+                }
+            } catch (_) {
+                closeTransport();
+            } finally {
+                uploadBusy = false;
+                if (!uploadQueue.empty && !transportClosed && remoteConnWrapper.writer) queueMicrotask(drainUpload);
+            }
+        }
+
+        remoteConnWrapper.drainUpload = () => {
+            if (!uploadBusy && !uploadQueue.empty && remoteConnWrapper.writer) queueMicrotask(drainUpload);
+        };
 
         const earlyData = request.headers.get(atob('c2VjLXdlYnNvY2tldC1wcm90b2NvbA==')) || '';
         const readable = makeReadableStream(serverSock, earlyData);
 
         readable.pipeTo(new WritableStream({
             async write(chunk) {
-                if (isDnsQuery) return await forwardUDP(chunk, serverSock, null);
-                if (remoteConnWrapper.socket) {
-                    const writer = remoteConnWrapper.socket.writable.getWriter();
-                    await writer.write(chunk);
-                    writer.releaseLock();
+                if (transportClosed) return;
+                const data = toUint8Array(chunk);
+                if (isDnsQuery) return await forwardUDP(data, serverSock, null, requestFetcher);
+                if (remoteConnWrapper.socket && remoteConnWrapper.writer) {
+                    if (!queueUpload(data)) throw new Error('upload queue overflow');
+                    return;
+                }
+
+                if (protocolType) {
+                    if (!queueUpload(data)) throw new Error('upload queue overflow');
                     return;
                 }
 
                 if (!protocolType) {
-                    if (ev && chunk.byteLength >= 24) {
-                        const vlessResult = parseWsPacketHeader(chunk, at);
+                    if (ev && data.byteLength >= 24) {
+                        const vlessResult = parseWsPacketHeader(data, at);
                         if (!vlessResult.hasError) {
                             protocolType = 'vless';
                             const { addressType, port, hostname, rawIndex, version, isUDP } = vlessResult;
@@ -3030,19 +3127,19 @@
                     else throw new Error(E_UDP_DNS_ONLY);
                 }
                 const respHeader = new Uint8Array([version[0], 0]);
-                const rawData = chunk.slice(rawIndex);
-                if (isDnsQuery) return forwardUDP(rawData, serverSock, respHeader);
-                    await forwardTCP(addressType, hostname, port, rawData, serverSock, respHeader, remoteConnWrapper, reqFallback, effectiveRegion, reqRm, reqSocksConfig);
+                const rawData = data.subarray(rawIndex);
+                if (isDnsQuery) return forwardUDP(rawData, serverSock, respHeader, requestFetcher);
+                    await forwardTCP(addressType, hostname, port, rawData, serverSock, respHeader, remoteConnWrapper, reqFallback, effectiveRegion, reqRm, reqSocksConfig, requestFetcher);
                             return;
                         }
                     }
 
-                    if (et && chunk.byteLength >= 56) {
-                        const tjResult = await parseTrojanHeader(chunk, at);
+                    if (et && data.byteLength >= 56) {
+                        const tjResult = await parseTrojanHeader(data, at);
                         if (!tjResult.hasError) {
                             protocolType = atob('dHJvamFu');
                             const { addressType, port, hostname, rawClientData } = tjResult;
-                            await forwardTCP(addressType, hostname, port, rawClientData, serverSock, null, remoteConnWrapper, reqFallback, effectiveRegion, reqRm, reqSocksConfig);
+                            await forwardTCP(addressType, hostname, port, rawClientData, serverSock, null, remoteConnWrapper, reqFallback, effectiveRegion, reqRm, reqSocksConfig, requestFetcher);
                             return;
                         }
                     }
@@ -3050,36 +3147,61 @@
                     throw new Error('Invalid protocol or authentication failed');
                 }
             },
-        })).catch((err) => { });
+        })).catch((err) => { closeTransport(); });
 
         return new Response(null, { status: 101, webSocket: clientSock });
     }
 
-    async function forwardTCP(addrType, host, portNum, rawData, ws, respHeader, remoteConnWrapper, reqFallback = '', reqRegion = '', reqRm = null, reqSocksConfig = null) {
+    async function forwardTCP(addrType, host, portNum, rawData, ws, respHeader, remoteConnWrapper, reqFallback = '', reqRegion = '', reqRm = null, reqSocksConfig = null, requestFetcher = null) {
         // 优先使用客户端path参数，其次回退到全局配置
         const effectiveFallback = reqFallback || fallbackAddress;
         const effectiveRegion = reqRegion || currentWorkerRegion;
         const effectiveRegionMatching = reqRm !== null ? reqRm : enableRegionMatching;
         const effectiveSocksConfig = reqSocksConfig || parsedSocks5Config;
         const effectiveSocksEnabled = reqSocksConfig ? true : isSocksEnabled;
+        const initialData = toUint8Array(rawData);
 
         async function connectAndSend(address, port, useSocks = false) {
             const remoteSock = useSocks ?
                 await establishSocksConnection(addrType, address, port, effectiveSocksConfig) :
-                connect({ hostname: address, port: port });
+                await connectTcpSocket(address, port, requestFetcher, TRANSPORT_CONNECT_RACE);
             const writer = remoteSock.writable.getWriter();
-            await writer.write(rawData);
-            writer.releaseLock();
-            return remoteSock;
+            if (initialData.byteLength) await writer.write(initialData);
+            return { remoteSock, writer };
+        }
+
+        function detachIfCurrent(remoteSock, writer) {
+            if (remoteConnWrapper.socket !== remoteSock) return;
+            try { writer?.releaseLock(); } catch (_) {}
+            remoteConnWrapper.socket = null;
+            remoteConnWrapper.writer = null;
+        }
+
+        function attachRemote(remoteSock, writer, retryFunc) {
+            try {
+                if (remoteConnWrapper.writer && remoteConnWrapper.writer !== writer) {
+                    remoteConnWrapper.writer.releaseLock();
+                }
+            } catch (_) {}
+            remoteConnWrapper.socket = remoteSock;
+            remoteConnWrapper.writer = writer;
+            remoteConnWrapper.drainUpload?.();
+            remoteSock.closed.catch(() => {}).finally(() => {
+                if (remoteConnWrapper.socket === remoteSock) closeSocketQuietly(ws);
+            });
+            connectStreams(remoteSock, ws, respHeader, retryFunc).finally(() => {
+                if (remoteConnWrapper.socket === remoteSock) {
+                    try { writer.releaseLock(); } catch (_) {}
+                    remoteConnWrapper.writer = null;
+                }
+            });
         }
 
         async function retryConnection() {
             if (enableSocksDowngrade && effectiveSocksEnabled) {
                 try {
-                    const socksSocket = await connectAndSend(host, portNum, true);
-                    remoteConnWrapper.socket = socksSocket;
-                    socksSocket.closed.catch(() => {}).finally(() => closeSocketQuietly(ws));
-                    connectStreams(socksSocket, ws, respHeader, null);
+                    const { remoteSock: socksSocket, writer: socksWriter } = await connectAndSend(host, portNum, true);
+                    attachRemote(socksSocket, socksWriter, null);
                     return;
                 } catch (socksErr) {
                     let backupHost, backupPort;
@@ -3094,10 +3216,8 @@
                     }
 
                     try {
-                        const fallbackSocket = await connectAndSend(backupHost, backupPort, false);
-                        remoteConnWrapper.socket = fallbackSocket;
-                        fallbackSocket.closed.catch(() => {}).finally(() => closeSocketQuietly(ws));
-                        connectStreams(fallbackSocket, ws, respHeader, null);
+                        const { remoteSock: fallbackSocket, writer: fallbackWriter } = await connectAndSend(backupHost, backupPort, false);
+                        attachRemote(fallbackSocket, fallbackWriter, null);
                     } catch (fallbackErr) {
                         closeSocketQuietly(ws);
                     }
@@ -3115,10 +3235,8 @@
                 }
 
                 try {
-                    const fallbackSocket = await connectAndSend(backupHost, backupPort, effectiveSocksEnabled);
-                    remoteConnWrapper.socket = fallbackSocket;
-                    fallbackSocket.closed.catch(() => {}).finally(() => closeSocketQuietly(ws));
-                    connectStreams(fallbackSocket, ws, respHeader, null);
+                    const { remoteSock: fallbackSocket, writer: fallbackWriter } = await connectAndSend(backupHost, backupPort, effectiveSocksEnabled);
+                    attachRemote(fallbackSocket, fallbackWriter, null);
                 } catch (fallbackErr) {
                     closeSocketQuietly(ws);
                 }
@@ -3126,30 +3244,266 @@
         }
         
         try {
-            const initialSocket = await connectAndSend(host, portNum, enableSocksDowngrade ? false : effectiveSocksEnabled);
-            remoteConnWrapper.socket = initialSocket;
-            connectStreams(initialSocket, ws, respHeader, retryConnection);
+            const { remoteSock: initialSocket, writer: initialWriter } = await connectAndSend(host, portNum, enableSocksDowngrade ? false : effectiveSocksEnabled);
+            attachRemote(initialSocket, initialWriter, () => {
+                detachIfCurrent(initialSocket, initialWriter);
+                retryConnection();
+            });
         } catch (err) {
-            retryConnection();
+            await retryConnection();
         }
     }
 
+    function toUint8Array(chunk) {
+        if (chunk instanceof Uint8Array) return chunk;
+        if (chunk instanceof ArrayBuffer) return new Uint8Array(chunk);
+        if (ArrayBuffer.isView(chunk)) return new Uint8Array(chunk.buffer, chunk.byteOffset, chunk.byteLength);
+        return new Uint8Array(chunk);
+    }
+
+    function joinUint8Array(head, body) {
+        const h = toUint8Array(head);
+        const b = toUint8Array(body);
+        const out = new Uint8Array(h.byteLength + b.byteLength);
+        out.set(h);
+        out.set(b, h.byteLength);
+        return out;
+    }
+
+    function createChunkQueue(cap, qCap = cap, itemsMax = Math.max(1, qCap >> 8)) {
+        let queue = [];
+        let head = 0;
+        let queuedBytes = 0;
+        let bundleBuffer = null;
+
+        function trim() {
+            if (head > 32 && head * 2 >= queue.length) {
+                queue = queue.slice(head);
+                head = 0;
+            }
+        }
+
+        function take() {
+            if (head >= queue.length) return null;
+            const data = queue[head];
+            queue[head++] = undefined;
+            queuedBytes -= data.byteLength;
+            trim();
+            return data;
+        }
+
+        return {
+            get empty() { return head >= queue.length; },
+            clear() {
+                queue = [];
+                head = 0;
+                queuedBytes = 0;
+            },
+            sow(data) {
+                const n = data?.byteLength || 0;
+                if (!n) return true;
+                if (queuedBytes + n > qCap || queue.length - head >= itemsMax) return false;
+                queue.push(data);
+                queuedBytes += n;
+                return true;
+            },
+            bundle(data = null) {
+                data ||= take();
+                if (!data || head >= queue.length || data.byteLength >= cap) return [data, false];
+                let total = data.byteLength;
+                let end = head;
+                while (end < queue.length) {
+                    const next = queue[end];
+                    const nextTotal = total + next.byteLength;
+                    if (nextTotal > cap) break;
+                    total = nextTotal;
+                    end++;
+                }
+                if (end === head) return [data, false];
+                const out = bundleBuffer ||= new Uint8Array(cap);
+                out.set(data);
+                let offset = data.byteLength;
+                while (head < end) {
+                    const next = queue[head];
+                    queue[head++] = undefined;
+                    queuedBytes -= next.byteLength;
+                    out.set(next, offset);
+                    offset += next.byteLength;
+                }
+                trim();
+                return [out.subarray(0, total), true];
+            }
+        };
+    }
+
+    function createDownlinkGrain(webSocket) {
+        const cap = TRANSPORT_DN_PACK;
+        const tail = TRANSPORT_DN_TAIL;
+        const lowWater = Math.max(4096, tail << 3);
+        let pending = new Uint8Array(cap);
+        let pendingBytes = 0;
+        let timer = 0;
+        let microtaskQueued = false;
+        let generation = 0;
+        let quietKey = 0;
+        let quietRounds = 0;
+
+        function flush() {
+            if (timer) clearTimeout(timer);
+            timer = 0;
+            microtaskQueued = false;
+            if (!pendingBytes) return;
+            if (webSocket.readyState === 1) webSocket.send(pending.subarray(0, pendingBytes).slice());
+            pending = new Uint8Array(cap);
+            pendingBytes = 0;
+            quietRounds = 0;
+        }
+
+        function schedule() {
+            if (timer || microtaskQueued) return;
+            microtaskQueued = true;
+            quietKey = generation;
+            queueMicrotask(() => {
+                microtaskQueued = false;
+                if (!pendingBytes || timer) return;
+                if (cap - pendingBytes < tail) return flush();
+                timer = setTimeout(() => {
+                    timer = 0;
+                    if (!pendingBytes) return;
+                    if (cap - pendingBytes < tail) return flush();
+                    if (quietRounds < 2 && (generation !== quietKey || pendingBytes < lowWater)) {
+                        quietRounds++;
+                        quietKey = generation;
+                        return schedule();
+                    }
+                    flush();
+                }, Math.max(TRANSPORT_DN_DELAY, 1));
+            });
+        }
+
+        return {
+            send(chunk) {
+                const data = toUint8Array(chunk);
+                let offset = 0;
+                const total = data.byteLength;
+                if (!total) return;
+                while (offset < total) {
+                    if (!pendingBytes && total - offset >= cap) {
+                        const size = Math.min(cap, total - offset);
+                        if (webSocket.readyState === 1) webSocket.send(offset || size !== total ? data.subarray(offset, offset + size) : data);
+                        offset += size;
+                        continue;
+                    }
+                    const size = Math.min(cap - pendingBytes, total - offset);
+                    pending.set(data.subarray(offset, offset + size), pendingBytes);
+                    pendingBytes += size;
+                    offset += size;
+                    generation++;
+                    if (pendingBytes === cap || cap - pendingBytes < tail) flush();
+                    else schedule();
+                }
+            },
+            flush
+        };
+    }
+
+    function openTcpSocket(address, port, requestFetcher = null) {
+        const target = { hostname: address, port };
+        if (requestFetcher && typeof requestFetcher.connect === 'function') return requestFetcher.connect(target);
+        return connect(target);
+    }
+
+    async function openTcpSocketReady(address, port, requestFetcher = null) {
+        try {
+            const socket = openTcpSocket(address, port, requestFetcher);
+            if (socket?.opened) await socket.opened;
+            return socket;
+        } catch (error) {
+            if (!requestFetcher) throw error;
+            const socket = connect({ hostname: address, port });
+            if (socket?.opened) await socket.opened;
+            return socket;
+        }
+    }
+
+    async function connectTcpSocket(address, port, requestFetcher = null, raceCount = 1) {
+        const count = Math.max(1, raceCount | 0);
+        if (count <= 1) return openTcpSocketReady(address, port, requestFetcher);
+        const attempts = Array.from({ length: count }, () => openTcpSocketReady(address, port, requestFetcher));
+        const winner = await Promise.any(attempts);
+        attempts.forEach((attempt) => {
+            attempt.then((socket) => {
+                if (socket !== winner) {
+                    try { socket.close(); } catch (_) {}
+                }
+            }, () => {});
+        });
+        return winner;
+    }
+
+    function getUuidBytes(token) {
+        if (uuidByteCache.has(token)) return uuidByteCache.get(token);
+        const hex = String(token || '').replace(/-/g, '');
+        if (hex.length !== 32) return null;
+        const bytes = new Uint8Array(16);
+        for (let i = 0; i < 16; i++) {
+            const value = Number.parseInt(hex.slice(i * 2, i * 2 + 2), 16);
+            if (Number.isNaN(value)) return null;
+            bytes[i] = value;
+        }
+        if (uuidByteCache.size > 16) uuidByteCache.clear();
+        uuidByteCache.set(token, bytes);
+        return bytes;
+    }
+
+    function matchesUuid(bytes, offset, token) {
+        const id = getUuidBytes(token);
+        return !!id &&
+            bytes[offset] === id[0] && bytes[offset + 1] === id[1] &&
+            bytes[offset + 2] === id[2] && bytes[offset + 3] === id[3] &&
+            bytes[offset + 4] === id[4] && bytes[offset + 5] === id[5] &&
+            bytes[offset + 6] === id[6] && bytes[offset + 7] === id[7] &&
+            bytes[offset + 8] === id[8] && bytes[offset + 9] === id[9] &&
+            bytes[offset + 10] === id[10] && bytes[offset + 11] === id[11] &&
+            bytes[offset + 12] === id[12] && bytes[offset + 13] === id[13] &&
+            bytes[offset + 14] === id[14] && bytes[offset + 15] === id[15];
+    }
+
     function parseWsPacketHeader(chunk, token) {
-        if (chunk.byteLength < 24) return { hasError: true, message: E_INVALID_DATA };
-        const version = new Uint8Array(chunk.slice(0, 1));
-        if (formatIdentifier(new Uint8Array(chunk.slice(1, 17))) !== token) return { hasError: true, message: E_INVALID_USER };
-        const optLen = new Uint8Array(chunk.slice(17, 18))[0];
-        const cmd = new Uint8Array(chunk.slice(18 + optLen, 19 + optLen))[0];
+        const bytes = toUint8Array(chunk);
+        if (bytes.byteLength < 24) return { hasError: true, message: E_INVALID_DATA };
+        const version = bytes.subarray(0, 1);
+        if (!matchesUuid(bytes, 1, token)) return { hasError: true, message: E_INVALID_USER };
+        const optLen = bytes[17];
+        const cmdIdx = 18 + optLen;
+        if (bytes.byteLength < cmdIdx + 5) return { hasError: true, message: E_INVALID_DATA };
+        const cmd = bytes[cmdIdx];
         let isUDP = false;
         if (cmd === 1) {} else if (cmd === 2) { isUDP = true; } else { return { hasError: true, message: E_UNSUPPORTED_CMD }; }
         const portIdx = 19 + optLen;
-        const port = new DataView(chunk.slice(portIdx, portIdx + 2)).getUint16(0);
+        const port = (bytes[portIdx] << 8) | bytes[portIdx + 1];
         let addrIdx = portIdx + 2, addrLen = 0, addrValIdx = addrIdx + 1, hostname = '';
-        const addressType = new Uint8Array(chunk.slice(addrIdx, addrValIdx))[0];
+        const addressType = bytes[addrIdx];
         switch (addressType) {
-            case ADDRESS_TYPE_IPV4: addrLen = 4; hostname = new Uint8Array(chunk.slice(addrValIdx, addrValIdx + addrLen)).join('.'); break;
-            case ADDRESS_TYPE_URL: addrLen = new Uint8Array(chunk.slice(addrValIdx, addrValIdx + 1))[0]; addrValIdx += 1; hostname = new TextDecoder().decode(chunk.slice(addrValIdx, addrValIdx + addrLen)); break;
-            case ADDRESS_TYPE_IPV6: addrLen = 16; const ipv6 = []; const ipv6View = new DataView(chunk.slice(addrValIdx, addrValIdx + addrLen)); for (let i = 0; i < 8; i++) ipv6.push(ipv6View.getUint16(i * 2).toString(16)); hostname = ipv6.join(':'); break;
+            case ADDRESS_TYPE_IPV4:
+                addrLen = 4;
+                if (bytes.byteLength < addrValIdx + addrLen) return { hasError: true, message: E_INVALID_DATA };
+                hostname = `${bytes[addrValIdx]}.${bytes[addrValIdx + 1]}.${bytes[addrValIdx + 2]}.${bytes[addrValIdx + 3]}`;
+                break;
+            case ADDRESS_TYPE_URL:
+                if (bytes.byteLength < addrValIdx + 1) return { hasError: true, message: E_INVALID_DATA };
+                addrLen = bytes[addrValIdx++];
+                if (bytes.byteLength < addrValIdx + addrLen) return { hasError: true, message: E_INVALID_DATA };
+                hostname = sharedDecoder.decode(bytes.subarray(addrValIdx, addrValIdx + addrLen));
+                break;
+            case ADDRESS_TYPE_IPV6:
+                addrLen = 16;
+                if (bytes.byteLength < addrValIdx + addrLen) return { hasError: true, message: E_INVALID_DATA };
+                const ipv6 = [];
+                const ipv6View = new DataView(bytes.buffer, bytes.byteOffset + addrValIdx, addrLen);
+                for (let i = 0; i < 8; i++) ipv6.push(ipv6View.getUint16(i * 2).toString(16));
+                hostname = ipv6.join(':');
+                break;
             default: return { hasError: true, message: `${E_INVALID_ADDR_TYPE}: ${addressType}` };
         }
         if (!hostname) return { hasError: true, message: `${E_EMPTY_ADDR}: ${addressType}` };
@@ -3160,11 +3514,11 @@
         let cancelled = false;
         return new ReadableStream({
             start(controller) {
-                socket.addEventListener('message', (event) => { if (!cancelled) controller.enqueue(event.data); });
+                socket.addEventListener('message', (event) => { if (!cancelled) controller.enqueue(toUint8Array(event.data)); });
                 socket.addEventListener('close', () => { if (!cancelled) { closeSocketQuietly(socket); controller.close(); } });
                 socket.addEventListener('error', (err) => controller.error(err));
                 const { earlyData, error } = base64ToArray(earlyDataHeader);
-                if (error) controller.error(error); else if (earlyData) controller.enqueue(earlyData);
+                if (error) controller.error(error); else if (earlyData) controller.enqueue(toUint8Array(earlyData));
             },
             cancel() { cancelled = true; closeSocketQuietly(socket); }
         });
@@ -3182,46 +3536,73 @@
                     try { remoteSocket.close && remoteSocket.close(); } catch (_) {}
                     retryFunc();
                 }
-            }, 3500);
+            }, FIRST_BYTE_TIMEOUT);
         }
 
-        await remoteSocket.readable.pipeTo(
-            new WritableStream({
-                async write(chunk, controller) {
-                    if (!hasData) {
-                        hasData = true;
-                        if (firstByteTimer) { clearTimeout(firstByteTimer); firstByteTimer = null; }
-                    }
-                    if (webSocket.readyState !== 1) controller.error(E_WS_NOT_OPEN);
-                    if (header) { webSocket.send(await new Blob([header, chunk]).arrayBuffer()); header = null; }
-                    else { webSocket.send(chunk); }
-                },
-                abort(reason) { },
-            })
-        ).catch((error) => {
+        const tx = createDownlinkGrain(webSocket);
+        let reader = null;
+        let byob = true;
+        let buffer = new ArrayBuffer(TRANSPORT_CHUNK_SIZE);
+
+        try {
+            try {
+                reader = remoteSocket.readable.getReader({ mode: 'byob' });
+            } catch (_) {
+                byob = false;
+                reader = remoteSocket.readable.getReader();
+            }
+
+            for (;;) {
+                const result = byob ? await reader.read(new Uint8Array(buffer, 0, TRANSPORT_CHUNK_SIZE)) : await reader.read();
+                if (result.done) break;
+                const readValue = result.value;
+                let chunk = toUint8Array(readValue);
+                const reusableBuffer = byob && readValue?.buffer instanceof ArrayBuffer && readValue.buffer.byteLength >= TRANSPORT_CHUNK_SIZE
+                    ? readValue.buffer
+                    : new ArrayBuffer(TRANSPORT_CHUNK_SIZE);
+                if (!chunk.byteLength) continue;
+
+                if (!hasData) {
+                    hasData = true;
+                    if (firstByteTimer) { clearTimeout(firstByteTimer); firstByteTimer = null; }
+                }
+
+                if (webSocket.readyState !== 1) throw new Error(E_WS_NOT_OPEN);
+                if (header) {
+                    chunk = joinUint8Array(header, chunk);
+                    header = null;
+                }
+
+                if (chunk.byteLength >= (TRANSPORT_CHUNK_SIZE >> 1)) {
+                    tx.flush();
+                    webSocket.send(chunk);
+                    if (byob) buffer = new ArrayBuffer(TRANSPORT_CHUNK_SIZE);
+                } else {
+                    tx.send(chunk.slice());
+                    if (byob) buffer = reusableBuffer;
+                }
+            }
+            tx.flush();
+        } catch (error) {
             // 已经触发 retry 时不要关闭 WS（retry 会重新挂载新 socket）
             if (!retried) closeSocketQuietly(webSocket);
-        });
+        } finally {
+            try { tx.flush(); } catch (_) {}
+            try { reader?.releaseLock(); } catch (_) {}
+        }
 
         if (firstByteTimer) { clearTimeout(firstByteTimer); firstByteTimer = null; }
         if (!hasData && !retried && retryFunc) retryFunc();
     }
 
-    async function forwardUDP(udpChunk, webSocket, respHeader) {
+    async function forwardUDP(udpChunk, webSocket, respHeader, requestFetcher = null) {
         try {
-            const tcpSocket = connect({ hostname: '8.8.4.4', port: 53 });
+            const tcpSocket = await connectTcpSocket('8.8.4.4', 53, requestFetcher, 1);
             let header = respHeader;
             const writer = tcpSocket.writable.getWriter();
             await writer.write(udpChunk);
             writer.releaseLock();
-            await tcpSocket.readable.pipeTo(new WritableStream({
-                async write(chunk) {
-                    if (webSocket.readyState === 1) {
-                        if (header) { webSocket.send(await new Blob([header, chunk]).arrayBuffer()); header = null; } 
-                        else { webSocket.send(chunk); }
-                    }
-                },
-            }));
+            await connectStreams(tcpSocket, webSocket, header, null);
         } catch (error) { }
     }
 
@@ -3396,6 +3777,9 @@
                 customECHDomain: '自定义 ECH 域名',
                 customECHDomainPlaceholder: '例如: cloudflare-ech.com',
                 customECHDomainHint: 'ECH配置中使用的域名，留空则使用默认值',
+                alpn: 'TLS ALPN',
+                alpnDefault: '默认（留空，由客户端协商）',
+                alpnHint: '仅添加到 TLS 节点链接参数；留空则不写 alpn。',
                 saveProtocol: '保存协议配置',
                 subscriptionConverterPlaceholder: '默认: https://url.v1.mk/sub',
                 subscriptionConverterHint: '订阅转换已内部实现，无需外部 API。此项仅作兼容保留，可留空。',
@@ -3536,6 +3920,9 @@
                 trojanPasswordPlaceholder: 'خالی بگذارید تا از UUID استفاده شود',
                 trojanPasswordHint: 'رمز عبور Trojan سفارشی را تنظیم کنید. اگر خالی بگذارید از UUID استفاده می‌شود. کلاینت به طور خودکار رمز عبور را با SHA224 هش می‌کند.',
                 protocolHint: 'می‌توانید چندین پروتکل را همزمان فعال کنید. اشتراک گره‌های پروتکل‌های انتخاب شده را تولید می‌کند.<br>• VLESS WS: پروتکل استاندارد مبتنی بر WebSocket<br>• Trojan: احراز هویت با رمز عبور SHA224<br>• xhttp: پروتکل استتار مبتنی بر HTTP POST (نیاز به اتصال دامنه سفارشی و فعال‌سازی gRPC دارد)',
+                alpn: 'TLS ALPN',
+                alpnDefault: 'پیش‌فرض (خالی، مذاکره توسط کلاینت)',
+                alpnHint: 'فقط به لینک‌های TLS اضافه می‌شود؛ اگر خالی باشد alpn نوشته نمی‌شود.',
                 saveProtocol: 'ذخیره تنظیمات پروتکل',
                 subscriptionConverterPlaceholder: 'پیش‌فرض: https://url.v1.mk/sub',
                 subscriptionConverterHint: 'تبدیل اشتراک به صورت داخلی پیاده‌سازی شده است و نیازی به API خارجی ندارد. این فیلد فقط برای سازگاری حفظ شده و می‌توان آن را خالی گذاشت.',
@@ -4638,6 +5025,19 @@
                                         <input type="text" id="customECHDomain" placeholder="${t.customECHDomainPlaceholder}" style="width: 100%; padding: 10px; background: rgba(0, 0, 0, 0.8); border: 1px solid #00f0ff; color: #00f0ff; font-family: 'Courier New', monospace; font-size: 13px;">
                                         <small style="color: #7aa9c4; font-size: 0.8rem; display: block; margin-top: 5px;">${t.customECHDomainHint}</small>
                                     </div>
+                                    <div style="margin-bottom: 10px;">
+                                        <label style="display: block; margin-bottom: 8px; color: #00f0ff; font-size: 0.95rem;">${t.alpn}</label>
+                                        <select id="alpn" style="width: 100%; padding: 10px; background: rgba(0, 0, 0, 0.8); border: 1px solid #00f0ff; color: #00f0ff; font-family: 'Courier New', monospace; font-size: 13px;">
+                                            <option value="">${t.alpnDefault}</option>
+                                            <option value="h3">h3</option>
+                                            <option value="h2">h2</option>
+                                            <option value="http/1.1">http/1.1</option>
+                                            <option value="h3,h2">h3,h2</option>
+                                            <option value="h2,http/1.1">h2,http/1.1</option>
+                                            <option value="h3,h2,http/1.1">h3,h2,http/1.1</option>
+                                        </select>
+                                        <small style="color: #7aa9c4; font-size: 0.8rem; display: block; margin-top: 5px;">${t.alpnHint}</small>
+                                    </div>
                                 </div>
                                 <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid rgba(0, 240, 255, 0.3);">
                                         <label style="display: block; margin-bottom: 8px; color: #00f0ff; font-size: 0.95rem;">${t.trojanPassword}</label>
@@ -5674,6 +6074,9 @@
                     if (document.getElementById('customECHDomain')) {
                         document.getElementById('customECHDomain').value = config.customECHDomain || '';
                     }
+                    if (document.getElementById('alpn')) {
+                        document.getElementById('alpn').value = config.alpn || '';
+                    }
                     document.getElementById('scu').value = config.scu || '';
                     document.getElementById('ena').checked = config.ena === 'yes';
                     document.getElementById('epd').checked = config.epd !== 'no';
@@ -5844,7 +6247,8 @@
                                 dkby: '',
                                 yxby: '', ev: '', et: '', ex: '', tp: '', scu: '', epd: '', epi: '', egi: '',
                                 ipv4: '', ipv6: '', ispMobile: '', ispUnicom: '', ispTelecom: '',
-                                homepage: ''
+                                homepage: '',
+                                alpn: ''
                             })
                         });
 
@@ -5973,6 +6377,7 @@
                         tp: val('tp'),
                         customDNS: val('customDNS'),
                         customECHDomain: val('customECHDomain'),
+                        alpn: val('alpn'),
                         d: val('customPath'),
                         p: val('customIP'),
                         yx: val('yx'),
@@ -6801,23 +7206,24 @@
     }
 
     async function parseTrojanHeader(buffer, ut) {
+        const bytes = toUint8Array(buffer);
         const passwordToHash = tp || ut;
         const sha224Password = await sha224Hash(passwordToHash);
 
-        if (buffer.byteLength < 56) {
+        if (bytes.byteLength < 56) {
             return {
                 hasError: true,
                 message: "invalid " + atob('dHJvamFu') + " data - too short"
             };
         }
         let crLfIndex = 56;
-        if (new Uint8Array(buffer.slice(56, 57))[0] !== 0x0d || new Uint8Array(buffer.slice(57, 58))[0] !== 0x0a) {
+        if (bytes[56] !== 0x0d || bytes[57] !== 0x0a) {
             return {
                 hasError: true,
                 message: "invalid " + atob('dHJvamFu') + " header format (missing CR LF)"
             };
         }
-        const password = new TextDecoder().decode(buffer.slice(0, crLfIndex));
+        const password = sharedDecoder.decode(bytes.subarray(0, crLfIndex));
         if (password !== sha224Password) {
             return {
                 hasError: true,
@@ -6825,7 +7231,7 @@
             };
         }
 
-        const socks5DataBuffer = buffer.slice(crLfIndex + 2);
+        const socks5DataBuffer = bytes.subarray(crLfIndex + 2);
         if (socks5DataBuffer.byteLength < 6) {
             return {
                 hasError: true,
@@ -6833,7 +7239,7 @@
             };
         }
 
-        const view = new DataView(socks5DataBuffer);
+        const view = new DataView(socks5DataBuffer.buffer, socks5DataBuffer.byteOffset, socks5DataBuffer.byteLength);
         const cmd = view.getUint8(0);
         if (cmd !== 1) {
             return {
@@ -6849,22 +7255,16 @@
         switch (atype) {
             case 1:
                 addressLength = 4;
-                address = new Uint8Array(
-                socks5DataBuffer.slice(addressIndex, addressIndex + addressLength)
-                ).join(".");
+                address = socks5DataBuffer.subarray(addressIndex, addressIndex + addressLength).join(".");
                 break;
             case 3:
-                addressLength = new Uint8Array(
-                socks5DataBuffer.slice(addressIndex, addressIndex + 1)
-                )[0];
+                addressLength = socks5DataBuffer[addressIndex];
                 addressIndex += 1;
-                address = new TextDecoder().decode(
-                socks5DataBuffer.slice(addressIndex, addressIndex + addressLength)
-                );
+                address = sharedDecoder.decode(socks5DataBuffer.subarray(addressIndex, addressIndex + addressLength));
                 break;
             case 4:
                 addressLength = 16;
-                const dataView = new DataView(socks5DataBuffer.slice(addressIndex, addressIndex + addressLength));
+                const dataView = new DataView(socks5DataBuffer.buffer, socks5DataBuffer.byteOffset + addressIndex, addressLength);
                 const ipv6 = [];
                 for (let i = 0; i < 8; i++) {
                     ipv6.push(dataView.getUint16(i * 2).toString(16));
@@ -6886,8 +7286,7 @@
         }
 
         const portIndex = addressIndex + addressLength;
-        const portBuffer = socks5DataBuffer.slice(portIndex, portIndex + 2);
-        const portRemote = new DataView(portBuffer).getUint16(0);
+        const portRemote = new DataView(socks5DataBuffer.buffer, socks5DataBuffer.byteOffset + portIndex, 2).getUint16(0);
 
         return {
             hasError: false,
@@ -6895,7 +7294,7 @@
             addressType: atype,
             port: portRemote,
             hostname: address,
-            rawClientData: socks5DataBuffer.slice(portIndex + 4)
+            rawClientData: socks5DataBuffer.subarray(portIndex + 4)
         };
     }
 
@@ -7471,30 +7870,23 @@
         }
     }
 
-    function generateLinksFromNewIPs(list, user, workerDomain, echConfig = null, skipNumbering = false) {
+    function generateLinksFromNewIPs(list, user, workerDomain, echConfig = null, skipNumbering = false, aliasNamer = null) {
         const CF_HTTP_PORTS = [80, 8080, 8880, 2052, 2082, 2086, 2095];
         const CF_HTTPS_PORTS = [443, 2053, 2083, 2087, 2096, 8443];
         const links = [];
         const wsPath = '/?ed=2048';
         const proto = atob('dmxlc3M=');
 
-        const { namer, setSkipNumbering } = createNodeNamer(skipNumbering);
+        const makeNodeName = aliasNamer || createCompactNodeNamer(skipNumbering);
 
         for (const item of list) {
-            const nodeNameBase = item.name.replace(/\s/g, '_');
             const port = item.port;
             const safeIP = item.ip.includes(':') ? `[${item.ip}]` : item.ip;
 
-            const getNodeName = (suffix) => {
-                const nodeName = `${nodeNameBase}-${port}${suffix}`;
-                if (skipNumbering) return nodeName;
-                return namer(nodeNameBase, nodeName);
-            };
-
             if (CF_HTTPS_PORTS.includes(port)) {
-                const suffix = '-WS-TLS';
-                const wsNodeName = getNodeName(suffix);
+                const wsNodeName = makeNodeName(item);
                 let link = `${proto}://${user}@${safeIP}:${port}?encryption=none&security=tls&sni=${workerDomain}&fp=${enableECH ? 'chrome' : 'randomized'}&type=ws&host=${workerDomain}&path=${wsPath}`;
+                if (customALPN) link += `&alpn=${encodeURIComponent(customALPN)}`;
 
                 // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
                 if (enableECH) {
@@ -7507,15 +7899,14 @@
                 links.push(link);
             } else if (CF_HTTP_PORTS.includes(port)) {
                 if (!disableNonTLS) {
-                    const suffix = '-WS';
-                    const wsNodeName = getNodeName(suffix);
+                    const wsNodeName = makeNodeName(item);
                     const link = `${proto}://${user}@${safeIP}:${port}?encryption=none&security=none&type=ws&host=${workerDomain}&path=${wsPath}#${encodeURIComponent(wsNodeName)}`;
                     links.push(link);
                 }
             } else {
-                const suffix = '-WS-TLS';
-                const wsNodeName = getNodeName(suffix);
+                const wsNodeName = makeNodeName(item);
                 let link = `${proto}://${user}@${safeIP}:${port}?encryption=none&security=tls&sni=${workerDomain}&fp=${enableECH ? 'chrome' : 'randomized'}&type=ws&host=${workerDomain}&path=${wsPath}`;
+                if (customALPN) link += `&alpn=${encodeURIComponent(customALPN)}`;
 
                 // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
                 if (enableECH) {
@@ -7531,28 +7922,16 @@
         return links;
     }
 
-    function generateXhttpLinksFromSource(list, user, workerDomain, echConfig = null, skipNumbering = false) {
+    function generateXhttpLinksFromSource(list, user, workerDomain, echConfig = null, skipNumbering = false, aliasNamer = null) {
         const links = [];
         const nodePath = user.substring(0, 8);
 
-        const { namer, setSkipNumbering } = createNodeNamer(skipNumbering);
+        const makeNodeName = aliasNamer || createCompactNodeNamer(skipNumbering);
 
         for (const item of list) {
-            let nodeNameBase = item.isp || item.name || item.ip;
-            if (!nodeNameBase) continue;
-            nodeNameBase = nodeNameBase.replace(/\s/g, '_');
-            if (item.colo) nodeNameBase = `${nodeNameBase}-${item.colo}`;
             const safeIP = item.ip.includes(':') ? `[${item.ip}]` : item.ip;
             const port = item.port || 443;
-
-            const getNodeName = (suffix) => {
-                const nodeName = `${nodeNameBase}-${port}${suffix}`;
-                if (skipNumbering) return nodeName;
-                return namer(nodeNameBase, nodeName);
-            };
-
-            const suffix = '-xhttp';
-            const wsNodeName = getNodeName(suffix);
+            const wsNodeName = makeNodeName(item);
 
             const params = new URLSearchParams({
                 encryption: 'none',
@@ -7564,6 +7943,7 @@
                 path: `/${nodePath}`,
                 mode: 'stream-one'
             });
+            applyALPNParam(params);
 
             if (enableECH) {
                 const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
@@ -7576,7 +7956,7 @@
         return links;
     }
 
-    async function generateTrojanLinksFromNewIPs(list, user, workerDomain, echConfig = null, skipNumbering = false) {
+    async function generateTrojanLinksFromNewIPs(list, user, workerDomain, echConfig = null, skipNumbering = false, aliasNamer = null) {
         const CF_HTTP_PORTS = [80, 8080, 8880, 2052, 2082, 2086, 2095];
         const CF_HTTPS_PORTS = [443, 2053, 2083, 2087, 2096, 8443];
 
@@ -7585,23 +7965,16 @@
 
         const password = tp || user;
 
-        const { namer, setSkipNumbering } = createNodeNamer(skipNumbering);
+        const makeNodeName = aliasNamer || createCompactNodeNamer(skipNumbering);
 
         for (const item of list) {
-            const nodeNameBase = item.name.replace(/\s/g, '_');
             const port = item.port;
             const safeIP = item.ip.includes(':') ? `[${item.ip}]` : item.ip;
 
-            const getNodeName = (suffix) => {
-                const nodeName = `${nodeNameBase}-${port}${suffix}`;
-                if (skipNumbering) return nodeName;
-                return namer(nodeNameBase, nodeName);
-            };
-
             if (CF_HTTPS_PORTS.includes(port)) {
-                const suffix = `-${atob('VHJvamFu')}-WS-TLS`;
-                const wsNodeName = getNodeName(suffix);
+                const wsNodeName = makeNodeName(item);
                 let link = `${atob('dHJvamFuOi8v')}${password}@${safeIP}:${port}?security=tls&sni=${workerDomain}&fp=chrome&type=ws&host=${workerDomain}&path=${wsPath}`;
+                if (customALPN) link += `&alpn=${encodeURIComponent(customALPN)}`;
 
                 // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
                 if (enableECH) {
@@ -7614,15 +7987,14 @@
                 links.push(link);
             } else if (CF_HTTP_PORTS.includes(port)) {
                 if (!disableNonTLS) {
-                    const suffix = `-${atob('VHJvamFu')}-WS`;
-                    const wsNodeName = getNodeName(suffix);
+                    const wsNodeName = makeNodeName(item);
                     const link = `${atob('dHJvamFuOi8v')}${password}@${safeIP}:${port}?security=none&type=ws&host=${workerDomain}&path=${wsPath}#${encodeURIComponent(wsNodeName)}`;
                     links.push(link);
                 }
             } else {
-                const suffix = `-${atob('VHJvamFu')}-WS-TLS`;
-                const wsNodeName = getNodeName(suffix);
+                const wsNodeName = makeNodeName(item);
                 let link = `${atob('dHJvamFuOi8v')}${password}@${safeIP}:${port}?security=tls&sni=${workerDomain}&fp=chrome&type=ws&host=${workerDomain}&path=${wsPath}`;
+                if (customALPN) link += `&alpn=${encodeURIComponent(customALPN)}`;
 
                 // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
                 if (enableECH) {
@@ -7992,6 +8364,8 @@
         } else {
             customECHDomain = 'cloudflare-ech.com';
         }
+
+        customALPN = normalizeALPN(getConfigValue('alpn', ''));
 
         // 如果启用了ECH，自动启用仅TLS模式（避免80端口干扰）
         // ECH需要TLS才能工作，所以必须禁用非TLS节点

@@ -1,17 +1,12 @@
 # 合并冲突报告
-## 冲突时间: Thu May 21 11:58:12 UTC 2026
-## 上游更新哈希: 7a225e0ef0abfdc3e8a4767e293f209106442dc9d7929b477580ef5f1a071daa
+## 冲突时间: Sat May 23 02:25:27 UTC 2026
+## 上游更新哈希: d7f73d68c5ff9d1fa5e705da32e30c4197ddcba54710322410c0625b70220c2b
 
 以下文件包含冲突标记，需要手动解决：
 
 ```
-<<<<<<< local_明文源吗
-    // CFnew - 终端 v2.9.7
-    // 版本: v2.9.7 
-=======
     // CFnew - 终端 v2.9.8
     // 版本: v2.9.8 
->>>>>>> upstream_明文源吗
     import { connect } from 'cloudflare:sockets';
     let at = '351c9981-04b6-4103-aa4b-864aa9c91469';
     let fallbackAddress = '';
@@ -21,14 +16,13 @@
     let enableSocksDowngrade = false;
     let disableNonTLS = false;
     let disablePreferred = false;
-
     let enableRegionMatching = true;
     let currentWorkerRegion = '';
     let manualWorkerRegion = '';
     let piu = '';
     let cp = '';  
-    let host = '';
-    let hostList = [];
+    let enableRandomPath = false; // 随机路径开关
+    let hostList = []; let host = ''; // 由 getConfigValue 填充
 
     let ev = true;   
     let et = false; 
@@ -38,50 +32,35 @@
     let enableECH = false;  
     // 自定义DNS服务器（默认：https://223.5.5.5/dns-query）
     let customDNS = 'https://223.5.5.5/dns-query';
-    // 自定义ECH域名（默认：节点host）
-    let customECHDomain = '';
-
-    const globalEchCache = new Map();
-    const globalIpv4Regex = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
-
-    let scu = 'https://url.v1.mk/sub';  
 <<<<<<< local_明文源吗
-    // 远程配置URL（可配置）
-    let remoteConfigUrl = 'https://raw.githubusercontent.com/lizhi123le/ACL4SSR/master/Clash/config/ACL4SSR_Online_Full_MultiMode.ini';
+    // 自定义ECH域名（留空则从 hostList 随机抽取）
+    let customECHDomain = '';
+    // ECH 配置缓存（域名 -> ECH config 列表）
+    const globalEchCache = new Map();
+    // Cache API 缓存
+    const cfCache = caches.default;
+    // IPv4 地址正则
+    const globalIpv4Regex = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
 =======
-    // 远程配置URL（硬编码）
-    const remoteConfigUrl = 'https://raw.githubusercontent.com/byJoey/test/refs/heads/main/tist.ini';
+    // 自定义ECH域名（默认：cloudflare-ech.com）
+    let customECHDomain = 'cloudflare-ech.com';
+    let customALPN = '';
 >>>>>>> upstream_明文源吗
 
-    let epd = true;   
-    let epi = true;       
-    let egi = false;
-    let ena = false;   // 原生地址默认关闭          
+    let scu = 'https://url.v1.mk/sub';  
+    // 远程配置URL（硬编码）
+    const remoteConfigUrl = 'https://raw.githubusercontent.com/byJoey/test/refs/heads/main/tist.ini';
 
-    let domainEnabled = true;
-    let ipv4Enabled = true;
-    let ipv6Enabled = true;
-    let ispMobile = true;
-    let ispUnicom = true;
-    let ispTelecom = true;
+    let epd = true;   // 优选域名默认关闭
+    let epi = true;       
+    let egi = true;
+    let ena = false;   // 原生地址默认关闭          
 
     let kvStore = null;
     let kvConfig = {};
-<<<<<<< local_明文源吗
-    let enableRandomPath = false; // 随机路径开关
-    
-    // KV配置缓存（方案1：内存缓存）
-    let kvConfigCache = null;
-    let kvConfigCacheTime = 0;
-    const CACHE_TTL = 3 * 24 * 60 * 60 * 1000; // 3天缓存，降低KV读取次数
-    
-    // 全局订阅缓存版本号 - 用于 Cache API 缓存失效，仅在缓存未命中时从 KV 读取
-    let configVersion = null;
-=======
     let kvConfigLastLoad = 0;
     const KV_CACHE_TTL = 30 * 1000; // 30秒缓存（短窗口内跳过版本检查）
     let kvConfigVersion = '';
->>>>>>> upstream_明文源吗
 
     const regionMapping = {
         'HK': ['🇭🇰 香港', 'HK', 'Hong Kong'],
@@ -146,31 +125,111 @@
     const ADDRESS_TYPE_IPV4 = 1;
     const ADDRESS_TYPE_URL = 2;
     const ADDRESS_TYPE_IPV6 = 3;
+    const TRANSPORT_CHUNK_SIZE = 64 * 1024;
+    const TRANSPORT_DN_PACK = 32 * 1024;
+    const TRANSPORT_DN_TAIL = 512;
+    const TRANSPORT_DN_DELAY = 0;
+    const TRANSPORT_UP_PACK = 16 * 1024;
+    const TRANSPORT_UP_Q_MAX = 256 * 1024;
+    const TRANSPORT_CONNECT_RACE = 2;
+    const FIRST_BYTE_TIMEOUT = 3500;
+    const sharedDecoder = new TextDecoder();
+    const uuidByteCache = new Map();
 
-    function isValidFormat(str) {
+	function isValidFormat(str) {
         const userRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
         return userRegex.test(str);
     }
 
     function isValidIP(ip) {
-        if (globalIpv4Regex.test(ip)) return true;
-        
+        const ipv4Regex = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
+        if (ipv4Regex.test(ip)) return true;
+
         const ipv6Regex = /^(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$/;
         if (ipv6Regex.test(ip)) return true;
-        
+
         const ipv6ShortRegex = /^::1$|^::$|^(?:[0-9a-fA-F]{1,4}:)*::(?:[0-9a-fA-F]{1,4}:)*[0-9a-fA-F]{1,4}$/;
         if (ipv6ShortRegex.test(ip)) return true;
-        
+
         return false;
     }
 
+    function createNodeNamer(skip = false) {
+        // 如果配置了 yxURL，则跳过编号
+        const forceSkip = (typeof piu !== 'undefined' && piu && piu.trim());
+        let skipNumbering = forceSkip || skip;
+        const counters = {};
+
+        function setSkipNumbering(flag) {
+            if (!forceSkip) {
+                skipNumbering = flag;
+            }
+        }
+
+        function namer(baseName, nodeName = null) {
+            if (skipNumbering || (baseName && baseName.includes('.'))) {
+                return nodeName || baseName;
+            }
+            if (!counters[baseName]) counters[baseName] = 0;
+            counters[baseName]++;
+            const index = String(counters[baseName]).padStart(2, '0');
+            return `${nodeName || baseName}-${index}`;
+        }
+
+        return { namer, setSkipNumbering };
+    }
+
+    function normalizeNodeHost(host) {
+        return String(host || '').trim().replace(/^\[([^\]]+)\]$/, '$1');
+    }
+
+    function compactNodeAliasPart(value, fallback = 'Node') {
+        let text = String(value || '').trim();
+        if (!text || /^自定义优选-/i.test(text)) text = fallback;
+        text = text
+            .replace(/^\[([^\]]+)\]$/, '$1')
+            .replace(/^https?:\/\//i, '')
+            .replace(/[/?#].*$/, '')
+            .replace(/\s+/g, '_');
+        return text || fallback;
+    }
+
+    function getCompactNodeAliasBase(item) {
+        const host = normalizeNodeHost(item?.ip || item?.domain || '');
+        if (host && host.includes(':') && /^[0-9a-fA-F:.]+$/.test(host)) return 'IPv6优选';
+        if (host && !isValidIP(host)) return '优选域名';
+
+        const isp = compactNodeAliasPart(item?.isp || item?.name || '', 'IPv4优选');
+        const colo = compactNodeAliasPart(item?.colo || '', '');
+        return colo ? `${isp}-${colo}` : isp;
+    }
+
+    function createCompactNodeNamer(skipNumbering = false) {
+        const counters = {};
+        return (item) => {
+            const base = getCompactNodeAliasBase(item);
+            if (skipNumbering) return base;
+            counters[base] = (counters[base] || 0) + 1;
+            return `${base}-${String(counters[base]).padStart(2, '0')}`;
+        };
+    }
+
+    function normalizeALPN(value) {
+        const allowed = ['', 'h3', 'h2', 'http/1.1', 'h3,h2', 'h2,http/1.1', 'h3,h2,http/1.1'];
+        const alpn = String(value || '').trim();
+        return allowed.includes(alpn) ? alpn : '';
+    }
+
+    function applyALPNParam(params) {
+        const alpn = normalizeALPN(customALPN);
+        if (alpn) params.set('alpn', alpn);
+    }
+
     async function initKVStore(env) {
-        
         if (env.C) {
             try {
                 kvStore = env.C;
                 await loadKVConfig();
-                updateConfigVariables(env); // 更新配置变量，传入 env 以便处理回退
             } catch (error) {
                 kvStore = null;
             }
@@ -178,24 +237,10 @@
         }
     }
 
-    async function loadKVConfig() {
-        
+    async function loadKVConfig(force = false) {
         if (!kvStore) {
             return;
         }
-<<<<<<< local_明文源吗
-        
-        try {
-            // 方案1：检查内存缓存
-            if (kvConfigCache && Date.now() - kvConfigCacheTime < CACHE_TTL) {
-                kvConfig = JSON.parse(JSON.stringify(kvConfigCache));
-                return;
-            }
-
-            // 缓解并发冲击：增加 0-300ms 随机延迟
-            await new Promise(r => setTimeout(r, Math.random() * 300));
-            
-=======
 
         // 短窗口内完全信任缓存，避免高频请求时打爆 KV
         if (!force && kvConfigLastLoad > 0 && (Date.now() - kvConfigLastLoad) < KV_CACHE_TTL) {
@@ -213,30 +258,20 @@
                 return;
             }
 
->>>>>>> upstream_明文源吗
+            // 随机延迟 0-300ms，缓解 KV 并发打满
+            if (!force) {
+                await new Promise(r => setTimeout(r, Math.random() * 300));
+            }
+
             const configData = await kvStore.get('c');
-            
             if (configData) {
                 kvConfig = JSON.parse(configData);
-<<<<<<< local_明文源吗
-                kvConfigCache = kvConfig;
-                kvConfigCacheTime = Date.now();
-            } else {
-                kvConfig = kvConfig || {};
-                kvConfigCache = kvConfig;
-                kvConfigCacheTime = Date.now();
-            }
-        } catch (error) {
-            kvConfig = {};
-            // 错误时不缓存，允许下次重试
-=======
             }
             kvConfigVersion = ver;
             kvConfigLastLoad = Date.now();
         } catch (error) {
             // 读取失败时保留现有缓存，避免临时故障导致配置丢失
             if (!kvConfig) kvConfig = {};
->>>>>>> upstream_明文源吗
         }
     }
 
@@ -244,31 +279,21 @@
         if (!kvStore) {
             return;
         }
-        
+
         try {
             const configString = JSON.stringify(kvConfig);
-            
-            // 写入配置
             await kvStore.put('c', configString);
-<<<<<<< local_明文源吗
-            
-            // 同步更新缓存版本号，触发全球节点 Cache API 失效
-            await kvStore.put('config_version', Date.now().toString());
-            configVersion = null;
-=======
             // 写入版本号，让其它 isolate 在下次请求时能立即看到变更
             const newVer = String(Date.now());
             kvConfigVersion = newVer;
             try { await kvStore.put('c_ver', newVer); } catch (_) {}
             kvConfigLastLoad = Date.now();
->>>>>>> upstream_明文源吗
         } catch (error) {
             throw error; 
         }
     }
 
     function getConfigValue(key, defaultValue = '') {
-        
         if (kvConfig[key] !== undefined) {
             return kvConfig[key];
         }
@@ -278,33 +303,24 @@
     async function setConfigValue(key, value) {
         kvConfig[key] = value;
         await saveKVConfig();
-        
-        // 更新内存缓存，确保当前 Isolate 的后续请求能立即看到更新
-        kvConfigCache = JSON.parse(JSON.stringify(kvConfig));
-        kvConfigCacheTime = Date.now();
-        
-        // 同步更新所有内存变量
-        updateConfigVariables();
     }
 
     async function detectWorkerRegion(request) {
         try {
             const cfCountry = request.cf?.country;
-            
             if (cfCountry) {
                 const countryToRegion = {
-                    'HK': 'HK','US': 'US', 'SG': 'SG', 'JP': 'JP', 'KR': 'KR',
+                    'US': 'US', 'SG': 'SG', 'JP': 'JP', 'KR': 'KR',
                     'DE': 'DE', 'SE': 'SE', 'NL': 'NL', 'FI': 'FI', 'GB': 'GB',
                     'CN': 'SG', 'TW': 'JP', 'AU': 'SG', 'CA': 'US',
                     'FR': 'DE', 'IT': 'DE', 'ES': 'DE', 'CH': 'DE',
                     'AT': 'DE', 'BE': 'NL', 'DK': 'SE', 'NO': 'SE', 'IE': 'GB'
                 };
-                
+
                 if (countryToRegion[cfCountry]) {
                     return countryToRegion[cfCountry];
                 }
             }
-            
             return 'SG';
             
         } catch (error) {
@@ -312,11 +328,11 @@
         }
     }
 
-    async function checkIPAvailability(domain, port = 443, timeout = 8000) {
+    async function checkIPAvailability(domain, port = 443, timeout = 2000) {
         try {
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), timeout);
-            
+
             const response = await fetch(`https://${domain}`, {
                 method: 'HEAD',
                 signal: controller.signal,
@@ -324,7 +340,7 @@
                     'User-Agent': 'Mozilla/5.0 (compatible; CF-IP-Checker/1.0)'
                 }
             });
-            
+
             clearTimeout(timeoutId);
             return response.status < 500;
         } catch (error) {
@@ -333,13 +349,12 @@
     }
 
     async function getBestBackupIP(workerRegion = '', useRegionMatching = enableRegionMatching) {
-        
         if (backupIPs.length === 0) {
             return null;
         }
-        
+
         const availableIPs = backupIPs.map(ip => ({ ...ip, available: true }));
-        
+
         if (useRegionMatching && workerRegion) {
             const sortedIPs = getSmartRegionSelection(workerRegion, availableIPs, useRegionMatching);
             if (sortedIPs.length > 0) {
@@ -347,7 +362,7 @@
                 return selectedIP;
             }
         }
-        
+
         const selectedIP = availableIPs[0];
         return selectedIP;
     }
@@ -355,42 +370,41 @@
     function getNearbyRegions(region) {
         const nearbyMap = {
             'HK': ['SG', 'JP', 'KR', 'US'],
-            'US': ['SG', 'HK', 'JP', 'KR'],
-            'SG': ['HK', 'JP', 'KR', 'US'],
-            'JP': ['HK', 'SG', 'KR', 'US'],
-            'KR': ['HK', 'JP', 'SG', 'US'],
-            'DE': ['NL', 'GB', 'SE', 'FI'],
-            'SE': ['DE', 'NL', 'FI', 'GB'],
-            'NL': ['DE', 'GB', 'SE', 'FI'],
-            'FI': ['SE', 'DE', 'NL', 'GB'],
-            'GB': ['DE', 'NL', 'SE', 'FI']
+            'US': ['SG', 'HK', 'JP', 'KR'], 
+            'SG': ['HK', 'JP', 'KR', 'US'], 
+            'JP': ['HK', 'SG', 'KR', 'US'], 
+            'KR': ['HK', 'JP', 'SG', 'US'], 
+            'DE': ['NL', 'GB', 'SE', 'FI'], 
+            'SE': ['DE', 'NL', 'FI', 'GB'], 
+            'NL': ['DE', 'GB', 'SE', 'FI'], 
+            'FI': ['SE', 'DE', 'NL', 'GB'], 
+            'GB': ['DE', 'NL', 'SE', 'FI']  
         };
-        
+
         return nearbyMap[region] || [];
     }
 
     function getAllRegionsByPriority(region) {
         const nearbyRegions = getNearbyRegions(region);
         const allRegions = ['HK', 'US', 'SG', 'JP', 'KR', 'DE', 'SE', 'NL', 'FI', 'GB'];
-        
+
         return [region, ...nearbyRegions, ...allRegions.filter(r => r !== region && !nearbyRegions.includes(r))];
     }
 
     function getSmartRegionSelection(workerRegion, availableIPs, useRegionMatching = enableRegionMatching) {
-        
         if (!useRegionMatching || !workerRegion) {
             return availableIPs;
         }
-        
+
         const priorityRegions = getAllRegionsByPriority(workerRegion);
-        
+
         const sortedIPs = [];
-        
+
         for (const region of priorityRegions) {
             const regionIPs = availableIPs.filter(ip => ip.regionCode === region);
             sortedIPs.push(...regionIPs);
         }
-        
+
         return sortedIPs;
     }
 
@@ -404,7 +418,7 @@
                 };
             }
         }
-        
+
         const lastColonIndex = input.lastIndexOf(':');
         if (lastColonIndex > 0) {
             const address = input.substring(0, lastColonIndex);
@@ -416,22 +430,36 @@
                 return { address, port };
             }
         }
-        
+
         return { address: input, port: null };
     }
 
     export default {
         async fetch(request, env, ctx) {
             try {
-                const url = new URL(request.url);
+                const isWebSocket = request.headers.get('Upgrade') === atob('d2Vic29ja2V0');
+                const isPost = request.method === 'POST';
+                const reqUrl = new URL(request.url);
+                const pathSegments = reqUrl.pathname.split('/').filter(p => p);
+
+                if (!isWebSocket && !isPost && reqUrl.pathname !== '/') {
+                    const tmpAt = (env.u || env.U || '').toLowerCase();
+                    const tmpCp = (env.d || env.D || '').toLowerCase();
+                    const firstSeg = pathSegments[0] || '';
+                    const cleanCp = tmpCp.startsWith('/') ? tmpCp.substring(1) : tmpCp;
+                    if (firstSeg !== tmpAt && (cleanCp ? firstSeg !== cleanCp : false)) {
+                        return new Response('Not Found', { status: 404 });
+                    }
+                }
+
                 await initKVStore(env);
-                
+
                 at = (env.u || env.U || at).toLowerCase();
                 const subPath = (env.d || env.D || at).toLowerCase();
-                
+
                 const ci = getConfigValue('p', env.p || env.P);
                 let useCustomIP = false;
-                
+
                 const manualRegion = getConfigValue('wk', env.wk || env.WK);
                 if (manualRegion && manualRegion.trim()) {
                     manualWorkerRegion = manualRegion.trim().toUpperCase();
@@ -442,18 +470,12 @@
                 } else {
                     currentWorkerRegion = await detectWorkerRegion(request);
                 }
-                
+
                 const regionMatchingControl = env.rm || env.RM;
                 if (regionMatchingControl && regionMatchingControl.toLowerCase() === 'no') {
                     enableRegionMatching = false;
                 }
-                
-                // 读取随机路径配置
-                const randomPathControl = getConfigValue('randomPath', env.randomPath || env.RANDOMPATH);
-                if (randomPathControl !== undefined && randomPathControl !== '') {
-                    enableRandomPath = randomPathControl === 'yes' || randomPathControl === true || randomPathControl === 'true' || randomPathControl === '1';
-                }
-                
+
                 const envFallback = getConfigValue('p', env.p || env.P);
                 if (envFallback) {
                     fallbackAddress = envFallback.trim();
@@ -475,24 +497,24 @@
                         const preferredList = customPreferred.split(',').map(item => item.trim()).filter(item => item);
                         customPreferredIPs = [];
                         customPreferredDomains = [];
-                        
+
                         preferredList.forEach(item => {
-                            
+
                             let nodeName = '';
                             let addressPart = item;
-                            
+
                             if (item.includes('#')) {
                                 const parts = item.split('#');
                                 addressPart = parts[0].trim();
                                 nodeName = parts[1].trim();
                             }
-                            
+
                             const { address, port } = parseAddressAndPort(addressPart);
-                            
+
                             if (!nodeName) {
                                 nodeName = '自定义优选-' + address + (port ? ':' + port : '');
                             }
-                            
+
                             if (isValidIP(address)) {
                                 customPreferredIPs.push({ 
                                     ip: address, 
@@ -532,68 +554,59 @@
                 if (vlessControl !== undefined && vlessControl !== '') {
                     ev = vlessControl === 'yes' || vlessControl === true || vlessControl === 'true';
                 }
-                
-            const tjControl = getConfigValue('et', env.et);
-            if (tjControl !== undefined && tjControl !== '') {
-                et = tjControl === 'yes' || tjControl === true || tjControl === 'true';
-            }
-                
+
+                const tjControl = getConfigValue('et', env.et);
+                if (tjControl !== undefined && tjControl !== '') {
+                    et = tjControl === 'yes' || tjControl === true || tjControl === 'true';
+                }
+
                 tp = getConfigValue('tp', env.tp) || '';
-                
+
                 const xhttpControl = getConfigValue('ex', env.ex);
                 if (xhttpControl !== undefined && xhttpControl !== '') {
                     ex = xhttpControl === 'yes' || xhttpControl === true || xhttpControl === 'true';
                 }
-<<<<<<< local_明文源吗
-                
-                scu = getConfigValue('scu', env.scu) || 'https://url.v1.mk/sub';
-                
-                // 从KV配置中读取远程配置URL
-                remoteConfigUrl = getConfigValue('remoteConfigUrl', env.remoteConfigUrl) || 'https://raw.githubusercontent.com/lizhi123le/ACL4SSR/master/Clash/config/ACL4SSR_Online_Full_MultiMode.ini';
-                
-=======
 
                 scu = getConfigValue('scu', env.scu) || 'https://url.v1.mk/sub';
 
->>>>>>> upstream_明文源吗
                 const preferredDomainsControl = getConfigValue('epd', env.epd || 'no');
                 if (preferredDomainsControl !== undefined && preferredDomainsControl !== '') {
                     epd = preferredDomainsControl !== 'no' && preferredDomainsControl !== false && preferredDomainsControl !== 'false';
                 }
-                
+
                 const preferredIPsControl = getConfigValue('epi', env.epi);
                 if (preferredIPsControl !== undefined && preferredIPsControl !== '') {
                     epi = preferredIPsControl !== 'no' && preferredIPsControl !== false && preferredIPsControl !== 'false';
                 }
-                
+
                 const githubIPsControl = getConfigValue('egi', env.egi);
                 if (githubIPsControl !== undefined && githubIPsControl !== '') {
                     egi = githubIPsControl !== 'no' && githubIPsControl !== false && githubIPsControl !== 'false';
                 }
-                
+
                 const nativeAddressControl = getConfigValue('ena', env.ena);
                 if (nativeAddressControl !== undefined && nativeAddressControl !== '') {
                     ena = nativeAddressControl !== 'no' && nativeAddressControl !== false && nativeAddressControl !== 'false';
                 }
-                
+
                 const echControl = getConfigValue('ech', env.ech);
                 if (echControl !== undefined && echControl !== '') {
                     enableECH = echControl === 'yes' || echControl === true || echControl === 'true';
                 }
-                
+
                 // 加载自定义DNS和ECH域名配置
                 const customDNSValue = getConfigValue('customDNS', '');
                 if (customDNSValue && customDNSValue.trim()) {
                     customDNS = customDNSValue.trim();
                 }
-                
+
                 const customECHDomainValue = getConfigValue('customECHDomain', '');
                 if (customECHDomainValue && customECHDomainValue.trim()) {
                     customECHDomain = customECHDomainValue.trim();
-                } else {
-                    customECHDomain = '';
                 }
-                
+
+                customALPN = normalizeALPN(getConfigValue('alpn', env.alpn || env.ALPN || ''));
+
                 // 如果启用了ECH，自动启用仅TLS模式（避免80端口干扰）
                 // ECH需要TLS才能工作，所以必须禁用非TLS节点
                 if (enableECH) {
@@ -604,18 +617,33 @@
                         await setConfigValue('dkby', 'yes');
                     }
                 }
-                
+
                 if (!ev && !et && !ex) {
                     ev = true;
                 }
 
-            piu = getConfigValue('yxURL', env.yxURL || env.YXURL) || '';
-            
-            cp = getConfigValue('d', env.d || env.D) || '';
+                piu = getConfigValue('yxURL', env.yxURL || env.YXURL) || '';
+
+                cp = getConfigValue('d', env.d || env.D) || '';
+
+                host = getConfigValue('host', env.host || env.HOST) || '';
+                // 从 host 配置填充 hostList（供 getRandomHost 使用）
+                if (host && host.trim()) {
+                    hostList = host.split(',').map(h => h.trim()).filter(h => h).sort(() => Math.random() - 0.5);
+                } else {
+                    hostList = [];
+                }
+
+                const randomPathControl = getConfigValue('randomPath', env.randomPath || env.RANDOMPATH);
+                if (randomPathControl !== undefined && randomPathControl !== '') {
+                    enableRandomPath = randomPathControl === 'yes' || randomPathControl === true || randomPathControl === 'true' || randomPathControl === '1';
+                }
+
+                const url = new URL(request.url);
 
                 if (url.pathname.includes('/api/config')) {
                     const pathParts = url.pathname.split('/').filter(p => p);
-                    
+
                     const apiIndex = pathParts.indexOf('api');
                     if (apiIndex > 0) {
                         const pathSegments = pathParts.slice(0, apiIndex);
@@ -623,14 +651,12 @@
                         
                     let isValid = false;
                     if (cp && cp.trim()) {
-                        
                         const cleanCustomPath = cp.trim().startsWith('/') ? cp.trim().substring(1) : cp.trim();
                         isValid = (pathIdentifier === cleanCustomPath);
                         } else {
-                            
                             isValid = (isValidFormat(pathIdentifier) && pathIdentifier === at);
                         }
-                        
+
                         if (isValid) {
                             return await handleConfigAPI(request);
                         } else {
@@ -640,47 +666,44 @@
                             });
                         }
                     }
-                    
+
                     return new Response(JSON.stringify({ error: '无效的API路径' }), { 
                         status: 404,
                         headers: { 'Content-Type': 'application/json' }
                     });
                 }
-                
+
                 if (url.pathname.includes('/api/preferred-ips')) {
                     const pathParts = url.pathname.split('/').filter(p => p);
-                
                     const apiIndex = pathParts.indexOf('api');
                     if (apiIndex > 0) {
-                    const pathSegments = pathParts.slice(0, apiIndex);
-                    const pathIdentifier = pathSegments.join('/');
-                    
-                    let isValid = false;
-                    if (cp && cp.trim()) {
-                        
-                        const cleanCustomPath = cp.trim().startsWith('/') ? cp.trim().substring(1) : cp.trim();
-                        isValid = (pathIdentifier === cleanCustomPath);
-                    } else {
-                        
-                        isValid = (isValidFormat(pathIdentifier) && pathIdentifier === at);
-                    }
-                    
-                    if (isValid) {
+                        const pathSegments = pathParts.slice(0, apiIndex);
+                        const pathIdentifier = pathSegments.join('/');
+
+                        let isValid = false;
+                        if (cp && cp.trim()) {
+                            const cleanCustomPath = cp.trim().startsWith('/') ? cp.trim().substring(1) : cp.trim();
+                            isValid = (pathIdentifier === cleanCustomPath);
+                        } else {
+                            isValid = (isValidFormat(pathIdentifier) && pathIdentifier === at);
+                        }
+
+                        if (isValid) {
                             return await handlePreferredIPsAPI(request);
-                    } else {
-                        return new Response(JSON.stringify({ error: '路径验证失败' }), { 
+                        } else {
+                            return new Response(JSON.stringify({ error: '路径验证失败' }), { 
                                 status: 403,
                                 headers: { 'Content-Type': 'application/json' }
                             });
                         }
                     }
-                
+
                     return new Response(JSON.stringify({ error: '无效的API路径' }), { 
                         status: 404,
                         headers: { 'Content-Type': 'application/json' }
                     });
                 }
-            
+
             if (request.method === 'POST' && ex) {
                 const r = await handleXhttpPost(request);
                 if (r) {
@@ -701,16 +724,16 @@
             if (request.headers.get('Upgrade') === atob('d2Vic29ja2V0')) {
                 return await handleWsRequest(request);
                 }
-                
+
                 if (request.method === 'GET') {
                     // 处理 /{UUID}/region 或 /{自定义路径}/region
                     if (url.pathname.endsWith('/region')) {
                         const pathParts = url.pathname.split('/').filter(p => p);
-                        
+
                         if (pathParts.length === 2 && pathParts[1] === 'region') {
                             const pathIdentifier = pathParts[0];
                             let isValid = false;
-                            
+
                             if (cp && cp.trim()) {
                                 // 使用自定义路径
                                 const cleanCustomPath = cp.trim().startsWith('/') ? cp.trim().substring(1) : cp.trim();
@@ -719,11 +742,11 @@
                                 // 使用UUID路径
                                 isValid = (isValidFormat(pathIdentifier) && pathIdentifier === at);
                             }
-                            
+
                             if (isValid) {
                                 const ci = getConfigValue('p', env.p || env.P);
                                 const manualRegion = getConfigValue('wk', env.wk || env.WK);
-                                
+
                                 if (manualRegion && manualRegion.trim()) {
                                     return new Response(JSON.stringify({
                                         region: manualRegion.trim().toUpperCase(),
@@ -762,15 +785,15 @@
                             }
                         }
                     }
-                    
+
                     // 处理 /{UUID}/test-api 或 /{自定义路径}/test-api
                     if (url.pathname.endsWith('/test-api')) {
                         const pathParts = url.pathname.split('/').filter(p => p);
-                        
+
                         if (pathParts.length === 2 && pathParts[1] === 'test-api') {
                             const pathIdentifier = pathParts[0];
                             let isValid = false;
-                            
+
                             if (cp && cp.trim()) {
                                 // 使用自定义路径
                                 const cleanCustomPath = cp.trim().startsWith('/') ? cp.trim().substring(1) : cp.trim();
@@ -779,7 +802,7 @@
                                 // 使用UUID路径
                                 isValid = (isValidFormat(pathIdentifier) && pathIdentifier === at);
                             }
-                            
+
                             if (isValid) {
                                 try {
                                     const testRegion = await detectWorkerRegion(request);
@@ -810,7 +833,7 @@
                             }
                         }
                     }
-                    
+
                     if (url.pathname === '/') {
                         // 检查是否有自定义首页URL配置
                         const customHomepage = getConfigValue('homepage', env.homepage || env.HOMEPAGE);
@@ -826,7 +849,7 @@
                                     },
                                     redirect: 'follow'
                                 });
-                                
+
                                 if (homepageResponse.ok) {
                                     // 获取响应内容
                                     const contentType = homepageResponse.headers.get('Content-Type') || 'text/html; charset=utf-8';
@@ -858,9 +881,9 @@
                                 }
                             }
                         }
-                        
+
                         let isFarsi = false;
-                        
+
                         if (langFromCookie === 'fa' || langFromCookie === 'fa-IR') {
                             isFarsi = true;
                         } else if (langFromCookie === 'zh' || langFromCookie === 'zh-CN') {
@@ -871,11 +894,10 @@
                             const browserLang = acceptLanguage.split(',')[0].split('-')[0].toLowerCase();
                             isFarsi = browserLang === 'fa' || acceptLanguage.includes('fa-IR') || acceptLanguage.includes('fa');
                         }
+
+                        const lang = isFarsi ? 'fa' : 'zh-CN';
+                        const langAttr = isFarsi ? 'fa-IR' : 'zh-CN';
                             
-<<<<<<< local_明文源吗
-                            const lang = isFarsi ? 'fa' : 'zh-CN';
-                            const langAttr = isFarsi ? 'fa-IR' : 'zh-CN';
-=======
                         const translations = {
                             zh: {
                                 title: '终端 v2.9.8',
@@ -912,48 +934,10 @@
                                 reenter: 'لطفا UUID معتبر را دوباره وارد کنید'
                             }
                         };
->>>>>>> upstream_明文源吗
                             
-                            const translations = {
-                                zh: {
-                                    title: '终端',
-                                    terminal: '终端',
-                                    congratulations: '恭喜你来到这',
-                                    enterU: '请输入你U变量的值',
-                                    enterD: '请输入你D变量的值',
-                                    command: '命令: connect [',
-                                    uuid: 'UUID',
-                                    path: 'PATH',
-                                    inputU: '输入U变量的内容并且回车...',
-                                    inputD: '输入D变量的内容并且回车...',
-                                    connecting: '正在连接...',
-                                    invading: '正在入侵...',
-                                    success: '连接成功！返回结果...',
-                                    error: '错误: 无效的UUID格式',
-                                    reenter: '请重新输入有效的UUID'
-                                },
-                                fa: {
-                                    title: 'ترمینال',
-                                    terminal: 'ترمینال',
-                                    congratulations: 'تبریک می‌گوییم به شما',
-                                    enterU: 'لطفا مقدار متغیر U خود را وارد کنید',
-                                    enterD: 'لطفا مقدار متغیر D خود را وارد کنید',
-                                    command: 'دستور: connect [',
-                                    uuid: 'UUID',
-                                    path: 'PATH',
-                                    inputU: 'محتویات متغیر U را وارد کرده و Enter را بزنید...',
-                                    inputD: 'محتویات متغیر D را وارد کرده و Enter را بزنید...',
-                                    connecting: 'در حال اتصال...',
-                                    invading: 'در حال نفوذ...',
-                                    success: 'اتصال موفق! در حال بازگشت نتیجه...',
-                                    error: 'خطا: فرمت UUID نامعتبر',
-                                    reenter: 'لطفا UUID معتبر را دوباره وارد کنید'
-                                }
-                            };
+                        const t = translations[isFarsi ? 'fa' : 'zh'];
                             
-                            const t = translations[isFarsi ? 'fa' : 'zh'];
-                            
-                        const terminalHtml = `<!DOCTYPE html>
+    const terminalHtml = `<!DOCTYPE html>
     <html lang="${langAttr}" dir="${isFarsi ? 'rtl' : 'ltr'}">
     <head>
         <meta charset="UTF-8">
@@ -977,12 +961,13 @@
                 --cp-grid: rgba(255, 43, 214, 0.16);
             }
             * { margin: 0; padding: 0; box-sizing: border-box; }
-            html, body { height: 100%; }
+            html { height: 100%; width: 100%; overflow-x: hidden; }
             body {
                 font-family: "JetBrains Mono", "Fira Code", "Courier New", monospace;
                 background: radial-gradient(ellipse at 20% 10%, #2a0040 0%, var(--cp-bg) 55%, #000 100%);
                 color: var(--cp-text);
                 min-height: 100vh;
+                width: 100%;
                 overflow-x: hidden;
                 position: relative;
                 display: flex; justify-content: center; align-items: center;
@@ -993,6 +978,7 @@
                     linear-gradient(var(--cp-grid) 1px, transparent 1px),
                     linear-gradient(90deg, var(--cp-grid) 1px, transparent 1px);
                 background-size: 48px 48px;
+                -webkit-mask-image: radial-gradient(ellipse at center, #000 30%, transparent 80%);
                 mask-image: radial-gradient(ellipse at center, #000 30%, transparent 80%);
                 z-index: -3;
                 animation: cp-grid-slide 18s linear infinite;
@@ -1514,22 +1500,21 @@
         </script>
     </body>
     </html>`;
-                        return new Response(terminalHtml, { status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8' } });
-                    }
-                
+            return new Response(terminalHtml, { status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8' } });
+        }
             if (cp && cp.trim()) {
                 const cleanCustomPath = cp.trim().startsWith('/') ? cp.trim() : '/' + cp.trim();
                 const normalizedCustomPath = cleanCustomPath.endsWith('/') && cleanCustomPath.length > 1 ? cleanCustomPath.slice(0, -1) : cleanCustomPath;
                 const normalizedPath = url.pathname.endsWith('/') && url.pathname.length > 1 ? url.pathname.slice(0, -1) : url.pathname;
-                    
+
                     if (normalizedPath === normalizedCustomPath) {
                         return await handleSubscriptionPage(request, at);
                     }
-                    
+
                     if (normalizedPath === normalizedCustomPath + '/sub') {
                         return await handleSubscriptionRequest(request, at, url);
                     }
-                    
+
                     if (url.pathname.length > 1 && url.pathname !== '/') {
                         const user = url.pathname.replace(/\/$/, '').replace('/sub', '').substring(1);
                         if (isValidFormat(user)) {
@@ -1588,36 +1573,7 @@
         },
     };
 
-    // 随机路径函数：生成随机路径用于混淆节点路径
-    function randomPath(fullNodePath = "/") {
-        const commonPathDirs = ["#","about","account","acg","act","activity","ad","admin","ads","ajax","album","albums","anime","api","app","apps","archive","archives","article","articles","ask","auth","avatar","bbs","bd","blog","blogs","book","books","bt","buy","cart","category","categories","cb","channel","channels","chat","china","city","class","classify","clip","clips","club","cn","code","collect","collection","comic","comics","community","company","config","contact","content","course","courses","cp","data","detail","details","dh","directory","discount","discuss","dl","dload","doc","docs","document","documents","doujin","download","downloads","drama","edu","en","ep","episode","episodes","event","events","f","faq","favorite","favourites","favs","feedback","file","files","film","films","forum","forums","friend","friends","game","games","gif","go","go.html","go.php","group","groups","help","home","hot","htm","html","image","images","img","index","info","intro","item","items","ja","jp","jump","jump.html","jump.php","jumping","knowledge","lang","lesson","lessons","lib","library","link","links","list","live","lives","login","logout","m","mag","magnet","mall","manhua","map","member","members","message","messages","mobile","movie","movies","music","my","new","news","note","novel","novels","online","order","out","out.html","out.php","outbound","p","page","pages","pay","payment","pdf","photo","photos","pic","pics","picture","pictures","play","player","playlist","post","posts","product","products","program","programs","project","qa","question","rank","ranking","read","readme","redirect","redirect.html","redirect.php","reg","register","res","resource","retrieve","sale","search","season","seasons","section","seller","series","service","services","setting","settings","share","shop","show","shows","site","soft","sort","source","special","star","stars","static","stock","store","stream","streaming","streams","student","study","tag","tags","task","teacher","team","tech","temp","test","thread","tickets","time","tips","title","tools","top","tour","track","trade","train","travel","trend","trip","tv","typography","update","upload","user","users","v","video","videos","view","vip","watch","web","website","wiki","win","world","write","www","x","xml","you","zone"];
-        const randomCount = Math.floor(Math.random() * 3 + 1);
-        const randomPath = commonPathDirs.sort(() => 0.5 - Math.random()).slice(0, randomCount).join('/');
-        if (fullNodePath === "/") return `/${randomPath}`;
-        else return `/${randomPath + fullNodePath.replace('/?', '?')}`;
-    }
-
     function generateQuantumultConfig(links) {
-        return btoa(links.join('\n'));
-    }
-
-    // 生成 Surge 配置
-    function generateSurgeConfig(links) {
-        return btoa(links.join('\n'));
-    }
-
-    // 生成 Shadowsocks 配置
-    function generateSSConfig(links) {
-        return btoa(links.join('\n'));
-    }
-
-    // 生成 V2Ray 配置
-    function generateV2RayConfig(links) {
-        return btoa(links.join('\n'));
-    }
-
-    // 生成 Loon 配置
-    function generateLoonConfig(links) {
         return btoa(links.join('\n'));
     }
 
@@ -1632,20 +1588,16 @@
                 const server = url.hostname;
                 const port = parseInt(url.port) || 443;
                 const params = new URLSearchParams(url.search);
-                
+
                 const tls = params.get('security') === 'tls' || params.get('tls') === 'true';
                 const network = params.get('type') || 'ws';
                 const path = params.get('path') || '/?ed=2560';
                 const host = params.get('host') || server;
                 const servername = params.get('sni') || host;
-<<<<<<< local_明文源吗
-                const alpn = params.get('alpn') || ["h3","h2"];
-=======
                 const alpnRaw = params.get('alpn') || '';
->>>>>>> upstream_明文源吗
                 const fingerprint = params.get('fp') || params.get('client-fingerprint') || 'chrome';
                 const ech = params.get('ech');
-                
+
                 const node = {
                     name: name,
                     type: 'vless',
@@ -1656,17 +1608,13 @@
                     network: network,
                     'client-fingerprint': fingerprint
                 };
-                
+
                 if (tls) {
                     node.servername = servername;
-<<<<<<< local_明文源吗
-                    node.alpn = (typeof alpn === 'string') ? alpn.split(',').map(a => a.trim()) : alpn;
-=======
                     if (alpnRaw) node.alpn = alpnRaw.split(',').map(a => a.trim()).filter(Boolean);
->>>>>>> upstream_明文源吗
                     node['skip-cert-verify'] = false;
                 }
-                
+
                 if (network === 'ws') {
                     node['ws-opts'] = {
                         path: path,
@@ -1675,18 +1623,15 @@
                         }
                     };
                 }
-                
+
                 if (ech) {
-                    // 从 ech 参数中提取域名（格式为 domain+dnsServer）
-                    const echParts = ech.split('+');
-                    const echDomain = echParts[0] || customECHDomain || getRandomHost(workerDomain);
-                    delete node.alpn; // ECH 开启时不设置 ALPN
+                    const echDomain = (ech.includes('+') ? ech.split('+')[0] : ech) || getRandomHost(workerDomain) || workerDomain;
                     node['ech-opts'] = {
                         enable: true,
                         'query-server-name': echDomain
                     };
                 }
-                
+
                 return node;
             }
             
@@ -1698,18 +1643,14 @@
                 const server = url.hostname;
                 const port = parseInt(url.port) || 443;
                 const params = new URLSearchParams(url.search);
-                
+
                 const network = params.get('type') || 'ws';
                 const path = params.get('path') || '/?ed=2560';
                 const host = params.get('host') || server;
                 const sni = params.get('sni') || host;
-<<<<<<< local_明文源吗
-                const alpn = params.get('alpn') || ["h3","h2"];
-=======
                 const alpnRaw = params.get('alpn') || '';
->>>>>>> upstream_明文源吗
                 const ech = params.get('ech');
-                
+
                 const node = {
                     name: name,
                     type: 'trojan',
@@ -1720,12 +1661,8 @@
                     sni: sni,
                     'skip-cert-verify': false
                 };
-<<<<<<< local_明文源吗
-                
-=======
                 if (alpnRaw) node.alpn = alpnRaw.split(',').map(a => a.trim()).filter(Boolean);
 
->>>>>>> upstream_明文源吗
                 if (network === 'ws') {
                     node['ws-opts'] = {
                         path: path,
@@ -1734,36 +1671,22 @@
                         }
                     };
                 }
-                
+
                 if (ech) {
-                    // 从 ech 参数中提取域名（格式为 domain+dnsServer）
-                    const echParts = ech.split('+');
-                    const echDomain = echParts[0] || customECHDomain || getRandomHost(workerDomain);
-                    delete node.alpn; // ECH 开启时不设置 ALPN
+                    const echDomain = (ech.includes('+') ? ech.split('+')[0] : ech) || getRandomHost(workerDomain) || workerDomain;
                     node['ech-opts'] = {
                         enable: true,
                         'query-server-name': echDomain
                     };
                 }
-                
+
                 return node;
-            }
+        }
         } catch (e) {
             return null;
         }
         return null;
     }
-<<<<<<< local_明文源吗
-    // 生成 Clash 配置
-    async function generateClashConfig(links, request, user) {
-        // 先通过订阅转换服务获取 Clash 配置
-        const subscriptionUrl = new URL(request.url);
-        subscriptionUrl.pathname = subscriptionUrl.pathname.replace(/\/sub$/, '') + '/sub';
-        subscriptionUrl.searchParams.set('target', 'base64');
-        const encodedUrl = encodeURIComponent(subscriptionUrl.toString());
-        const converterUrl = `${scu}?target=clash&url=${encodedUrl}&insert=false&config=${encodeURIComponent(remoteConfigUrl)}&emoji=true&list=false&xudp=false&udp=false&tfo=false&expand=true&scv=false&fdn=false&new_name=true`;
-        
-=======
 
     // ============================================================
     // 内部订阅转换器 - 不依赖外部 sub-converter
@@ -1816,7 +1739,6 @@
 
     // 解析任意分享链接为通用节点对象 (vless / trojan / vless-xhttp)
     function parseShareLink(link) {
->>>>>>> upstream_明文源吗
         try {
             if (link.startsWith('vless://')) {
                 const url = new URL(link);
@@ -1829,7 +1751,7 @@
                     port: parseInt(url.port) || 443,
                     tls: p.get('security') === 'tls' || p.get('security') === 'reality',
                     network: p.get('type') || 'ws',
-                    path: p.get('path') || '/?ed=2048',
+                    path: p.get('path') || '/?ed=2560',
                     host: normalizeServerHost(p.get('host') || url.hostname),
                     sni: normalizeServerHost(p.get('sni') || p.get('host') || url.hostname),
                     alpn: (p.get('alpn') || '').split(',').map(s => s.trim()).filter(Boolean),
@@ -1851,7 +1773,7 @@
                     port: parseInt(url.port) || 443,
                     tls: true,
                     network: p.get('type') || 'ws',
-                    path: p.get('path') || '/?ed=2048',
+                    path: p.get('path') || '/?ed=2560',
                     host: normalizeServerHost(p.get('host') || url.hostname),
                     sni: normalizeServerHost(p.get('sni') || p.get('host') || url.hostname),
                     alpn: (p.get('alpn') || '').split(',').map(s => s.trim()).filter(Boolean),
@@ -1859,114 +1781,6 @@
                     ech: p.get('ech') || ''
                 };
             }
-<<<<<<< local_明文源吗
-            
-            let clashConfig = await response.text();
-            
-            // 如果 ECH 开启，为所有节点添加 ECH 参数
-            if (enableECH) {
-                const workerDomain = new URL(request.url).hostname;
-                const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
-
-                // 1. 添加 nameserver-policy 以确保 ECH 域名能解析 HTTPS 记录
-                const hostsEntries = `    "${customECHDomain || 'example.com'}":\n      - ${dnsServer}`;
-                const hasNameserverPolicy = /^\s{2}nameserver-policy:\s*(?:\n|$)/m.test(clashConfig);
-
-                if (hasNameserverPolicy) {
-                    clashConfig = clashConfig.replace(/^(\s{2}nameserver-policy:\s*\n)/m, `$1${hostsEntries}\n`);
-                } else {
-                    // 检查是否已经有了 dns: 块
-                    if (/^dns:\s*(?:\n|$)/m.test(clashConfig)) {
-                        const nameserverPolicyBlock = `  nameserver-policy:\n${hostsEntries}\n`;
-                        if (clashConfig.includes('nameserver:')) {
-                            clashConfig = clashConfig.replace(/^(\s*nameserver:)/m, `${nameserverPolicyBlock}$1`);
-                        } else {
-                            clashConfig = clashConfig.replace(/^(dns:\s*\n)/m, `$1${nameserverPolicyBlock}`);
-                        }
-                    }
-                }
-
-                // 2. 处理代理节点添加 ech-opts
-                const lines = clashConfig.split('\n');
-                const processedLines = [];
-                let i = 0;
-
-                let linesProcessedCount = 0;
-                while (i < lines.length) {
-                    linesProcessedCount++;
-                    if (linesProcessedCount % 200 === 0) {
-                        await new Promise(r => setTimeout(r, 0));
-                    }
-                    const line = lines[i];
-                    const trimmedLine = line.trim();
-
-                    // 处理行格式（Flow）：- {name: ..., uuid: ..., ...}
-                    if (trimmedLine.startsWith('- {') && (trimmedLine.includes('uuid:') || trimmedLine.includes('password:'))) {
-                        let fullNode = line;
-                        let braceCount = (line.match(/\{/g) || []).length - (line.match(/\}/g) || []).length;
-
-                        while (braceCount > 0 && i + 1 < lines.length) {
-                            i++;
-                            fullNode += '\n' + lines[i];
-                            braceCount += (lines[i].match(/\{/g) || []).length - (lines[i].match(/\}/g) || []).length;
-                        }
-
-                        if (!fullNode.includes('ech-opts')) {
-                            const nodeECHDomain = customECHDomain || getRandomHost(workerDomain);
-                            // 移除原有的 alpn 并添加 ech-opts
-                            fullNode = fullNode.replace(/,\s*alpn\s*:\s*\[[^\]]*\]/, '');
-                            fullNode = fullNode.replace(/\}(\s*)$/, `, ech-opts: {enable: true, query-server-name: ${nodeECHDomain}}}$1`);
-                        }
-                        processedLines.push(fullNode);
-                        i++;
-                    }
-                    // 处理块格式（Block）：- name: ..., 后续行为属性
-                    else if (trimmedLine.startsWith('- name:')) {
-                        let nodeLines = [line];
-                        let baseIndent = line.search(/\S/);
-                        let topLevelIndent = baseIndent + 2;
-                        i++;
-
-                        while (i < lines.length) {
-                            const nextLine = lines[i];
-                            const nextTrimmed = nextLine.trim();
-                            if (!nextTrimmed) { nodeLines.push(nextLine); i++; break; }
-                            const nextIndent = nextLine.search(/\S/);
-                            if (nextIndent <= baseIndent && nextTrimmed.startsWith('- ')) break;
-                            if (nextIndent < baseIndent && nextTrimmed) break;
-                            nodeLines.push(nextLine);
-                            i++;
-                        }
-
-                        const nodeText = nodeLines.join('\n');
-                        // 匹配凭据以识别需要注入 ECH 的节点
-                        if ((nodeText.includes('uuid:') || nodeText.includes('password:')) && !nodeText.includes('ech-opts:')) {
-                            const nodeECHDomain = customECHDomain || getRandomHost(workerDomain);
-                            // 移除 ALPN 配置
-                            nodeLines = nodeLines.filter(line => !line.trim().startsWith('alpn:'));
-                            
-                            let insertIndex = -1;
-                            for (let j = nodeLines.length - 1; j >= 0; j--) {
-                                if (nodeLines[j].trim()) { insertIndex = j; break; }
-                            }
-                            if (insertIndex >= 0) {
-                                const indent = ' '.repeat(topLevelIndent);
-                                const echOptsLines = [
-                                    `${indent}ech-opts:`,
-                                    `${indent}  enable: true`,
-                                    `${indent}  query-server-name: ${nodeECHDomain}`
-                                ];
-                                nodeLines.splice(insertIndex + 1, 0, ...echOptsLines);
-                            }
-                        }
-                        processedLines.push(...nodeLines);
-                    } else {
-                        processedLines.push(line);
-                        i++;
-                    }
-                }
-                clashConfig = processedLines.join('\n');
-=======
         } catch (e) {}
         return null;
     }
@@ -2012,7 +1826,7 @@
             lines.push(`      grpc-service-name: ${yq(n.path)}`);
         }
         if (n.ech) {
-            const echDomain = customECHDomain || 'cloudflare-ech.com';
+            const echDomain = (n.ech.includes('+') ? n.ech.split('+')[0] : n.ech) || getRandomHost(workerDomain) || workerDomain;
             lines.push(`    ech-opts:`);
             lines.push(`      enable: true`);
             lines.push(`      query-server-name: ${yq(echDomain)}`);
@@ -2162,8 +1976,8 @@
             `  ${name}:`,
             `    type: http`,
             `    behavior: ${behavior}`,
-            `    url: "${RP_BASE}/${name}.yaml"`,
-            `    path: ./rulesets/loyalsoldier/${name}.yaml`,
+            `    url: "${RP_BASE}/${name}.txt"`,
+            `    path: ./rulesets/loyalsoldier/${name}.txt`,
             `    interval: 86400`
         ].join('\n');
 
@@ -2286,23 +2100,10 @@
                 };
             } else if (n.network === 'grpc') {
                 out.transport = { type: 'grpc', service_name: n.path };
->>>>>>> upstream_明文源吗
             }
             return out;
         }
 
-<<<<<<< local_明文源吗
-            // 确保 DNS 设置为指定的加密 DNS
-            const finalDnsServer = customDNS || 'https://223.5.5.5/dns-query';
-            clashConfig = clashConfig.replace(/^(\s*nameserver:\s*\n)((?:\s*-\s*[^\n]+\n)*)/m, (match, header, items) => {
-                return header + `    - ${finalDnsServer}\n`;
-            });
-            
-            return clashConfig;
-        } catch (e) {
-            // 如果订阅转换失败，返回错误
-            throw new Error('无法获取 Clash 配置: ' + e.message);
-=======
         // sing-box rule-set 远端 SRS 文件（CDN：jsDelivr 镜像 MetaCubeX 转换的 SagerNet 数据）
         const SRS_BASE_SITE = 'https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite';
         const SRS_BASE_IP = 'https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geoip';
@@ -2462,7 +2263,6 @@
         for (const n of nodes) {
             const sni = n.sni;
             lines.push(`${n.name} = trojan, ${n.server}, ${n.port}, password=${n.password}, sni=${sni}, ws=true, ws-path=${n.path}, ws-headers=Host:${n.host}, skip-cert-verify=false, tfo=true`);
->>>>>>> upstream_明文源吗
         }
         if (!nodes.length) {
             lines.push('Direct = direct');
@@ -2514,79 +2314,6 @@
         return lines.join('\n');
     }
 
-<<<<<<< local_明文源吗
-    async function generateSingBoxConfig(links, request, user) {
-        const subscriptionUrl = new URL(request.url);
-        subscriptionUrl.pathname = subscriptionUrl.pathname.replace(/\/sub$/, '') + '/sub';
-        subscriptionUrl.searchParams.set('target', 'base64');
-        const encodedUrl = encodeURIComponent(subscriptionUrl.toString());
-        const converterUrl = `${scu}?target=singbox&url=${encodedUrl}&insert=false&config=${encodeURIComponent(remoteConfigUrl)}&emoji=true&list=false&xudp=false&udp=false&tfo=false&expand=true&scv=false&fdn=false&new_name=true`;
-
-        try {
-            const response = await fetch(converterUrl);
-            if (!response.ok) {
-                throw new Error('订阅转换服务失败');
-            }
-
-            let sbConfigText = await response.text();
-            let config = JSON.parse(sbConfigText);
-
-            if (enableECH) {
-                const workerDomain = new URL(request.url).hostname;
-                const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
-                
-                if (config.outbounds) {
-                    let sbProcessedCount = 0;
-                    for (const outbound of config.outbounds) {
-                        sbProcessedCount++;
-                        if (sbProcessedCount % 200 === 0) {
-                            await new Promise(r => setTimeout(r, 0));
-                        }
-                        // 匹配凭据以识别需要注入 ECH 的节点 (VLESS/Trojan/xhttp)
-                        const isUUIDMatch = outbound.uuid && (outbound.uuid === at || outbound.uuid === user);
-                        const isPasswordMatch = outbound.password && (outbound.password === at || outbound.password === user || (typeof tp !== 'undefined' && tp && outbound.password === tp));
-                        
-                        if (isUUIDMatch || isPasswordMatch) {
-                            const nodeECHDomain = customECHDomain || getRandomHost(workerDomain);
-                            
-                            // 使用缓存避免重复请求
-                            let echData;
-                            if (globalEchCache.has(nodeECHDomain)) {
-                                echData = globalEchCache.get(nodeECHDomain);
-                            } else {
-                                echData = await getECHConfig(nodeECHDomain);
-                                if (echData) globalEchCache.set(nodeECHDomain, echData);
-                            }
-                            
-                            if (echData) {
-                                if (!outbound.tls) {
-                                    outbound.tls = { enabled: true };
-                                }
-                                
-                                outbound.tls.utls = {
-                                    enabled: true,
-                                    fingerprint: "chrome"
-                                };
-                                
-                                // ECH 开启时移除 ALPN
-                                delete outbound.tls.alpn;
-                                
-                                outbound.tls.ech = {
-                                    enabled: true,
-                                    config: `-----BEGIN ECH CONFIGS-----\n${echData}\n-----END ECH CONFIGS-----`
-                                };
-                            }
-                        }
-                    }
-                }
-            }
-            
-            return JSON.stringify(config, null, 2);
-        } catch (e) {
-            throw new Error('无法获取 Sing-box 配置: ' + e.message);
-        }
-    }
-=======
     // 内部生成 Loon ini (完整 ACL4SSR 规则集；vless + trojan)
     function generateLoonIni(links) {
         const nodes = links.map(parseShareLink).filter(n => n && (n.proto === 'vless' || n.proto === 'trojan'));
@@ -2747,36 +2474,35 @@
     function generateSingBoxConfig(links) { return generateSingBoxJson(links); }
     function generateSSConfig(links) { return btoa(links.join('\n')); }
     function generateV2RayConfig(links) { return btoa(links.join('\n')); }
->>>>>>> upstream_明文源吗
 
     // 全局变量存储ECH调试信息
     let echDebugInfo = '';
-    
+
     async function fetchECHConfig(domain) {
         if (!enableECH) {
             echDebugInfo = 'ECH功能已禁用';
             return null;
         }
-        
+
         echDebugInfo = '';
         const debugSteps = [];
-        
+
         try {
-            // 优先查询目标域名的 ECH 配置
-            debugSteps.push(`尝试查询 ${domain} 的 ECH 配置...`);
-            const echDomainUrl = `https://v.recipes/dns/dns.google/dns-query?name=${domain}&type=65`;
+            // 优先使用 Google DNS 查询 cloudflare-ech.com 的 ECH 配置
+            debugSteps.push('尝试使用 Google DNS 查询 cloudflare-ech.com...');
+            const echDomainUrl = `https://v.recipes/dns/dns.google/dns-query?name=cloudflare-ech.com&type=65`;
             const echResponse = await fetch(echDomainUrl, {
                 headers: {
                     'Accept': 'application/json'
                 }
             });
-            
+
             debugSteps.push(`Google DNS 响应状态: ${echResponse.status}`);
-            
+
             if (echResponse.ok) {
                 const echData = await echResponse.json();
                 debugSteps.push(`Google DNS 返回数据: ${JSON.stringify(echData).substring(0, 200)}...`);
-                
+
                 if (echData.Answer && echData.Answer.length > 0) {
                     debugSteps.push(`找到 ${echData.Answer.length} 条答案记录`);
                     for (const answer of echData.Answer) {
@@ -2811,8 +2537,8 @@
             } else {
                 debugSteps.push(`Google DNS 请求失败: ${echResponse.status}`);
             }
-            
-            // 如果首选查询失败，尝试再次使用 Google DNS 查询目标域名的 HTTPS 记录
+
+            // 如果 cloudflare-ech.com 查询失败，尝试使用 Google DNS 查询目标域名的 HTTPS 记录
             debugSteps.push(`尝试使用 Google DNS 查询目标域名 ${domain}...`);
             const dohUrl = `https://v.recipes/dns/dns.google/dns-query?name=${encodeURIComponent(domain)}&type=65`;
             const response = await fetch(dohUrl, {
@@ -2820,13 +2546,13 @@
                     'Accept': 'application/json'
                 }
             });
-            
+
             debugSteps.push(`Google DNS (目标域名) 响应状态: ${response.status}`);
-            
+
             if (response.ok) {
                 const data = await response.json();
                 debugSteps.push(`Google DNS (目标域名) 返回数据: ${JSON.stringify(data).substring(0, 200)}...`);
-                
+
                 if (data.Answer && data.Answer.length > 0) {
                     debugSteps.push(`找到 ${data.Answer.length} 条答案记录`);
                     for (const answer of data.Answer) {
@@ -2856,22 +2582,22 @@
             } else {
                 debugSteps.push(`Google DNS (目标域名) 请求失败: ${response.status}`);
             }
-            
+
             // 如果 Google DNS 失败，尝试使用 Cloudflare DNS 作为备选
             debugSteps.push('尝试使用 Cloudflare DNS 作为备选...');
-            const cfEchUrl = `https://cloudflare-dns.com/dns-query?name=${domain}&type=65`;
+            const cfEchUrl = `https://cloudflare-dns.com/dns-query?name=cloudflare-ech.com&type=65`;
             const cfResponse = await fetch(cfEchUrl, {
                 headers: {
                     'Accept': 'application/dns-json'
                 }
             });
-            
+
             debugSteps.push(`Cloudflare DNS 响应状态: ${cfResponse.status}`);
-            
+
             if (cfResponse.ok) {
                 const cfData = await cfResponse.json();
                 debugSteps.push(`Cloudflare DNS 返回数据: ${JSON.stringify(cfData).substring(0, 200)}...`);
-                
+
                 if (cfData.Answer && cfData.Answer.length > 0) {
                     debugSteps.push(`找到 ${cfData.Answer.length} 条答案记录`);
                     for (const answer of cfData.Answer) {
@@ -2889,7 +2615,7 @@
             } else {
                 debugSteps.push(`Cloudflare DNS 请求失败: ${cfResponse.status}`);
             }
-            
+
             echDebugInfo = debugSteps.join('\\n') + '\\n❌ 所有DNS查询均失败，未获取到ECH配置';
             return null;
         } catch (error) {
@@ -2900,181 +2626,196 @@
 
     async function handleSubscriptionRequest(request, user, url = null) {
         if (!url) url = new URL(request.url);
-        
-        // Cache API 缓存查询 — 仅在缓存未命中时读取 config_version，避免轮询 KV
-        const cache = caches.default;
-        const cacheUrl = new URL(request.url);
-        if (configVersion) cacheUrl.searchParams.set('v', configVersion);
-        let cacheKey = new Request(cacheUrl.toString(), request);
-        let cachedResponse = await cache.match(cacheKey);
+
+        // Cache API: 尝试获取缓存
+        const cachedResponse = await cfCache.match(request);
         if (cachedResponse) return cachedResponse;
-        
-        // 缓存未命中 → 读取最新 config_version（最多 1 次 KV 读 / 180s / 节点），更新缓存键
-        if (kvStore) {
-            try {
-                const v = await kvStore.get('config_version');
-                if (v && v !== configVersion) {
-                    configVersion = v;
-                    const vUrl = new URL(request.url);
-                    vUrl.searchParams.set('v', configVersion);
-                    cacheKey = new Request(vUrl.toString(), request);
-                    const vHit = await cache.match(cacheKey);
-                    if (vHit) return vHit;
-                }
-            } catch (e) { /* 读取失败则静默继续，使用无版本键生成 */ }
-        }
-        
+
         const finalLinks = [];
         const workerDomain = url.hostname;
-        let target = url.searchParams.get('target');
-        
-        // 自动检测 User-Agent
-        if (!target) {
-            const ua = request.headers.get('User-Agent') || '';
-            if (ua.includes('Surge')) target = atob('c3VyZ2U=');
-            else if (ua.includes('Clash')) target = atob('Y2xhc2g=');
-            else if (ua.includes('Quantumult')) target = atob('cXVhbnR1bXVsdA==');
-            else if (ua.includes('Loon')) target = atob('bG9vbg==');
-            else if (ua.includes('Stash')) target = atob('Y2xhc2g=');
-            else if (ua.includes('V2Ray') || ua.includes('v2rayNG')) target = atob('djJyYXk=');
-            else target = 'base64';
-        }
-        
-        // 微调：确保在获取surge订阅时，不管前端设置什么协议，默认只下发Trojan协议节点
-        let currentEv = ev;
-        let currentEt = et;
-        let currentEx = ex;
-        const isSurge = [atob('c3VyZ2U='), atob('c3VyZ2Uy'), atob('c3VyZ2Uz'), atob('c3VyZ2U0')].includes(target.toLowerCase());
-        if (isSurge) {
-            currentEv = false;
-            currentEt = true;
-            currentEx = false;
+        const target = url.searchParams.get('target') || 'base64';
+        const aliasNamer = createCompactNodeNamer(false);
+
+        // 如果启用了ECH，使用自定义值
+        let echConfig = null;
+        if (enableECH) {
+            const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
+            const echDomain = customECHDomain || getRandomHost(workerDomain) || workerDomain;
+            echConfig = `${echDomain}+${dnsServer}`;
         }
 
-        async function addNodesFromList(list) {
-            if (currentEv) {
-                finalLinks.push(...await generateLinksFromSource(list, user, workerDomain));
-            }
-            if (currentEt) {
-                finalLinks.push(...await generateTrojanLinksFromSource(list, user, workerDomain));
-            }
-            if (currentEx) {
-                finalLinks.push(...await generateXhttpLinksFromSource(list, user, workerDomain));
-            }
-        }
-
-        const allSources = [];
-        
-        // 1. 原生地址
-        if (ena) {
-            allSources.push({ type: 'native', list: [{ ip: workerDomain, isp: '原生地址' }] });
-        }
-
-        // 2. 自定义优选
-        const hasCustomPreferred = customPreferredIPs.length > 0 || customPreferredDomains.length > 0;
-        if (!disablePreferred && hasCustomPreferred) {
-            if (customPreferredDomains.length > 0 && epd) {
-                allSources.push({ type: 'custom-domain', list: customPreferredDomains.map(d => ({ ip: d.domain, isp: d.name || d.domain })) });
-            } 
-            if (customPreferredIPs.length > 0 && epi) {
-                allSources.push({ type: 'custom-ip', list: customPreferredIPs });
-            }
-        }
-
-        // 3. 默认/备用源
-        if (!disablePreferred && !hasCustomPreferred) {
-            if (epd) {
-                allSources.push({ type: 'direct-domain', list: directDomains.map(d => ({ ip: d.domain, isp: d.name || d.domain })) });
-            }
-            if (epi && !piu) {
-                try {
-                    const dynamicIPList = await fetchDynamicIPs();
-                    if (dynamicIPList.length > 0) allSources.push({ type: 'dynamic-ip', list: dynamicIPList });
-                } catch (e) {}
-            }
-        }
-
-        // 4. yxURL / GitHub 源
-        let newIPList = [];
-        if (!disablePreferred && egi) {
-            try {
-                newIPList = await fetchAndParseNewIPs();
-            } catch (e) {}
-        }
-
-        // --- 全局过滤逻辑：IP版本和运营商 ---
-
-        const globalFilter = (item) => {
+        // 全局过滤：IP 版本、域名类型、运营商（提取为函数级，同时给 addNodesFromList 和 yxURL 使用）
+        const filterDomainEnabled = getConfigValue('domain', '') === '' || getConfigValue('domain', 'yes') !== 'no';
+        const filterIpv4Enabled = getConfigValue('ipv4', '') === '' || getConfigValue('ipv4', 'yes') !== 'no';
+        const filterIpv6Enabled = getConfigValue('ipv6', '') === '' || getConfigValue('ipv6', 'yes') !== 'no';
+        const filterIspMobile = getConfigValue('ispMobile', '') === '' || getConfigValue('ispMobile', 'yes') !== 'no';
+        const filterIspUnicom = getConfigValue('ispUnicom', '') === '' || getConfigValue('ispUnicom', 'yes') !== 'no';
+        const filterIspTelecom = getConfigValue('ispTelecom', '') === '' || getConfigValue('ispTelecom', 'yes') !== 'no';
+        const isNodeAllowed = (item) => {
             const host = item.ip || '';
             const isIPv6 = host.includes(':') || (host.includes('[') && host.includes(']'));
             const isIPv4 = !isIPv6 && globalIpv4Regex.test(host);
             const isDomain = !isIPv6 && !isIPv4;
-            
-            // IP 版本与域名过滤
-            if (isIPv6 && !ipv6Enabled) return false;
-            if (isIPv4 && !ipv4Enabled) return false;
-            if (isDomain && !domainEnabled) return false;
-            
-            // 运营商过滤
+            if (isIPv6 && !filterIpv6Enabled) return false;
+            if (isIPv4 && !filterIpv4Enabled) return false;
+            if (isDomain && !filterDomainEnabled) return false;
             const isp = (item.isp || item.name || '').toLowerCase();
-            if (isp.includes('移动') || isp.includes('mobile')) {
-                if (!ispMobile) return false;
-            }
-            if (isp.includes('联通') || isp.includes('unicom')) {
-                if (!ispUnicom) return false;
-            }
-            if (isp.includes('电信') || isp.includes('telecom')) {
-                if (!ispTelecom) return false;
-            }
-            
+            if (isp.includes('移动') || isp.includes('mobile')) { if (!filterIspMobile) return false; }
+            if (isp.includes('联通') || isp.includes('unicom')) { if (!filterIspUnicom) return false; }
+            if (isp.includes('电信') || isp.includes('telecom')) { if (!filterIspTelecom) return false; }
             return true;
         };
 
-        // 应用过滤到所有来源 (原生地址除外)
-        for (const source of allSources) {
-            if (source.type !== 'native') {
-                source.list = source.list.filter(globalFilter);
+        async function addNodesFromList(list) {
+<<<<<<< local_明文源吗
+            const filtered = list.filter(isNodeAllowed);
+            if (filtered.length > 0) allSources.push(filtered);
+=======
+            if (ev) {
+                finalLinks.push(...generateLinksFromSource(list, user, workerDomain, echConfig, false, aliasNamer));
+            }
+            if (et) {
+                finalLinks.push(...await generateTrojanLinksFromSource(list, user, workerDomain, echConfig, false, aliasNamer));
+            }
+            if (ex) {
+                finalLinks.push(...generateXhttpLinksFromSource(list, user, workerDomain, echConfig, false, aliasNamer));
+            }
+>>>>>>> upstream_明文源吗
+        }
+
+        const allSources = [];
+        const allNewIPs = [];
+
+        if (ena) {
+            if (currentWorkerRegion === 'CUSTOM') {
+                const nativeList = [{ ip: workerDomain, isp: '原生地址' }];
+                await addNodesFromList(nativeList);
+            } else {
+                try {
+                    const nativeList = [{ ip: workerDomain, isp: '原生地址' }];
+                    await addNodesFromList(nativeList);
+                } catch (error) {
+                    if (!currentWorkerRegion) {
+                        currentWorkerRegion = await detectWorkerRegion(request);
+                    }
+
+                    const bestBackupIP = await getBestBackupIP(currentWorkerRegion);
+                    if (bestBackupIP) {
+                        fallbackAddress = bestBackupIP.domain + ':' + bestBackupIP.port;
+                        const backupList = [{ ip: bestBackupIP.domain, isp: 'ProxyIP-' + currentWorkerRegion }];
+                        await addNodesFromList(backupList);
+                    } else {
+                        const nativeList = [{ ip: workerDomain, isp: '原生地址' }];
+                        await addNodesFromList(nativeList);
+                    }
+                }
             }
         }
-        newIPList = newIPList.filter(item => globalFilter({ ip: item.ip, name: item.name }));
+
+        const hasCustomPreferred = customPreferredIPs.length > 0 || customPreferredDomains.length > 0;
+
+        if (disablePreferred) {
+        } else if (hasCustomPreferred) {
+            if (customPreferredIPs.length > 0 && epi) {
+                await addNodesFromList(customPreferredIPs);
+            }
+
+            if (customPreferredDomains.length > 0 && epd) {
+                const customDomainList = customPreferredDomains.map(d => ({ ip: d.domain, isp: d.name || d.domain }));
+                await addNodesFromList(customDomainList);
+            }
+        } else {
+            if (epd) {
+            const domainList = directDomains.map(d => ({ ip: d.domain, isp: d.name || d.domain }));
+                await addNodesFromList(domainList);
+            }
+
+            if (epi) {
+                if (!piu) {
+                try {
+                    const dynamicIPList = await fetchDynamicIPs();
+                    if (dynamicIPList.length > 0) {
+                            await addNodesFromList(dynamicIPList);
+                    }
+                } catch (error) {
+                    if (!currentWorkerRegion) {
+                        currentWorkerRegion = await detectWorkerRegion(request);
+                    }
+                    
+                    const bestBackupIP = await getBestBackupIP(currentWorkerRegion);
+                    if (bestBackupIP) {
+                        fallbackAddress = bestBackupIP.domain + ':' + bestBackupIP.port;
+                        
+                        const backupList = [{ ip: bestBackupIP.domain, isp: 'ProxyIP-' + currentWorkerRegion }];
+                            await addNodesFromList(backupList);
+                        }
+                    }
+                }
+            }
+
+            }
+
+        // 4. yxURL / GitHub 源（独立于 hasCustomPreferred，与旧版共存逻辑一致）
+        if (!disablePreferred && egi) {
+            try {
+                    const newIPList = await fetchAndParseNewIPs();
+                if (newIPList.length > 0) {
+<<<<<<< local_明文源吗
+                    // 应用全局过滤（IP版本、运营商）
+                    const filteredNewIPs = newIPList.filter(item => isNodeAllowed({ ip: item.ip, name: item.name }));
+                    if (filteredNewIPs.length > 0) {
+                        allNewIPs.push(filteredNewIPs);
+=======
+                    if (ev) {
+                        finalLinks.push(...generateLinksFromNewIPs(newIPList, user, workerDomain, echConfig, false, aliasNamer));
+                    }
+                    if (et) {
+                        finalLinks.push(...await generateTrojanLinksFromNewIPs(newIPList, user, workerDomain, echConfig, false, aliasNamer));
+                    }
+                    if (ex) {
+                         finalLinks.push(...generateXhttpLinksFromSource(newIPList, user, workerDomain, echConfig, false, aliasNamer));
+>>>>>>> upstream_明文源吗
+                    }
+                }
+            } catch (error) {
+                if (!currentWorkerRegion) {
+                    currentWorkerRegion = await detectWorkerRegion(request);
+                }
+
+                const bestBackupIP = await getBestBackupIP(currentWorkerRegion);
+                if (bestBackupIP) {
+                    fallbackAddress = bestBackupIP.domain + ':' + bestBackupIP.port;
+
+                    const backupList = [{ ip: bestBackupIP.domain, isp: 'ProxyIP-' + currentWorkerRegion }];
+                    await addNodesFromList(backupList);
+                }
+            }
+        }
 
         // --- 统一生成节点链路，按要求排序：VLESS -> Trojan -> xhttp ---
-
+        const generateFromSources = async (type) => {
+            for (const src of allSources) {
+                if (type === 'vless' && ev) finalLinks.push(...await generateLinksFromSource(src, user, workerDomain, echConfig));
+                if (type === 'trojan' && et) finalLinks.push(...await generateTrojanLinksFromSource(src, user, workerDomain, echConfig));
+                if (type === 'xhttp' && ex) finalLinks.push(...await generateXhttpLinksFromSource(src, user, workerDomain, echConfig));
+            }
+        };
+        const generateFromNewIPs = async (type) => {
+            for (const ipList of allNewIPs) {
+                if (type === 'vless' && ev) finalLinks.push(...await generateLinksFromNewIPs(ipList, user, workerDomain, echConfig));
+                if (type === 'trojan' && et) finalLinks.push(...await generateTrojanLinksFromNewIPs(ipList, user, workerDomain, echConfig));
+                if (type === 'xhttp' && ex) finalLinks.push(...await generateXhttpLinksFromSource(ipList, user, workerDomain, echConfig));
+            }
+        };
         // A. VLESS 节点 (最前面)
-        if (currentEv) {
-            for (const source of allSources) {
-                finalLinks.push(...await generateLinksFromSource(source.list, user, workerDomain));
-            }
-            if (newIPList.length > 0) {
-                finalLinks.push(...await generateLinksFromNewIPs(newIPList, user, workerDomain));
-            }
-        }
-
+        await generateFromSources('vless');
+        await generateFromNewIPs('vless');
         // B. Trojan 节点 (中间)
-        if (currentEt) {
-            for (const source of allSources) {
-                finalLinks.push(...await generateTrojanLinksFromSource(source.list, user, workerDomain));
-            }
-            if (newIPList.length > 0) {
-                finalLinks.push(...await generateTrojanLinksFromNewIPs(newIPList, user, workerDomain));
-            }
-        }
-
-        // C. xhttp 节点 (最后面)
-        if (currentEx) {
-            for (const source of allSources) {
-                finalLinks.push(...await generateXhttpLinksFromSource(source.list, user, workerDomain));
-            }
-            if (newIPList.length > 0) {
-                // 确保 yxURL 解析出来的 IP 也支持 xhttp
-                const xhttpList = newIPList.map(item => ({
-                    ip: item.ip,
-                    port: item.port,
-                    isp: item.name || item.ip
-                }));
-                finalLinks.push(...await generateXhttpLinksFromSource(xhttpList, user, workerDomain));
-            }
-        }
+        await generateFromSources('trojan');
+        await generateFromNewIPs('trojan');
+        // C. xhttp 节点 (最后)
+        await generateFromSources('xhttp');
+        await generateFromNewIPs('xhttp');
 
         if (finalLinks.length === 0) {
             const errorRemark = "所有节点获取失败";
@@ -3085,7 +2826,7 @@
 
         let subscriptionContent;
         let contentType = 'text/plain; charset=utf-8';
-        
+
         switch (target.toLowerCase()) {
             case atob('Y2xhc2g='):     // clash
             case atob('Y2xhc2hy'):     // clashr
@@ -3095,15 +2836,7 @@
                 subscriptionContent = generateClashYaml(finalLinks);
                 contentType = 'text/yaml; charset=utf-8';
                 break;
-<<<<<<< local_明文源吗
-            case atob('c2luZ2JveA=='):
-                subscriptionContent = await generateSingBoxConfig(finalLinks, request, user);
-                contentType = 'application/json; charset=utf-8';
-                break;
-            case atob('c3VyZ2U='):
-=======
             case atob('c3VyZ2U='):     // surge
->>>>>>> upstream_明文源吗
             case atob('c3VyZ2Uy'):
             case atob('c3VyZ2Uz'):
             case atob('c3VyZ2U0'):
@@ -3136,67 +2869,70 @@
             default:
                 subscriptionContent = btoa(finalLinks.join('\n'));
         }
-        
+
         const responseHeaders = { 
             'Content-Type': contentType,
-            'Cache-Control': 'public, max-age=360, s-maxage=360',
+            'Cache-Control': 'public, max-age=300, s-maxage=300',
         };
-        
+
         // 添加ECH状态到响应头
         if (enableECH) {
             responseHeaders['X-ECH-Status'] = 'ENABLED';
+            if (echConfig) {
+                responseHeaders['X-ECH-Config-Length'] = String(echConfig.length);
+            }
         }
-        
-        const subResponse = new Response(subscriptionContent, { headers: responseHeaders });
-        // 写入 Cache API（配置变更后会因 config_version 变化而自动失效）
-        if (kvStore) await cache.put(cacheKey, subResponse.clone());
-        return subResponse;
+
+        const response = new Response(subscriptionContent, {
+            headers: responseHeaders,
+        });
+        // Cache API: 存储响应（异步，静默失败）
+        cfCache.put(request, response.clone()).catch(() => {});
+        return response;
     }
 
-    async function generateLinksFromSource(list, user, workerDomain) {
-        
+<<<<<<< local_明文源吗
+    async function generateLinksFromSource(list, user, workerDomain, echConfig = null, skipNumbering = false) {
+=======
+    function generateLinksFromSource(list, user, workerDomain, echConfig = null, skipNumbering = false, aliasNamer = null) {
+>>>>>>> upstream_明文源吗
         const CF_HTTP_PORTS = [80, 8080, 8880, 2052, 2082, 2086, 2095];
         const CF_HTTPS_PORTS = [443, 2053, 2083, 2087, 2096, 8443];
-        
+
         const defaultHttpsPorts = [443];
         const defaultHttpPorts = disableNonTLS ? [] : [80];
         const links = [];
         const proto = atob('dmxlc3M=');
 
-        let linksProcessedCount = 0;
-        for (let i = 0; i < list.length; i++) {
-            linksProcessedCount++;
-            if (linksProcessedCount % 200 === 0) {
-                await new Promise(r => setTimeout(r, 0));
-            }
-            const item = list[i];
+        const makeNodeName = aliasNamer || createCompactNodeNamer(skipNumbering);
+
+        let yieldCounter = 0;
+        for (const item of list) {
+<<<<<<< local_明文源吗
+            if (++yieldCounter % 50 === 0) await new Promise(r => setTimeout(r, 0));
             let nodeNameBase = item.isp.replace(/\s/g, '_');
             if (item.colo && item.colo.trim()) {
                 nodeNameBase = `${nodeNameBase}-${item.colo.trim()}`;
             }
-            const safeIP = (item.ip.includes(':') && !item.ip.includes('[')) ? `[${item.ip}]` : item.ip;
-            const randomHost = getRandomHost(workerDomain);
-            
+=======
+>>>>>>> upstream_明文源吗
+            const safeIP = item.ip.includes(':') ? `[${item.ip}]` : item.ip;
+            const nodeHost = getRandomHost(workerDomain) || workerDomain;
+            const wsPath = enableRandomPath ? randomPath('/?ed=2560') : '/?ed=2560';
+
             let portsToGenerate = [];
-            
             if (item.port) {
-                
                 const port = item.port;
-                
                 if (CF_HTTPS_PORTS.includes(port)) {
-                    
                     portsToGenerate.push({ port: port, tls: true });
                 } else if (CF_HTTP_PORTS.includes(port)) {
-                    
                     if (!disableNonTLS) {
                         portsToGenerate.push({ port: port, tls: false });
                     }
                 } else {
-                    
                     portsToGenerate.push({ port: port, tls: true });
                 }
             } else {
-                
                 defaultHttpsPorts.forEach(port => {
                     portsToGenerate.push({ port: port, tls: true });
                 });
@@ -3206,54 +2942,44 @@
             }
 
             for (const { port, tls } of portsToGenerate) {
+                const wsNodeName = makeNodeName(item);
+
                 if (tls) {
-                    
-                    const wsNodeName = `${nodeNameBase}-${port}-WS-TLS`;
-                    const currentNodePath = enableRandomPath ? randomPath('/?ed=2560') : '/?ed=2560';
                     const wsParams = new URLSearchParams({ 
                         encryption: 'none', 
                         security: 'tls', 
-                        sni: randomHost, 
+                        sni: nodeHost, 
                         fp: enableECH ? 'chrome' : 'randomized',
                         type: 'ws', 
-                        host: randomHost, 
-                        path: currentNodePath
+                        host: nodeHost, 
+                        path: wsPath
                     });
-                    
-                    // 如果启用了ECH，添加ech和echconfiglist参数
+                    applyALPNParam(wsParams);
+
+                    // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
                     if (enableECH) {
                         const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
-<<<<<<< local_明文源吗
-                        const echDomain = customECHDomain || getRandomHost(workerDomain);
-=======
-                        const echDomain = customECHDomain || 'cloudflare-ech.com';
->>>>>>> upstream_明文源吗
+                        const echDomain = customECHDomain || getRandomHost(workerDomain) || workerDomain;
                         wsParams.set('ech', `${echDomain}+${dnsServer}`);
-                        
-                        let echConfig = '';
-                        if (globalEchCache.has(echDomain)) {
-                            echConfig = globalEchCache.get(echDomain);
-                        } else {
-                            echConfig = await getECHConfig(echDomain);
-                            globalEchCache.set(echDomain, echConfig);
+                        // 获取并缓存 ECH 配置列表
+                        let echConfig = globalEchCache.get(echDomain);
+                        if (!echConfig) {
+                            echConfig = await fetchECHConfig(echDomain);
+                            if (echConfig) globalEchCache.set(echDomain, echConfig);
                         }
-                        if (echConfig) {
-                            wsParams.set('echconfiglist', echConfig);
-                        }
+                        if (echConfig) wsParams.set('echconfiglist', echConfig);
                     }
-                    
+
                     links.push(`${proto}://${user}@${safeIP}:${port}?${wsParams.toString()}#${encodeURIComponent(wsNodeName)}`);
                 } else {
-                    
-                    const wsNodeName = `${nodeNameBase}-${port}-WS`;
-                    const currentNodePath = enableRandomPath ? randomPath('/?ed=2560') : '/?ed=2560';
                     const wsParams = new URLSearchParams({
                         encryption: 'none',
                         security: 'none',
                         type: 'ws',
-                        host: randomHost,
-                        path: currentNodePath
+                        host: nodeHost,
+                        path: wsPath
                     });
+
                     links.push(`${proto}://${user}@${safeIP}:${port}?${wsParams.toString()}#${encodeURIComponent(wsNodeName)}`);
                 }
             }
@@ -3261,36 +2987,35 @@
         return links;
     }
 
-    async function generateTrojanLinksFromSource(list, user, workerDomain) {
-        
+    async function generateTrojanLinksFromSource(list, user, workerDomain, echConfig = null, skipNumbering = false, aliasNamer = null) {
         const CF_HTTP_PORTS = [80, 8080, 8880, 2052, 2082, 2086, 2095];
         const CF_HTTPS_PORTS = [443, 2053, 2083, 2087, 2096, 8443];
-        
+
         const defaultHttpsPorts = [443];
         const defaultHttpPorts = disableNonTLS ? [] : [80];
         const links = [];
-        
+
         const password = tp || user;
 
-        let trojanLinksProcessedCount = 0;
-        for (let i = 0; i < list.length; i++) {
-            trojanLinksProcessedCount++;
-            if (trojanLinksProcessedCount % 200 === 0) {
-                await new Promise(r => setTimeout(r, 0));
-            }
-            const item = list[i];
+        const makeNodeName = aliasNamer || createCompactNodeNamer(skipNumbering);
+
+        let yieldCounter = 0;
+        for (const item of list) {
+<<<<<<< local_明文源吗
+            if (++yieldCounter % 50 === 0) await new Promise(r => setTimeout(r, 0));
             let nodeNameBase = item.isp.replace(/\s/g, '_');
             if (item.colo && item.colo.trim()) {
                 nodeNameBase = `${nodeNameBase}-${item.colo.trim()}`;
             }
-            const safeIP = (item.ip.includes(':') && !item.ip.includes('[')) ? `[${item.ip}]` : item.ip;
-            const randomHost = getRandomHost(workerDomain);
-            
+=======
+>>>>>>> upstream_明文源吗
+            const safeIP = item.ip.includes(':') ? `[${item.ip}]` : item.ip;
+            const nodeHost = getRandomHost(workerDomain) || workerDomain;
+            const wsPath = enableRandomPath ? randomPath('/?ed=2560') : '/?ed=2560';
+
             let portsToGenerate = [];
-            
             if (item.port) {
                 const port = item.port;
-                
                 if (CF_HTTPS_PORTS.includes(port)) {
                     portsToGenerate.push({ port: port, tls: true });
                 } else if (CF_HTTP_PORTS.includes(port)) {
@@ -3310,52 +3035,42 @@
             }
 
             for (const { port, tls } of portsToGenerate) {
+                const wsNodeName = makeNodeName(item);
+
                 if (tls) {
-                    
-                    const wsNodeName = `${nodeNameBase}-${port}-${atob('VHJvamFu')}-WS-TLS`;
-                    const currentNodePath = enableRandomPath ? randomPath('/?ed=2560') : '/?ed=2560';
                     const wsParams = new URLSearchParams({ 
                         security: 'tls', 
-                        sni: randomHost, 
+                        sni: nodeHost, 
                         fp: 'chrome',
                         type: 'ws', 
-                        host: randomHost, 
-                        path: currentNodePath
+                        host: nodeHost, 
+                        path: wsPath
                     });
-                    
-                    // 如果启用了ECH，添加ech和echconfiglist参数
+                    applyALPNParam(wsParams);
+
+                    // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
                     if (enableECH) {
                         const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
-<<<<<<< local_明文源吗
-                        const echDomain = customECHDomain || getRandomHost(workerDomain);
-=======
-                        const echDomain = customECHDomain || 'cloudflare-ech.com';
->>>>>>> upstream_明文源吗
+                        const echDomain = customECHDomain || getRandomHost(workerDomain) || workerDomain;
                         wsParams.set('ech', `${echDomain}+${dnsServer}`);
-                        
-                        let echConfig = '';
-                        if (globalEchCache.has(echDomain)) {
-                            echConfig = globalEchCache.get(echDomain);
-                        } else {
-                            echConfig = await getECHConfig(echDomain);
-                            globalEchCache.set(echDomain, echConfig);
+                        // 获取并缓存 ECH 配置列表
+                        let echConfig = globalEchCache.get(echDomain);
+                        if (!echConfig) {
+                            echConfig = await fetchECHConfig(echDomain);
+                            if (echConfig) globalEchCache.set(echDomain, echConfig);
                         }
-                        if (echConfig) {
-                            wsParams.set('echconfiglist', echConfig);
-                        }
+                        if (echConfig) wsParams.set('echconfiglist', echConfig);
                     }
-                    
+
                     links.push(`${atob('dHJvamFuOi8v')}${password}@${safeIP}:${port}?${wsParams.toString()}#${encodeURIComponent(wsNodeName)}`);
                 } else {
-                    
-                    const wsNodeName = `${nodeNameBase}-${port}-${atob('VHJvamFu')}-WS`;
-                    const currentNodePath = enableRandomPath ? randomPath('/?ed=2560') : '/?ed=2560';
                     const wsParams = new URLSearchParams({
                         security: 'none',
                         type: 'ws',
-                        host: randomHost,
-                        path: currentNodePath
+                        host: nodeHost,
+                        path: wsPath
                     });
+
                     links.push(`${atob('dHJvamFuOi8v')}${password}@${safeIP}:${port}?${wsParams.toString()}#${encodeURIComponent(wsNodeName)}`);
                 }
             }
@@ -3368,7 +3083,13 @@
         const v6Url1 = "https://www.wetest.vip/page/cloudflare/address_v6.html";
         let results = [];
 
-        // 使用全局筛选配置
+        // 读取筛选配置（默认全部启用）
+        const ipv4Enabled = getConfigValue('ipv4', '') === '' || getConfigValue('ipv4', 'yes') !== 'no';
+        const ipv6Enabled = getConfigValue('ipv6', '') === '' || getConfigValue('ipv6', 'yes') !== 'no';
+        const ispMobile = getConfigValue('ispMobile', '') === '' || getConfigValue('ispMobile', 'yes') !== 'no';
+        const ispUnicom = getConfigValue('ispUnicom', '') === '' || getConfigValue('ispUnicom', 'yes') !== 'no';
+        const ispTelecom = getConfigValue('ispTelecom', '') === '' || getConfigValue('ispTelecom', 'yes') !== 'no';
+
         try {
             const fetchPromises = [];
             if (ipv4Enabled) {
@@ -3384,15 +3105,25 @@
 
             const [ipv4List, ipv6List] = await Promise.all(fetchPromises);
             results = [...ipv4List, ...ipv6List];
-            
+
+            // 按运营商筛选
+            if (results.length > 0) {
+                results = results.filter(item => {
+                    const isp = item.isp || '';
+                    if (isp.includes('移动') && !ispMobile) return false;
+                    if (isp.includes('联通') && !ispUnicom) return false;
+                    if (isp.includes('电信') && !ispTelecom) return false;
+                    return true;
+                });
+            }
+
             if (results.length > 0) {
                 return results;
             }
         } catch (e) {
         }
-
-                return [];
-            }
+        return [];
+    }
 
     async function fetchAndParseWetest(url) {
         try {
@@ -3418,7 +3149,7 @@
                     });
                 }
             }
-            
+
             if (results.length === 0) {
             }
 
@@ -3456,40 +3187,88 @@
         } else if (reqRegion) {
             effectiveRegion = reqRegion;
         }
-        
+
         const wsPair = new WebSocketPair();
         const [clientSock, serverSock] = Object.values(wsPair);
         serverSock.accept();
+        serverSock.binaryType = 'arraybuffer';
 
-        let remoteConnWrapper = { socket: null };
+        let remoteConnWrapper = { socket: null, writer: null, drainUpload: null };
         let isDnsQuery = false;
         let protocolType = null; 
+        let uploadBusy = false;
+        let transportClosed = false;
+        const uploadQueue = createChunkQueue(TRANSPORT_UP_PACK, TRANSPORT_UP_Q_MAX, TRANSPORT_UP_Q_MAX >> 8);
+        const requestFetcher = request.fetcher;
+
+        function releaseRemoteWriter() {
+            try { remoteConnWrapper.writer?.releaseLock(); } catch (_) {}
+            remoteConnWrapper.writer = null;
+        }
+
+        function closeTransport() {
+            if (transportClosed) return;
+            transportClosed = true;
+            uploadQueue.clear();
+            releaseRemoteWriter();
+            try { remoteConnWrapper.socket?.close(); } catch (_) {}
+            closeSocketQuietly(serverSock);
+        }
+
+        function queueUpload(chunk) {
+            const data = toUint8Array(chunk);
+            if (!data.byteLength) return true;
+            if (!uploadQueue.sow(data)) {
+                closeTransport();
+                return false;
+            }
+            remoteConnWrapper.drainUpload();
+            return true;
+        }
+
+        async function drainUpload() {
+            if (uploadBusy || transportClosed || !remoteConnWrapper.writer) return;
+            uploadBusy = true;
+            try {
+                for (;;) {
+                    if (transportClosed || !remoteConnWrapper.writer) break;
+                    const [data] = uploadQueue.bundle();
+                    if (!data) break;
+                    await remoteConnWrapper.writer.write(data);
+                }
+            } catch (_) {
+                closeTransport();
+            } finally {
+                uploadBusy = false;
+                if (!uploadQueue.empty && !transportClosed && remoteConnWrapper.writer) queueMicrotask(drainUpload);
+            }
+        }
+
+        remoteConnWrapper.drainUpload = () => {
+            if (!uploadBusy && !uploadQueue.empty && remoteConnWrapper.writer) queueMicrotask(drainUpload);
+        };
 
         const earlyData = request.headers.get(atob('c2VjLXdlYnNvY2tldC1wcm90b2NvbA==')) || '';
         const readable = makeReadableStream(serverSock, earlyData);
 
-        let wsUploadChunkCount = 0;
         readable.pipeTo(new WritableStream({
             async write(chunk) {
-                let dataChunk = chunk;
-                wsUploadChunkCount++;
-                if (wsUploadChunkCount % 100 === 0) {
-                    await new Promise(r => setTimeout(r, 0));
-                }
-                
-                if (isDnsQuery) return await forwardUDP(dataChunk, serverSock, null);
-                if (remoteConnWrapper.socket) {
-                    const writer = remoteConnWrapper.socket.writable.getWriter();
-                    await writer.write(dataChunk);
-                    writer.releaseLock();
+                if (transportClosed) return;
+                const data = toUint8Array(chunk);
+                if (isDnsQuery) return await forwardUDP(data, serverSock, null, requestFetcher);
+                if (remoteConnWrapper.socket && remoteConnWrapper.writer) {
+                    if (!queueUpload(data)) throw new Error('upload queue overflow');
                     return;
                 }
-                
+
+                if (protocolType) {
+                    if (!queueUpload(data)) throw new Error('upload queue overflow');
+                    return;
+                }
+
                 if (!protocolType) {
-                    if (chunk.byteLength > 16384) throw new Error('Header too large'); // 安全限制
-                    
-                    if (ev && chunk.byteLength >= 24) {
-                        const vlessResult = parseWsPacketHeader(chunk, at);
+                    if (ev && data.byteLength >= 24) {
+                        const vlessResult = parseWsPacketHeader(data, at);
                         if (!vlessResult.hasError) {
                             protocolType = 'vless';
                             const { addressType, port, hostname, rawIndex, version, isUDP } = vlessResult;
@@ -3498,56 +3277,81 @@
                     else throw new Error(E_UDP_DNS_ONLY);
                 }
                 const respHeader = new Uint8Array([version[0], 0]);
-                const rawData = chunk.slice(rawIndex);
-                if (isDnsQuery) return forwardUDP(rawData, serverSock, respHeader);
-                await forwardTCP(addressType, hostname, port, rawData, serverSock, respHeader, remoteConnWrapper, reqFallback, effectiveRegion, reqRm, reqSocksConfig);
+                const rawData = data.subarray(rawIndex);
+                if (isDnsQuery) return forwardUDP(rawData, serverSock, respHeader, requestFetcher);
+                    await forwardTCP(addressType, hostname, port, rawData, serverSock, respHeader, remoteConnWrapper, reqFallback, effectiveRegion, reqRm, reqSocksConfig, requestFetcher);
                             return;
                         }
                     }
-                    
-                    if (et && chunk.byteLength >= 56) {
-                        const tjResult = await parseTrojanHeader(chunk, at);
+
+                    if (et && data.byteLength >= 56) {
+                        const tjResult = await parseTrojanHeader(data, at);
                         if (!tjResult.hasError) {
                             protocolType = atob('dHJvamFu');
                             const { addressType, port, hostname, rawClientData } = tjResult;
-                            await forwardTCP(addressType, hostname, port, rawClientData, serverSock, null, remoteConnWrapper, reqFallback, effectiveRegion, reqRm, reqSocksConfig);
+                            await forwardTCP(addressType, hostname, port, rawClientData, serverSock, null, remoteConnWrapper, reqFallback, effectiveRegion, reqRm, reqSocksConfig, requestFetcher);
                             return;
                         }
                     }
-                    
+
                     throw new Error('Invalid protocol or authentication failed');
                 }
             },
-        })).catch((err) => { });
+        })).catch((err) => { closeTransport(); });
 
         return new Response(null, { status: 101, webSocket: clientSock });
     }
 
-    async function forwardTCP(addrType, host, portNum, rawData, ws, respHeader, remoteConnWrapper, reqFallback = '', reqRegion = '', reqRm = null, reqSocksConfig = null) {
+    async function forwardTCP(addrType, host, portNum, rawData, ws, respHeader, remoteConnWrapper, reqFallback = '', reqRegion = '', reqRm = null, reqSocksConfig = null, requestFetcher = null) {
         // 优先使用客户端path参数，其次回退到全局配置
         const effectiveFallback = reqFallback || fallbackAddress;
         const effectiveRegion = reqRegion || currentWorkerRegion;
         const effectiveRegionMatching = reqRm !== null ? reqRm : enableRegionMatching;
         const effectiveSocksConfig = reqSocksConfig || parsedSocks5Config;
         const effectiveSocksEnabled = reqSocksConfig ? true : isSocksEnabled;
+        const initialData = toUint8Array(rawData);
 
         async function connectAndSend(address, port, useSocks = false) {
             const remoteSock = useSocks ?
                 await establishSocksConnection(addrType, address, port, effectiveSocksConfig) :
-                connect({ hostname: address, port: port });
+                await connectTcpSocket(address, port, requestFetcher, TRANSPORT_CONNECT_RACE);
             const writer = remoteSock.writable.getWriter();
-            await writer.write(rawData);
-            writer.releaseLock();
-            return remoteSock;
+            if (initialData.byteLength) await writer.write(initialData);
+            return { remoteSock, writer };
         }
-        
+
+        function detachIfCurrent(remoteSock, writer) {
+            if (remoteConnWrapper.socket !== remoteSock) return;
+            try { writer?.releaseLock(); } catch (_) {}
+            remoteConnWrapper.socket = null;
+            remoteConnWrapper.writer = null;
+        }
+
+        function attachRemote(remoteSock, writer, retryFunc) {
+            try {
+                if (remoteConnWrapper.writer && remoteConnWrapper.writer !== writer) {
+                    remoteConnWrapper.writer.releaseLock();
+                }
+            } catch (_) {}
+            remoteConnWrapper.socket = remoteSock;
+            remoteConnWrapper.writer = writer;
+            remoteConnWrapper.drainUpload?.();
+            remoteSock.closed.catch(() => {}).finally(() => {
+                if (remoteConnWrapper.socket === remoteSock) closeSocketQuietly(ws);
+            });
+            connectStreams(remoteSock, ws, respHeader, retryFunc).finally(() => {
+                if (remoteConnWrapper.socket === remoteSock) {
+                    try { writer.releaseLock(); } catch (_) {}
+                    remoteConnWrapper.writer = null;
+                }
+            });
+        }
+
         async function retryConnection() {
             if (enableSocksDowngrade && effectiveSocksEnabled) {
                 try {
-                    const socksSocket = await connectAndSend(host, portNum, true);
-                    remoteConnWrapper.socket = socksSocket;
-                    socksSocket.closed.catch(() => {}).finally(() => closeSocketQuietly(ws));
-                    connectStreams(socksSocket, ws, respHeader, null);
+                    const { remoteSock: socksSocket, writer: socksWriter } = await connectAndSend(host, portNum, true);
+                    attachRemote(socksSocket, socksWriter, null);
                     return;
                 } catch (socksErr) {
                     let backupHost, backupPort;
@@ -3560,12 +3364,10 @@
                         backupHost = bestBackupIP ? bestBackupIP.domain : host;
                         backupPort = bestBackupIP ? bestBackupIP.port : portNum;
                     }
-                    
+
                     try {
-                        const fallbackSocket = await connectAndSend(backupHost, backupPort, false);
-                        remoteConnWrapper.socket = fallbackSocket;
-                        fallbackSocket.closed.catch(() => {}).finally(() => closeSocketQuietly(ws));
-                        connectStreams(fallbackSocket, ws, respHeader, null);
+                        const { remoteSock: fallbackSocket, writer: fallbackWriter } = await connectAndSend(backupHost, backupPort, false);
+                        attachRemote(fallbackSocket, fallbackWriter, null);
                     } catch (fallbackErr) {
                         closeSocketQuietly(ws);
                     }
@@ -3581,12 +3383,10 @@
                     backupHost = bestBackupIP ? bestBackupIP.domain : host;
                     backupPort = bestBackupIP ? bestBackupIP.port : portNum;
                 }
-                
+
                 try {
-                    const fallbackSocket = await connectAndSend(backupHost, backupPort, effectiveSocksEnabled);
-                    remoteConnWrapper.socket = fallbackSocket;
-                    fallbackSocket.closed.catch(() => {}).finally(() => closeSocketQuietly(ws));
-                    connectStreams(fallbackSocket, ws, respHeader, null);
+                    const { remoteSock: fallbackSocket, writer: fallbackWriter } = await connectAndSend(backupHost, backupPort, effectiveSocksEnabled);
+                    attachRemote(fallbackSocket, fallbackWriter, null);
                 } catch (fallbackErr) {
                     closeSocketQuietly(ws);
                 }
@@ -3594,31 +3394,266 @@
         }
         
         try {
-            const initialSocket = await connectAndSend(host, portNum, enableSocksDowngrade ? false : effectiveSocksEnabled);
-            remoteConnWrapper.socket = initialSocket;
-            // 关键：不能 await connectStreams，它必须在后台运行以避免阻塞上行 write 循环
-            connectStreams(initialSocket, ws, respHeader, retryConnection);
+            const { remoteSock: initialSocket, writer: initialWriter } = await connectAndSend(host, portNum, enableSocksDowngrade ? false : effectiveSocksEnabled);
+            attachRemote(initialSocket, initialWriter, () => {
+                detachIfCurrent(initialSocket, initialWriter);
+                retryConnection();
+            });
         } catch (err) {
-            retryConnection();
+            await retryConnection();
         }
     }
 
+    function toUint8Array(chunk) {
+        if (chunk instanceof Uint8Array) return chunk;
+        if (chunk instanceof ArrayBuffer) return new Uint8Array(chunk);
+        if (ArrayBuffer.isView(chunk)) return new Uint8Array(chunk.buffer, chunk.byteOffset, chunk.byteLength);
+        return new Uint8Array(chunk);
+    }
+
+    function joinUint8Array(head, body) {
+        const h = toUint8Array(head);
+        const b = toUint8Array(body);
+        const out = new Uint8Array(h.byteLength + b.byteLength);
+        out.set(h);
+        out.set(b, h.byteLength);
+        return out;
+    }
+
+    function createChunkQueue(cap, qCap = cap, itemsMax = Math.max(1, qCap >> 8)) {
+        let queue = [];
+        let head = 0;
+        let queuedBytes = 0;
+        let bundleBuffer = null;
+
+        function trim() {
+            if (head > 32 && head * 2 >= queue.length) {
+                queue = queue.slice(head);
+                head = 0;
+            }
+        }
+
+        function take() {
+            if (head >= queue.length) return null;
+            const data = queue[head];
+            queue[head++] = undefined;
+            queuedBytes -= data.byteLength;
+            trim();
+            return data;
+        }
+
+        return {
+            get empty() { return head >= queue.length; },
+            clear() {
+                queue = [];
+                head = 0;
+                queuedBytes = 0;
+            },
+            sow(data) {
+                const n = data?.byteLength || 0;
+                if (!n) return true;
+                if (queuedBytes + n > qCap || queue.length - head >= itemsMax) return false;
+                queue.push(data);
+                queuedBytes += n;
+                return true;
+            },
+            bundle(data = null) {
+                data ||= take();
+                if (!data || head >= queue.length || data.byteLength >= cap) return [data, false];
+                let total = data.byteLength;
+                let end = head;
+                while (end < queue.length) {
+                    const next = queue[end];
+                    const nextTotal = total + next.byteLength;
+                    if (nextTotal > cap) break;
+                    total = nextTotal;
+                    end++;
+                }
+                if (end === head) return [data, false];
+                const out = bundleBuffer ||= new Uint8Array(cap);
+                out.set(data);
+                let offset = data.byteLength;
+                while (head < end) {
+                    const next = queue[head];
+                    queue[head++] = undefined;
+                    queuedBytes -= next.byteLength;
+                    out.set(next, offset);
+                    offset += next.byteLength;
+                }
+                trim();
+                return [out.subarray(0, total), true];
+            }
+        };
+    }
+
+    function createDownlinkGrain(webSocket) {
+        const cap = TRANSPORT_DN_PACK;
+        const tail = TRANSPORT_DN_TAIL;
+        const lowWater = Math.max(4096, tail << 3);
+        let pending = new Uint8Array(cap);
+        let pendingBytes = 0;
+        let timer = 0;
+        let microtaskQueued = false;
+        let generation = 0;
+        let quietKey = 0;
+        let quietRounds = 0;
+
+        function flush() {
+            if (timer) clearTimeout(timer);
+            timer = 0;
+            microtaskQueued = false;
+            if (!pendingBytes) return;
+            if (webSocket.readyState === 1) webSocket.send(pending.subarray(0, pendingBytes).slice());
+            pending = new Uint8Array(cap);
+            pendingBytes = 0;
+            quietRounds = 0;
+        }
+
+        function schedule() {
+            if (timer || microtaskQueued) return;
+            microtaskQueued = true;
+            quietKey = generation;
+            queueMicrotask(() => {
+                microtaskQueued = false;
+                if (!pendingBytes || timer) return;
+                if (cap - pendingBytes < tail) return flush();
+                timer = setTimeout(() => {
+                    timer = 0;
+                    if (!pendingBytes) return;
+                    if (cap - pendingBytes < tail) return flush();
+                    if (quietRounds < 2 && (generation !== quietKey || pendingBytes < lowWater)) {
+                        quietRounds++;
+                        quietKey = generation;
+                        return schedule();
+                    }
+                    flush();
+                }, Math.max(TRANSPORT_DN_DELAY, 1));
+            });
+        }
+
+        return {
+            send(chunk) {
+                const data = toUint8Array(chunk);
+                let offset = 0;
+                const total = data.byteLength;
+                if (!total) return;
+                while (offset < total) {
+                    if (!pendingBytes && total - offset >= cap) {
+                        const size = Math.min(cap, total - offset);
+                        if (webSocket.readyState === 1) webSocket.send(offset || size !== total ? data.subarray(offset, offset + size) : data);
+                        offset += size;
+                        continue;
+                    }
+                    const size = Math.min(cap - pendingBytes, total - offset);
+                    pending.set(data.subarray(offset, offset + size), pendingBytes);
+                    pendingBytes += size;
+                    offset += size;
+                    generation++;
+                    if (pendingBytes === cap || cap - pendingBytes < tail) flush();
+                    else schedule();
+                }
+            },
+            flush
+        };
+    }
+
+    function openTcpSocket(address, port, requestFetcher = null) {
+        const target = { hostname: address, port };
+        if (requestFetcher && typeof requestFetcher.connect === 'function') return requestFetcher.connect(target);
+        return connect(target);
+    }
+
+    async function openTcpSocketReady(address, port, requestFetcher = null) {
+        try {
+            const socket = openTcpSocket(address, port, requestFetcher);
+            if (socket?.opened) await socket.opened;
+            return socket;
+        } catch (error) {
+            if (!requestFetcher) throw error;
+            const socket = connect({ hostname: address, port });
+            if (socket?.opened) await socket.opened;
+            return socket;
+        }
+    }
+
+    async function connectTcpSocket(address, port, requestFetcher = null, raceCount = 1) {
+        const count = Math.max(1, raceCount | 0);
+        if (count <= 1) return openTcpSocketReady(address, port, requestFetcher);
+        const attempts = Array.from({ length: count }, () => openTcpSocketReady(address, port, requestFetcher));
+        const winner = await Promise.any(attempts);
+        attempts.forEach((attempt) => {
+            attempt.then((socket) => {
+                if (socket !== winner) {
+                    try { socket.close(); } catch (_) {}
+                }
+            }, () => {});
+        });
+        return winner;
+    }
+
+    function getUuidBytes(token) {
+        if (uuidByteCache.has(token)) return uuidByteCache.get(token);
+        const hex = String(token || '').replace(/-/g, '');
+        if (hex.length !== 32) return null;
+        const bytes = new Uint8Array(16);
+        for (let i = 0; i < 16; i++) {
+            const value = Number.parseInt(hex.slice(i * 2, i * 2 + 2), 16);
+            if (Number.isNaN(value)) return null;
+            bytes[i] = value;
+        }
+        if (uuidByteCache.size > 16) uuidByteCache.clear();
+        uuidByteCache.set(token, bytes);
+        return bytes;
+    }
+
+    function matchesUuid(bytes, offset, token) {
+        const id = getUuidBytes(token);
+        return !!id &&
+            bytes[offset] === id[0] && bytes[offset + 1] === id[1] &&
+            bytes[offset + 2] === id[2] && bytes[offset + 3] === id[3] &&
+            bytes[offset + 4] === id[4] && bytes[offset + 5] === id[5] &&
+            bytes[offset + 6] === id[6] && bytes[offset + 7] === id[7] &&
+            bytes[offset + 8] === id[8] && bytes[offset + 9] === id[9] &&
+            bytes[offset + 10] === id[10] && bytes[offset + 11] === id[11] &&
+            bytes[offset + 12] === id[12] && bytes[offset + 13] === id[13] &&
+            bytes[offset + 14] === id[14] && bytes[offset + 15] === id[15];
+    }
+
     function parseWsPacketHeader(chunk, token) {
-        if (chunk.byteLength < 24) return { hasError: true, message: E_INVALID_DATA };
-        const version = new Uint8Array(chunk.slice(0, 1));
-        if (formatIdentifier(new Uint8Array(chunk.slice(1, 17))) !== token) return { hasError: true, message: E_INVALID_USER };
-        const optLen = new Uint8Array(chunk.slice(17, 18))[0];
-        const cmd = new Uint8Array(chunk.slice(18 + optLen, 19 + optLen))[0];
+        const bytes = toUint8Array(chunk);
+        if (bytes.byteLength < 24) return { hasError: true, message: E_INVALID_DATA };
+        const version = bytes.subarray(0, 1);
+        if (!matchesUuid(bytes, 1, token)) return { hasError: true, message: E_INVALID_USER };
+        const optLen = bytes[17];
+        const cmdIdx = 18 + optLen;
+        if (bytes.byteLength < cmdIdx + 5) return { hasError: true, message: E_INVALID_DATA };
+        const cmd = bytes[cmdIdx];
         let isUDP = false;
         if (cmd === 1) {} else if (cmd === 2) { isUDP = true; } else { return { hasError: true, message: E_UNSUPPORTED_CMD }; }
         const portIdx = 19 + optLen;
-        const port = new DataView(chunk.slice(portIdx, portIdx + 2)).getUint16(0);
+        const port = (bytes[portIdx] << 8) | bytes[portIdx + 1];
         let addrIdx = portIdx + 2, addrLen = 0, addrValIdx = addrIdx + 1, hostname = '';
-        const addressType = new Uint8Array(chunk.slice(addrIdx, addrValIdx))[0];
+        const addressType = bytes[addrIdx];
         switch (addressType) {
-            case ADDRESS_TYPE_IPV4: addrLen = 4; hostname = new Uint8Array(chunk.slice(addrValIdx, addrValIdx + addrLen)).join('.'); break;
-            case ADDRESS_TYPE_URL: addrLen = new Uint8Array(chunk.slice(addrValIdx, addrValIdx + 1))[0]; addrValIdx += 1; hostname = new TextDecoder().decode(chunk.slice(addrValIdx, addrValIdx + addrLen)); break;
-            case ADDRESS_TYPE_IPV6: addrLen = 16; const ipv6 = []; const ipv6View = new DataView(chunk.slice(addrValIdx, addrValIdx + addrLen)); for (let i = 0; i < 8; i++) ipv6.push(ipv6View.getUint16(i * 2).toString(16)); hostname = ipv6.join(':'); break;
+            case ADDRESS_TYPE_IPV4:
+                addrLen = 4;
+                if (bytes.byteLength < addrValIdx + addrLen) return { hasError: true, message: E_INVALID_DATA };
+                hostname = `${bytes[addrValIdx]}.${bytes[addrValIdx + 1]}.${bytes[addrValIdx + 2]}.${bytes[addrValIdx + 3]}`;
+                break;
+            case ADDRESS_TYPE_URL:
+                if (bytes.byteLength < addrValIdx + 1) return { hasError: true, message: E_INVALID_DATA };
+                addrLen = bytes[addrValIdx++];
+                if (bytes.byteLength < addrValIdx + addrLen) return { hasError: true, message: E_INVALID_DATA };
+                hostname = sharedDecoder.decode(bytes.subarray(addrValIdx, addrValIdx + addrLen));
+                break;
+            case ADDRESS_TYPE_IPV6:
+                addrLen = 16;
+                if (bytes.byteLength < addrValIdx + addrLen) return { hasError: true, message: E_INVALID_DATA };
+                const ipv6 = [];
+                const ipv6View = new DataView(bytes.buffer, bytes.byteOffset + addrValIdx, addrLen);
+                for (let i = 0; i < 8; i++) ipv6.push(ipv6View.getUint16(i * 2).toString(16));
+                hostname = ipv6.join(':');
+                break;
             default: return { hasError: true, message: `${E_INVALID_ADDR_TYPE}: ${addressType}` };
         }
         if (!hostname) return { hasError: true, message: `${E_EMPTY_ADDR}: ${addressType}` };
@@ -3629,72 +3664,17 @@
         let cancelled = false;
         return new ReadableStream({
             start(controller) {
-                socket.addEventListener('message', (event) => { if (!cancelled) controller.enqueue(event.data); });
+                socket.addEventListener('message', (event) => { if (!cancelled) controller.enqueue(toUint8Array(event.data)); });
                 socket.addEventListener('close', () => { if (!cancelled) { closeSocketQuietly(socket); controller.close(); } });
                 socket.addEventListener('error', (err) => controller.error(err));
                 const { earlyData, error } = base64ToArray(earlyDataHeader);
-                if (error) controller.error(error); else if (earlyData) controller.enqueue(earlyData);
+                if (error) controller.error(error); else if (earlyData) controller.enqueue(toUint8Array(earlyData));
             },
             cancel() { cancelled = true; closeSocketQuietly(socket); }
         });
     }
 
-    async function WebSocket发送并等待(ws, payload) {
-        // 增加反压控制，防止 WS 发送队列撑爆内存
-        if (ws.bufferedAmount > 1024 * 1024) {
-            await new Promise(r => setTimeout(r, 10));
-        }
-        const sendResult = ws.send(payload);
-        if (sendResult && typeof sendResult.then === 'function') await sendResult;
-    }
-
     async function connectStreams(remoteSocket, webSocket, headerData, retryFunc) {
-<<<<<<< local_明文源吗
-        let header = headerData, hasData = false, reader, useBYOB = false;
-        const BYOB_BUF_SIZE = 64 * 1024;
-
-        try {
-            // 更加鲁棒的 BYOB 探测方式
-            try { 
-                reader = remoteSocket.readable.getReader({ mode: 'byob' }); 
-                useBYOB = true;
-            } catch (e) { 
-                reader = remoteSocket.readable.getReader(); 
-            }
-
-            while (true) {
-                let result;
-                if (useBYOB) {
-                    result = await reader.read(new Uint8Array(BYOB_BUF_SIZE));
-                } else {
-                    result = await reader.read();
-                }
-
-                if (result.done) break;
-                const value = result.value;
-                hasData = true;
-                
-                if (webSocket.readyState !== 1) break;
-                
-                if (header) {
-                    const merged = new Uint8Array(header.length + value.byteLength);
-                    merged.set(header, 0); merged.set(value, header.length);
-                    await WebSocket发送并等待(webSocket, merged); // 直接发送视图
-                    header = null;
-                } else {
-                    await WebSocket发送并等待(webSocket, value); // 关键：直接发送 Uint8Array 视图
-                }
-            }
-        } catch (error) {
-            closeSocketQuietly(webSocket);
-        } finally {
-            try { await reader.cancel(); } catch (e) {}
-            try { reader.releaseLock(); } catch (e) {}
-            try { remoteSocket.close(); } catch (e) {}
-            reader = null; header = null;
-        }
-        if (!hasData && retryFunc) await retryFunc();
-=======
         let header = headerData, hasData = false, retried = false;
 
         // 关键：CF 直连有时握手成功但远端长时间无数据，需要超时触发 SOCKS5 降级
@@ -3706,62 +3686,74 @@
                     try { remoteSocket.close && remoteSocket.close(); } catch (_) {}
                     retryFunc();
                 }
-            }, 3500);
+            }, FIRST_BYTE_TIMEOUT);
         }
 
-        await remoteSocket.readable.pipeTo(
-            new WritableStream({
-                async write(chunk, controller) {
-                    if (!hasData) {
-                        hasData = true;
-                        if (firstByteTimer) { clearTimeout(firstByteTimer); firstByteTimer = null; }
-                    }
-                    if (webSocket.readyState !== 1) controller.error(E_WS_NOT_OPEN);
-                    if (header) { webSocket.send(await new Blob([header, chunk]).arrayBuffer()); header = null; }
-                    else { webSocket.send(chunk); }
-                },
-                abort(reason) { },
-            })
-        ).catch((error) => {
+        const tx = createDownlinkGrain(webSocket);
+        let reader = null;
+        let byob = true;
+        let buffer = new ArrayBuffer(TRANSPORT_CHUNK_SIZE);
+
+        try {
+            try {
+                reader = remoteSocket.readable.getReader({ mode: 'byob' });
+            } catch (_) {
+                byob = false;
+                reader = remoteSocket.readable.getReader();
+            }
+
+            for (;;) {
+                const result = byob ? await reader.read(new Uint8Array(buffer, 0, TRANSPORT_CHUNK_SIZE)) : await reader.read();
+                if (result.done) break;
+                const readValue = result.value;
+                let chunk = toUint8Array(readValue);
+                const reusableBuffer = byob && readValue?.buffer instanceof ArrayBuffer && readValue.buffer.byteLength >= TRANSPORT_CHUNK_SIZE
+                    ? readValue.buffer
+                    : new ArrayBuffer(TRANSPORT_CHUNK_SIZE);
+                if (!chunk.byteLength) continue;
+
+                if (!hasData) {
+                    hasData = true;
+                    if (firstByteTimer) { clearTimeout(firstByteTimer); firstByteTimer = null; }
+                }
+
+                if (webSocket.readyState !== 1) throw new Error(E_WS_NOT_OPEN);
+                if (header) {
+                    chunk = joinUint8Array(header, chunk);
+                    header = null;
+                }
+
+                if (chunk.byteLength >= (TRANSPORT_CHUNK_SIZE >> 1)) {
+                    tx.flush();
+                    webSocket.send(chunk);
+                    if (byob) buffer = new ArrayBuffer(TRANSPORT_CHUNK_SIZE);
+                } else {
+                    tx.send(chunk.slice());
+                    if (byob) buffer = reusableBuffer;
+                }
+            }
+            tx.flush();
+        } catch (error) {
             // 已经触发 retry 时不要关闭 WS（retry 会重新挂载新 socket）
             if (!retried) closeSocketQuietly(webSocket);
-        });
+        } finally {
+            try { tx.flush(); } catch (_) {}
+            try { reader?.releaseLock(); } catch (_) {}
+        }
 
         if (firstByteTimer) { clearTimeout(firstByteTimer); firstByteTimer = null; }
         if (!hasData && !retried && retryFunc) retryFunc();
->>>>>>> upstream_明文源吗
     }
 
-    async function forwardUDP(udpChunk, webSocket, respHeader) {
-        const 请求数据 = 数据转Uint8Array(udpChunk);
-        const DNS上游列表 = [customDNS, 'https://1.1.1.1/dns-query', 'https://8.8.8.8/dns-query'];
-        
-        for (const dnsUrl of DNS上游列表) {
-            try {
-                const response = await withTimeout(fetch(dnsUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/dns-message', 'Accept': 'application/dns-message' },
-                    body: 请求数据
-                }), 5000);
-                
-                if (!response.ok) continue;
-                
-                const 原始响应 = new Uint8Array(await response.arrayBuffer());
-                if (webSocket.readyState === 1) {
-                    if (respHeader) {
-                        const merged = new Uint8Array(respHeader.length + 原始响应.byteLength);
-                        merged.set(respHeader, 0); merged.set(原始响应, respHeader.length);
-                        await WebSocket发送并等待(webSocket, merged);
-                        respHeader = null;
-                    } else {
-                        await WebSocket发送并等待(webSocket, 原始响应);
-                    }
-                }
-                return; // 成功则退出
-            } catch (err) {
-                continue; // 尝试下一个
-            }
-        }
+    async function forwardUDP(udpChunk, webSocket, respHeader, requestFetcher = null) {
+        try {
+            const tcpSocket = await connectTcpSocket('8.8.4.4', 53, requestFetcher, 1);
+            let header = respHeader;
+            const writer = tcpSocket.writable.getWriter();
+            await writer.write(udpChunk);
+            writer.releaseLock();
+            await connectStreams(tcpSocket, webSocket, header, null);
+        } catch (error) { }
     }
 
     async function establishSocksConnection(addrType, address, port, socksConfig = parsedSocks5Config) {
@@ -3797,26 +3789,26 @@
     function parseSocksConfig(address) {
         let [latter, former] = address.split("@").reverse(); 
         let username, password, hostname, socksPort;
-        
+
         if (former) { 
             const formers = former.split(":"); 
             if (formers.length !== 2) throw new Error(E_INVALID_SOCKS_ADDR);
             [username, password] = formers; 
         }
-        
+
         const latters = latter.split(":"); 
         socksPort = Number(latters.pop()); 
         if (isNaN(socksPort)) throw new Error(E_INVALID_SOCKS_ADDR);
-        
+
         hostname = latters.join(":"); 
         if (hostname.includes(":") && !/^\[.*\]$/.test(hostname)) throw new Error(E_INVALID_SOCKS_ADDR);
-        
+
         return { username, password, hostname, socksPort };
     }
 
     async function handleSubscriptionPage(request, user = null) {
         if (!user) user = at;
-        
+
         const url = new URL(request.url);
         // 优先检查Cookie中的语言设置
         const cookieHeader = request.headers.get('Cookie') || '';
@@ -3830,9 +3822,9 @@
                 }
             }
         }
-        
+
         let isFarsi = false;
-        
+
         if (langFromCookie === 'fa' || langFromCookie === 'fa-IR') {
             isFarsi = true;
         } else if (langFromCookie === 'zh' || langFromCookie === 'zh-CN') {
@@ -3843,135 +3835,9 @@
             const browserLang = acceptLanguage.split(',')[0].split('-')[0].toLowerCase();
             isFarsi = browserLang === 'fa' || acceptLanguage.includes('fa-IR') || acceptLanguage.includes('fa');
         }
+
+        const langAttr = isFarsi ? 'fa-IR' : 'zh-CN';
             
-<<<<<<< local_明文源吗
-            const langAttr = isFarsi ? 'fa-IR' : 'zh-CN';
-            
-            const translations = {
-                zh: {
-                    title: '订阅中心',
-                    subtitle: '多客户端支持 • 智能优选 • 一键生成',
-                    selectClient: '[ 选择客户端 ]',
-                    systemStatus: '[ 系统状态 ]',
-                    configManagement: '[ 配置管理 ]',
-                    relatedLinks: '[ 相关链接 ]',
-                    checking: '检测中...',
-                    workerRegion: 'Worker地区: ',
-                    detectionMethod: '检测方式: ',
-                    proxyIPStatus: 'ProxyIP状态: ',
-                    currentIP: '当前使用IP: ',
-                    regionMatch: '地区匹配: ',
-                    selectionLogic: '选择逻辑: ',
-                    kvStatusChecking: '检测KV状态中...',
-                    kvEnabled: '✅ KV存储已启用，可以使用配置管理功能',
-                    kvDisabled: '⚠️ KV存储未启用或未配置',
-                    specifyRegion: '指定地区 (wk):',
-                    autoDetect: '自动检测',
-                    saveRegion: '保存地区配置',
-                    protocolSelection: '协议选择:',
-                    enableVLESS: '启用 VLESS 协议',
-                    enableTrojan: '启用 Trojan 协议',
-                    enableXhttp: '启用 xhttp 协议',
-                    trojanPassword: 'Trojan 密码 (可选):',
-                    customPath: '自定义路径 (d):',
-                    hostSetting: '自定义HOST (host):',
-                    hostPlaceholder: '例如: h1.com,h2.com',
-                    customIP: '自定义ProxyIP (p):',
-                    preferredIPs: '优选IP列表 (yx):',
-                    preferredIPsURL: '优选IP来源URL (yxURL):',
-                    latencyTest: '延迟测试',
-                    latencyTestIP: '测试IP/域名:',
-                    latencyTestIPPlaceholder: '输入IP或域名，多个用逗号分隔',
-                    latencyTestPort: '端口:',
-                    startTest: '开始测试',
-                    stopTest: '停止测试',
-                    testResult: '测试结果:',
-                    addToYx: '添加到优选列表',
-                    addSelectedToYx: '添加选中项到优选列表',
-                    selectAll: '全选',
-                    deselectAll: '取消全选',
-                    testingInProgress: '测试中...',
-                    testComplete: '测试完成',
-                    latencyMs: '延迟',
-                    timeout: '超时',
-                    ipSource: 'IP来源:',
-                    manualInput: '手动输入',
-                    cfRandomIP: 'CF随机IP',
-                    urlFetch: 'URL获取',
-                    randomCount: '生成数量:',
-                    fetchURL: '获取URL:',
-                    fetchURLPlaceholder: '输入优选IP的URL地址',
-                    generateIP: '生成IP',
-                    fetchIP: '获取IP',
-                    socks5Config: 'SOCKS5配置 (s):',
-                    customHomepage: '自定义首页URL (homepage):',
-                    customHomepagePlaceholder: '例如: https://example.com',
-                    customHomepageHint: '设置自定义URL作为首页伪装。访问根路径 / 时将显示该URL的内容。留空则显示默认终端页面。',
-                    saveConfig: '保存配置',
-                    advancedControl: '高级控制',
-                    subscriptionConverter: '订阅转换地址:',
-                    remoteConfigUrl: '远程配置URL:',
-                    remoteConfigUrlPlaceholder: '例如: https://raw.githubusercontent.com/lizhi123le/ACL4SSR/master/Clash/config/ACL4SSR_Online_Full_MultiMode.ini',
-                    remoteConfigUrlHint: '自定义远程配置文件URL，用于订阅转换服务。留空则使用默认配置。',
-                    builtinPreferred: '内置优选类型:',
-                    enablePreferredDomain: '启用优选域名',
-                    enablePreferredIP: '启用优选 IP',
-                    enableNativeAddress: '启用原生地址',
-                    enableDomain: '域名',
-                    enableGitHubPreferred: '优选IP来源URL',
-                    allowAPIManagement: '允许API管理 (ae):',
-                    regionMatching: '地区匹配 (rm):',
-                    downgradeControl: '降级控制 (qj):',
-                    tlsControl: 'TLS控制 (dkby):',
-                    preferredControl: '优选控制 (yxby):',
-                    saveAdvanced: '保存高级配置',
-                    loading: '加载中...',
-                    currentConfig: '📍 当前路径配置',
-                    refreshConfig: '刷新配置',
-                    resetConfig: '重置配置',
-                    subscriptionCopied: '订阅链接已复制',
-                    autoSubscriptionCopied: '自动识别订阅链接已复制，客户端访问时会根据User-Agent自动识别并返回对应格式',
-                    trojanPasswordPlaceholder: '留空则自动使用 UUID',
-                    trojanPasswordHint: '设置自定义 Trojan 密码。留空则使用 UUID。客户端会自动对密码进行 SHA224 哈希。',
-                    protocolHint: '可以同时启用多个协议。订阅将生成选中协议的节点。<br>• VLESS WS: 基于 WebSocket 的标准协议<br>• Trojan: 使用 SHA224 密码认证<br>• xhttp: 基于 HTTP POST 的伪装协议（需要绑定自定义域名并开启 gRPC）',
-                    enableECH: '启用 ECH (Encrypted Client Hello)',
-                    enableECHHint: '启用后，每次刷新订阅时会自动从 DoH 获取最新的 ECH 配置并添加到链接中',
-                    enableRandomPath: '启用随机路径',
-                    enableRandomPathHint: '启用后，节点路径将随机生成，增加混淆性',
-                    customDNS: '自定义 DNS 服务器',
-                    customDNSPlaceholder: '例如: https://223.5.5.5/dns-query',
-                    customDNSHint: '用于ECH配置查询的DNS服务器地址（DoH格式）',
-                    customECHDomain: '自定义 ECH 域名',
-                    customECHDomainPlaceholder: '例如: worker.example.com',
-                    customECHDomainHint: 'ECH配置中使用的域名，留空则使用默认值',
-                    saveProtocol: '保存协议配置',
-                    subscriptionConverterPlaceholder: '默认: https://url.v1.mk/sub',
-                    subscriptionConverterHint: '自定义订阅转换API地址，留空则使用默认地址',
-                    builtinPreferredHint: '控制订阅中包含哪些内置优选节点。默认全部启用。',
-                    apiEnabledDefault: '默认（关闭API）',
-                    apiEnabledYes: '开启API管理',
-                    apiEnabledHint: '⚠️ 安全提醒：开启后允许通过API动态添加优选IP。建议仅在需要时开启。',
-                    regionMatchingDefault: '默认（启用地区匹配）',
-                    regionMatchingNo: '关闭地区匹配',
-                    regionMatchingHint: '设置为"关闭"时不进行地区智能匹配',
-                    downgradeControlDefault: '默认（不启用降级）',
-                    downgradeControlNo: '启用降级模式',
-                    downgradeControlHint: '设置为"启用"时：CF直连失败→SOCKS5连接→fallback地址',
-                    tlsControlDefault: '默认（保留所有节点）',
-                    tlsControlYes: '仅TLS节点',
-                    tlsControlHint: '设置为"仅TLS节点"时只生成带TLS的节点，不生成非TLS节点（如80端口）',
-                    preferredControlDefault: '默认（启用优选）',
-                    preferredControlYes: '关闭优选',
-                    preferredControlHint: '设置为"关闭优选"时只使用原生地址，不生成优选IP和域名节点',
-                    regionNames: {
-                        HK: '🇭🇰 香港', US: '🇺🇸 美国', SG: '🇸🇬 新加坡', JP: '🇯🇵 日本',
-                        KR: '🇰🇷 韩国', DE: '🇩🇪 德国', SE: '🇸🇪 瑞典', NL: '🇳🇱 荷兰',
-                        FI: '🇫🇮 芬兰', GB: '🇬🇧 英国'
-                    },
-                    terminal: '终端 v2.9.7',
-                    githubProject: 'GitHub 项目',
-                    autoDetectClient: '自动识别',
-=======
         const translations = {
             zh: {
                 title: '订阅中心',
@@ -3997,9 +3863,13 @@
                 enableVLESS: '启用 VLESS 协议',
                 enableTrojan: '启用 Trojan 协议',
                 enableXhttp: '启用 xhttp 协议',
+                enableRandomPath: '启用随机路径',
+                enableRandomPathHint: '启用后，节点路径将随机生成，增加混淆性',
                 trojanPassword: 'Trojan 密码 (可选):',
                 customPath: '自定义路径 (d):',
                 customIP: '自定义ProxyIP (p):',
+                hostSetting: '自定义HOST (host):',
+                hostPlaceholder: '例如: h1.com,h2.com',
                 preferredIPs: '优选IP列表 (yx):',
                 preferredIPsURL: '优选IP来源URL (yxURL):',
                 latencyTest: '延迟测试',
@@ -4061,6 +3931,9 @@
                 customECHDomain: '自定义 ECH 域名',
                 customECHDomainPlaceholder: '例如: cloudflare-ech.com',
                 customECHDomainHint: 'ECH配置中使用的域名，留空则使用默认值',
+                alpn: 'TLS ALPN',
+                alpnDefault: '默认（留空，由客户端协商）',
+                alpnHint: '仅添加到 TLS 节点链接参数；留空则不写 alpn。',
                 saveProtocol: '保存协议配置',
                 subscriptionConverterPlaceholder: '默认: https://url.v1.mk/sub',
                 subscriptionConverterHint: '订阅转换已内部实现，无需外部 API。此项仅作兼容保留，可留空。',
@@ -4088,7 +3961,6 @@
                 terminal: '终端 v2.9.8',
                 githubProject: 'GitHub 项目',
                 autoDetectClient: '自动识别',
->>>>>>> upstream_明文源吗
                 selectionLogicText: '同地区 → 邻近地区 → 其他地区',
                 customIPDisabledHint: '使用自定义ProxyIP时，地区选择已禁用',
                 customIPMode: '自定义ProxyIP模式 (p变量启用)',
@@ -4114,131 +3986,6 @@
                 kvCheckFailedStatus: 'KV存储检测失败 - 状态码: ',
                 kvCheckFailedError: 'KV存储检测失败 - 错误: '
             },
-<<<<<<< local_明文源吗
-                fa: {
-                    title: 'مرکز اشتراک',
-                    subtitle: 'پشتیبانی چند کلاینت • انتخاب هوشمند • تولید یک کلیکی',
-                    selectClient: '[ انتخاب کلاینت ]',
-                    systemStatus: '[ وضعیت سیستم ]',
-                    configManagement: '[ مدیریت تنظیمات ]',
-                    relatedLinks: '[ لینک‌های مرتبط ]',
-                    checking: 'در حال بررسی...',
-                    workerRegion: 'منطقه Worker: ',
-                    detectionMethod: 'روش تشخیص: ',
-                    proxyIPStatus: 'وضعیت ProxyIP: ',
-                    currentIP: 'IP فعلی: ',
-                    regionMatch: 'تطبیق منطقه: ',
-                    selectionLogic: 'منطق انتخاب: ',
-                    kvStatusChecking: 'در حال بررسی وضعیت KV...',
-                    kvEnabled: '✅ ذخیره‌سازی KV فعال است، می‌توانید از مدیریت تنظیمات استفاده کنید',
-                    kvDisabled: '⚠️ ذخیره‌سازی KV فعال نیست یا پیکربندی نشده است',
-                    specifyRegion: 'تعیین منطقه (wk):',
-                    autoDetect: 'تشخیص خودکار',
-                    saveRegion: 'ذخیره تنظیمات منطقه',
-                    protocolSelection: 'انتخاب پروتکل:',
-                    enableVLESS: 'فعال‌سازی پروتکل VLESS',
-                    enableTrojan: 'فعال‌سازی پروتکل Trojan',
-                    enableXhttp: 'فعال‌سازی پروتکل xhttp',
-                    enableECH: 'فعال‌سازی ECH (Encrypted Client Hello)',
-                    enableECHHint: 'پس از فعال‌سازی، در هر بار تازه‌سازی اشتراک، پیکربندی ECH به‌روز به‌طور خودکار از DoH دریافت شده و به لینک‌ها اضافه می‌شود',
-                    enableRandomPath: 'فعال‌سازی مسیر تصادفی',
-                    enableRandomPathHint: 'پس از فعال‌سازی، مسیر گره به صورت تصادفی تولید می‌شود تا ابهام بیشتری ایجاد شود',
-                    customDNS: 'سرور DNS سفارشی',
-                    customDNSPlaceholder: 'مثال: https://223.5.5.5/dns-query',
-                    customDNSHint: 'آدرس سرور DNS برای جستجوی پیکربندی ECH (فرمت DoH)',
-                    customECHDomain: 'دامنه ECH سفارشی',
-                    customECHDomainPlaceholder: 'مثال: worker.example.com',
-                    customECHDomainHint: 'دامنه استفاده شده در پیکربندی ECH، خالی بگذارید تا از مقدار پیش‌فرض استفاده شود',
-                    trojanPassword: 'رمز عبور Trojan (اختیاری):',
-                    customPath: 'مسیر سفارشی (d):',
-                    hostSetting: 'HOST سفارشی (host):',
-                    hostPlaceholder: 'مثال: h1.com,h2.com',
-                    customIP: 'ProxyIP سفارشی (p):',
-                    preferredIPs: 'لیست IP ترجیحی (yx):',
-                    preferredIPsURL: 'URL منبع IP ترجیحی (yxURL):',
-                    latencyTest: 'تست تاخیر',
-                    latencyTestIP: 'IP/دامنه تست:',
-                    latencyTestIPPlaceholder: 'IP یا دامنه وارد کنید، چند مورد با کاما جدا شوند',
-                    latencyTestPort: 'پورت:',
-                    startTest: 'شروع تست',
-                    stopTest: 'توقف تست',
-                    testResult: 'نتیجه تست:',
-                    addToYx: 'افزودن به لیست ترجیحی',
-                    addSelectedToYx: 'افزودن موارد انتخاب شده',
-                    selectAll: 'انتخاب همه',
-                    deselectAll: 'لغو انتخاب',
-                    testingInProgress: 'در حال تست...',
-                    testComplete: 'تست کامل شد',
-                    latencyMs: 'تاخیر',
-                    timeout: 'زمان تمام شد',
-                    ipSource: 'منبع IP:',
-                    manualInput: 'ورودی دستی',
-                    cfRandomIP: 'IP تصادفی CF',
-                    urlFetch: 'دریافت از URL',
-                    randomCount: 'تعداد تولید:',
-                    fetchURL: 'URL دریافت:',
-                    fetchURLPlaceholder: 'آدرس URL لیست IP را وارد کنید',
-                    generateIP: 'تولید IP',
-                    fetchIP: 'دریافت IP',
-                    socks5Config: 'تنظیمات SOCKS5 (s):',
-                    customHomepage: 'URL صفحه اصلی سفارشی (homepage):',
-                    customHomepagePlaceholder: 'مثال: https://example.com',
-                    customHomepageHint: 'تنظیم URL سفارشی به عنوان استتار صفحه اصلی. هنگام دسترسی به مسیر اصلی / محتوای این URL نمایش داده می‌شود. اگر خالی بگذارید صفحه ترمینال پیش‌فرض نمایش داده می‌شود.',
-                    saveConfig: 'ذخیره تنظیمات',
-                    advancedControl: 'کنترل پیشرفته',
-                    subscriptionConverter: 'آدرس تبدیل اشتراک:',
-                    remoteConfigUrl: 'URL پیکربندی از راه دور:',
-                    remoteConfigUrlPlaceholder: 'مثال: https://raw.githubusercontent.com/lizhi123le/ACL4SSR/master/Clash/config/ACL4SSR_Online_Full_MultiMode.ini',
-                    remoteConfigUrlHint: 'URL فایل پیکربندی سفارشی برای سرویس تبدیل اشتراک. اگر خالی بگذارید از پیکربندی پیش‌فرض استفاده می‌شود.',
-                    builtinPreferred: 'نوع ترجیحی داخلی:',
-                    enablePreferredDomain: 'فعال‌سازی دامنه ترجیحی',
-                    enablePreferredIP: 'فعال‌سازی IP ترجیحی',
-                    enableNativeAddress: 'فعال‌سازی آدرس اصلی',
-                    enableDomain: 'فعال',
-                    enableGitHubPreferred: 'فعال‌سازی ترجیح پیش‌فرض GitHub',
-                    allowAPIManagement: 'اجازه مدیریت API (ae):',
-                    regionMatching: 'تطبیق منطقه (rm):',
-                    downgradeControl: 'کنترل کاهش سطح (qj):',
-                    tlsControl: 'کنترل TLS (dkby):',
-                    preferredControl: 'کنترل ترجیحی (yxby):',
-                    saveAdvanced: 'ذخیره تنظیمات پیشرفته',
-                    loading: 'در حال بارگذاری...',
-                    currentConfig: '📍 پیکربندی مسیر فعلی',
-                    refreshConfig: 'تازه‌سازی تنظیمات',
-                    resetConfig: 'بازنشانی تنظیمات',
-                    subscriptionCopied: 'لینک اشتراک کپی شد',
-                    autoSubscriptionCopied: 'لینک اشتراک تشخیص خودکار کپی شد، کلاینت هنگام دسترسی بر اساس User-Agent به طور خودکار تشخیص داده و قالب مربوطه را برمی‌گرداند',
-                    trojanPasswordPlaceholder: 'خالی بگذارید تا از UUID استفاده شود',
-                    trojanPasswordHint: 'رمز عبور Trojan سفارشی را تنظیم کنید. اگر خالی بگذارید از UUID استفاده می‌شود. کلاینت به طور خودکار رمز عبور را با SHA224 هش می‌کند.',
-                    protocolHint: 'می‌توانید چندین پروتکل را همزمان فعال کنید. اشتراک گره‌های پروتکل‌های انتخاب شده را تولید می‌کند.<br>• VLESS WS: پروتکل استاندارد مبتنی بر WebSocket<br>• Trojan: احراز هویت با رمز عبور SHA224<br>• xhttp: پروتکل استتار مبتنی بر HTTP POST (نیاز به اتصال دامنه سفارشی و فعال‌سازی gRPC دارد)',
-                    saveProtocol: 'ذخیره تنظیمات پروتکل',
-                    subscriptionConverterPlaceholder: 'پیش‌فرض: https://url.v1.mk/sub',
-                    subscriptionConverterHint: 'آدرس API تبدیل اشتراک سفارشی، اگر خالی بگذارید از آدرس پیش‌فرض استفاده می‌شود',
-                    builtinPreferredHint: 'کنترل اینکه کدام گره‌های ترجیحی داخلی در اشتراک گنجانده شوند. به طور پیش‌فرض همه فعال هستند.',
-                    apiEnabledDefault: 'پیش‌فرض (بستن API)',
-                    apiEnabledYes: 'فعال‌سازی مدیریت API',
-                    apiEnabledHint: '⚠️ هشدار امنیتی: فعال‌سازی این گزینه اجازه می‌دهد IP های ترجیحی از طریق API به طور پویا اضافه شوند. توصیه می‌شود فقط در صورت نیاز فعال کنید.',
-                    regionMatchingDefault: 'پیش‌فرض (فعال‌سازی تطبیق منطقه)',
-                    regionMatchingNo: 'بستن تطبیق منطقه',
-                    regionMatchingHint: 'وقتی "بستن" تنظیم شود، تطبیق هوشمند منطقه انجام نمی‌شود',
-                    downgradeControlDefault: 'پیش‌فرض (عدم فعال‌سازی کاهش سطح)',
-                    downgradeControlNo: 'فعال‌سازی حالت کاهش سطح',
-                    downgradeControlHint: 'وقتی "فعال" تنظیم شود: اتصال مستقیم CF ناموفق → اتصال SOCKS5 → آدرس fallback',
-                    tlsControlDefault: 'پیش‌فرض (حفظ همه گره‌ها)',
-                    tlsControlYes: 'فقط گره‌های TLS',
-                    tlsControlHint: 'وقتی "فقط گره‌های TLS" تنظیم شود، فقط گره‌های با TLS تولید می‌شوند، گره‌های غیر TLS (مانند پورت 80) تولید نمی‌شوند',
-                    preferredControlDefault: 'پیش‌فرض (فعال‌سازی ترجیح)',
-                    preferredControlYes: 'بستن ترجیح',
-                    preferredControlHint: 'وقتی "بستن ترجیح" تنظیم شود، فقط از آدرس اصلی استفاده می‌شود، گره‌های IP و دامنه ترجیحی تولید نمی‌شوند',
-                    regionNames: {
-                        HK: '🇭🇰 هنگ‌کنگ', US: '🇺🇸 آمریکا', SG: '🇸🇬 سنگاپور', JP: '🇯🇵 ژاپن',
-                        KR: '🇰🇷 کره جنوبی', DE: '🇩🇪 آلمان', SE: '🇸🇪 سوئد', NL: '🇳▌ هلند',
-                        FI: '🇫🇮 فنلاند', GB: '🇬🇧 بریتانیا'
-                    },
-                    terminal: 'ترمینال v2.9.7',
-                    githubProject: 'پروژه GitHub',
-                    autoDetectClient: 'تشخیص خودکار',
-=======
             fa: {
                 title: 'مرکز اشتراک',
                 subtitle: 'پشتیبانی چند کلاینت • انتخاب هوشمند • تولید یک کلیکی',
@@ -4263,6 +4010,8 @@
                 enableVLESS: 'فعال‌سازی پروتکل VLESS',
                 enableTrojan: 'فعال‌سازی پروتکل Trojan',
                 enableXhttp: 'فعال‌سازی پروتکل xhttp',
+                enableRandomPath: 'فعال‌سازی مسیر تصادفی',
+                enableRandomPathHint: 'پس از فعال‌سازی، مسیر گره به صورت تصادفی تولید می‌شود تا ابهام بیشتری ایجاد شود',
                 enableECH: 'فعال‌سازی ECH (Encrypted Client Hello)',
                 enableECHHint: 'پس از فعال‌سازی، در هر بار تازه‌سازی اشتراک، پیکربندی ECH به‌روز به‌طور خودکار از DoH دریافت شده و به لینک‌ها اضافه می‌شود',
                 customDNS: 'سرور DNS سفارشی',
@@ -4274,6 +4023,8 @@
                 trojanPassword: 'رمز عبور Trojan (اختیاری):',
                 customPath: 'مسیر سفارشی (d):',
                 customIP: 'ProxyIP سفارشی (p):',
+                hostSetting: 'HOST سفارشی (host):',
+                hostPlaceholder: 'مثال: h1.com,h2.com',
                 preferredIPs: 'لیست IP ترجیحی (yx):',
                 preferredIPsURL: 'URL منبع IP ترجیحی (yxURL):',
                 latencyTest: 'تست تاخیر',
@@ -4327,6 +4078,9 @@
                 trojanPasswordPlaceholder: 'خالی بگذارید تا از UUID استفاده شود',
                 trojanPasswordHint: 'رمز عبور Trojan سفارشی را تنظیم کنید. اگر خالی بگذارید از UUID استفاده می‌شود. کلاینت به طور خودکار رمز عبور را با SHA224 هش می‌کند.',
                 protocolHint: 'می‌توانید چندین پروتکل را همزمان فعال کنید. اشتراک گره‌های پروتکل‌های انتخاب شده را تولید می‌کند.<br>• VLESS WS: پروتکل استاندارد مبتنی بر WebSocket<br>• Trojan: احراز هویت با رمز عبور SHA224<br>• xhttp: پروتکل استتار مبتنی بر HTTP POST (نیاز به اتصال دامنه سفارشی و فعال‌سازی gRPC دارد)',
+                alpn: 'TLS ALPN',
+                alpnDefault: 'پیش‌فرض (خالی، مذاکره توسط کلاینت)',
+                alpnHint: 'فقط به لینک‌های TLS اضافه می‌شود؛ اگر خالی باشد alpn نوشته نمی‌شود.',
                 saveProtocol: 'ذخیره تنظیمات پروتکل',
                 subscriptionConverterPlaceholder: 'پیش‌فرض: https://url.v1.mk/sub',
                 subscriptionConverterHint: 'تبدیل اشتراک به صورت داخلی پیاده‌سازی شده است و نیازی به API خارجی ندارد. این فیلد فقط برای سازگاری حفظ شده و می‌توان آن را خالی گذاشت.',
@@ -4354,7 +4108,6 @@
                 terminal: 'ترمینال v2.9.8',
                 githubProject: 'پروژه GitHub',
                 autoDetectClient: 'تشخیص خودکار',
->>>>>>> upstream_明文源吗
                 selectionLogicText: 'هم‌منطقه → منطقه مجاور → سایر مناطق',
                 customIPDisabledHint: 'هنگام استفاده از ProxyIP سفارشی، انتخاب منطقه غیرفعال است',
                 customIPMode: 'حالت ProxyIP سفارشی (متغیر p فعال است)',
@@ -4381,10 +4134,10 @@
                 kvCheckFailedError: 'بررسی ذخیره‌سازی KV ناموفق - خطا: '
             }
         };
-            
-            const t = translations[isFarsi ? 'fa' : 'zh'];
-        
-        const pageHtml = `<!DOCTYPE html>
+
+        const t = translations[isFarsi ? 'fa' : 'zh'];
+
+    const pageHtml = `<!DOCTYPE html>
     <html lang="${langAttr}" dir="${isFarsi ? 'rtl' : 'ltr'}">
     <head>
         <meta charset="UTF-8">
@@ -4411,12 +4164,13 @@
                 --cp-grid: rgba(255, 43, 214, 0.16);
             }
             * { margin: 0; padding: 0; box-sizing: border-box; }
-            html, body { min-height: 100%; }
+            html { min-height: 100%; width: 100%; overflow-x: hidden; }
             body {
                 font-family: "JetBrains Mono", "Fira Code", "Courier New", monospace;
                 background: radial-gradient(ellipse at 80% -10%, #2a0040 0%, var(--cp-bg) 50%, #000 100%);
                 color: var(--cp-text);
                 min-height: 100vh;
+                width: 100%;
                 overflow-x: hidden;
                 position: relative;
             }
@@ -4426,6 +4180,7 @@
                     linear-gradient(var(--cp-grid) 1px, transparent 1px),
                     linear-gradient(90deg, var(--cp-grid) 1px, transparent 1px);
                 background-size: 48px 48px;
+                -webkit-mask-image: radial-gradient(ellipse at center, #000 30%, transparent 85%);
                 mask-image: radial-gradient(ellipse at center, #000 30%, transparent 85%);
                 z-index: -3;
                 animation: cp-grid-slide 22s linear infinite;
@@ -4562,6 +4317,7 @@
                 padding: 26px 28px 28px;
                 margin-bottom: 22px;
                 position: relative;
+                -webkit-backdrop-filter: blur(8px);
                 backdrop-filter: blur(8px);
                 width: 100%;
                 box-shadow:
@@ -5189,6 +4945,7 @@
                     0 0 0 1px rgba(0,255,157,0.25),
                     0 0 18px rgba(0,255,157,0.45),
                     0 8px 28px rgba(0,0,0,0.55);
+                -webkit-backdrop-filter: blur(8px);
                 backdrop-filter: blur(8px);
                 clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
                 transform: translateX(120%);
@@ -5295,11 +5052,10 @@
                 .title { font-size: 2rem; }
                 .cp-hud { font-size: 9px; }
                 .cp-action-bar {
-                    right: auto;
-                    left: 10px;
+                    right: 14px;
                     bottom: 14px;
                     transform: none;
-                    gap: 6px;
+                    gap: 8px;
                 }
                 .cp-fab-save {
                     min-width: 0;
@@ -5308,8 +5064,8 @@
                     letter-spacing: 0.16em !important;
                 }
                 .cp-action-btn { width: 42px; height: 42px; }
-                .cp-action-status { right: 50%; transform: translate(50%, 8px); }
-                .cp-action-status.cp-show { transform: translate(50%, 0); }
+                .cp-action-status { right: 14px; transform: translateY(8px); }
+                .cp-action-status.cp-show { transform: translateY(0); }
             }
         </style>
     </head>
@@ -5431,6 +5187,19 @@
                                         <input type="text" id="customECHDomain" placeholder="${t.customECHDomainPlaceholder}" style="width: 100%; padding: 10px; background: rgba(0, 0, 0, 0.8); border: 1px solid #00f0ff; color: #00f0ff; font-family: 'Courier New', monospace; font-size: 13px;">
                                         <small style="color: #7aa9c4; font-size: 0.8rem; display: block; margin-top: 5px;">${t.customECHDomainHint}</small>
                                     </div>
+                                    <div style="margin-bottom: 10px;">
+                                        <label style="display: block; margin-bottom: 8px; color: #00f0ff; font-size: 0.95rem;">${t.alpn}</label>
+                                        <select id="alpn" style="width: 100%; padding: 10px; background: rgba(0, 0, 0, 0.8); border: 1px solid #00f0ff; color: #00f0ff; font-family: 'Courier New', monospace; font-size: 13px;">
+                                            <option value="">${t.alpnDefault}</option>
+                                            <option value="h3">h3</option>
+                                            <option value="h2">h2</option>
+                                            <option value="http/1.1">http/1.1</option>
+                                            <option value="h3,h2">h3,h2</option>
+                                            <option value="h2,http/1.1">h2,http/1.1</option>
+                                            <option value="h3,h2,http/1.1">h3,h2,http/1.1</option>
+                                        </select>
+                                        <small style="color: #7aa9c4; font-size: 0.8rem; display: block; margin-top: 5px;">${t.alpnHint}</small>
+                                    </div>
                                 </div>
                                 <div style="margin-bottom: 10px;">
                                     <label style="display: inline-flex; align-items: center; cursor: pointer; color: #00f0ff;">
@@ -5465,7 +5234,7 @@
                         <div style="margin-bottom: 15px;">
                                 <label style="display: block; margin-bottom: 8px; color: #00f0ff; font-weight: bold; text-shadow: 0 0 3px #00f0ff;">${t.hostSetting}</label>
                                 <input type="text" id="hostInput" placeholder="${t.hostPlaceholder}" style="width: 100%; padding: 12px; background: rgba(0, 0, 0, 0.8); border: 2px solid #00f0ff; color: #00f0ff; font-family: 'Courier New', monospace; font-size: 14px;">
-                                <small style="color: #7aa9c4; font-size: 0.85rem;">${isFarsi ? 'تنظیم HOST سفارشی برای نودها (اختیاری). می‌توانید چندین مقدار را با کاما از هم جدا کنید. سیستم به صورت خودکار انتخاب می‌کند.' : '自定义节点的HOST值（可选）。支持多个用逗号分隔，系统自动选择。'}</small>
+                                <small style="color: #7aa9c4; font-size: 0.85rem;">${isFarsi ? 'HOST سفارشی گره‌ها (اختیاری). برای انتخاب تصادفی از کاما برای جدا کردن چندین استفاده کنید.' : '自定义节点的HOST值（可选）。支持多个用逗号分隔，系统自动随机选择。'}</small>
                         </div>
                         <div style="margin-bottom: 15px;">
                                 <label style="display: block; margin-bottom: 8px; color: #00f0ff; font-weight: bold; text-shadow: 0 0 3px #00f0ff;">${t.preferredIPs}</label>
@@ -5565,11 +5334,6 @@
                                 <small style="color: #7aa9c4; font-size: 0.85rem;">${t.subscriptionConverterHint}</small>
                         </div>
                         <div style="margin-bottom: 15px;">
-                                <label style="display: block; margin-bottom: 8px; color: #00f0ff; font-weight: bold; text-shadow: 0 0 3px #00f0ff;">${t.remoteConfigUrl}</label>
-                                <input type="text" id="remoteConfigUrl" placeholder="${t.remoteConfigUrlPlaceholder}" style="width: 100%; padding: 12px; background: rgba(0, 0, 0, 0.8); border: 2px solid #00f0ff; color: #00f0ff; font-family: 'Courier New', monospace; font-size: 14px;">
-                                <small style="color: #7aa9c4; font-size: 0.85rem;">${t.remoteConfigUrlHint}</small>
-                        </div>
-                        <div style="margin-bottom: 15px;">
                                 <label style="display: block; margin-bottom: 8px; color: #00f0ff; font-weight: bold; text-shadow: 0 0 3px #00f0ff;">${t.builtinPreferred}</label>
                             <div style="padding: 15px; background: rgba(15, 3, 40, 0.6); border: 1px solid #00f0ff; border-radius: 5px;">
                                 <div style="margin-bottom: 10px;">
@@ -5603,12 +5367,8 @@
                                 <label style="display: block; margin-bottom: 8px; color: #00f0ff; font-weight: bold; text-shadow: 0 0 3px #00f0ff;">优选IP筛选设置</label>
                             <div style="padding: 15px; background: rgba(15, 3, 40, 0.6); border: 1px solid #00f0ff; border-radius: 5px;">
                                 <div style="margin-bottom: 15px;">
-                                    <label style="display: block; margin-bottom: 8px; color: #00f0ff; font-weight: bold; text-shadow: 0 0 3px #00f0ff;">IP版本及域名选择</label>
+                                    <label style="display: block; margin-bottom: 8px; color: #00f0ff; font-weight: bold; text-shadow: 0 0 3px #00f0ff;">IP版本选择</label>
                                     <div style="display: flex; gap: 20px; flex-wrap: wrap;">
-                                        <label style="display: inline-flex; align-items: center; cursor: pointer; color: #00f0ff;">
-                                            <input type="checkbox" id="domainEnabled" checked style="margin-right: 8px; width: 18px; height: 18px; cursor: pointer;">
-                                            <span style="font-size: 1rem;">${t.enableDomain}</span>
-                                        </label>
                                         <label style="display: inline-flex; align-items: center; cursor: pointer; color: #00f0ff;">
                                             <input type="checkbox" id="ipv4Enabled" checked style="margin-right: 8px; width: 18px; height: 18px; cursor: pointer;">
                                             <span style="font-size: 1rem;">IPv4</span>
@@ -5616,6 +5376,10 @@
                                         <label style="display: inline-flex; align-items: center; cursor: pointer; color: #00f0ff;">
                                             <input type="checkbox" id="ipv6Enabled" checked style="margin-right: 8px; width: 18px; height: 18px; cursor: pointer;">
                                             <span style="font-size: 1rem;">IPv6</span>
+                                        </label>
+                                        <label style="display: inline-flex; align-items: center; cursor: pointer; color: #00f0ff;">
+                                            <input type="checkbox" id="domainEnabled" checked style="margin-right: 8px; width: 18px; height: 18px; cursor: pointer;">
+                                            <span style="font-size: 1rem;">域名</span>
                                         </label>
                                     </div>
                                 </div>
@@ -5704,7 +5468,7 @@
         <div id="cpActionBar" class="cp-action-bar" role="toolbar" aria-label="${t.configManagement}">
             <button type="button" id="cpBtnSaveAll" class="cp-fab-save" title="${isFarsi ? 'ذخیره همه تنظیمات' : '保存所有配置 (Ctrl+S)'}">
                 <span class="cp-fab-icon">▣</span>
-                <span class="cp-fab-label">${isFarsi ? 'ذخیره همه' : '保 存 全 部'}</span>
+                <span>${isFarsi ? 'ذخیره همه' : '保 存 全 部'}</span>
                 <span class="cp-fab-dot" aria-hidden="true"></span>
             </button>
             <button type="button" id="cpBtnRefresh" class="cp-action-btn" data-tip="${t.refreshConfig}" aria-label="${t.refreshConfig}">
@@ -6482,7 +6246,6 @@
                     document.getElementById('ex').checked = config.ex === 'yes';
                     document.getElementById('ech').checked = config.ech === 'yes';
                     document.getElementById('randomPath').checked = config.randomPath === 'yes';
-                    document.getElementById('domainEnabled').checked = config.domain !== 'no';
                     document.getElementById('tp').value = config.tp || '';
                     if (document.getElementById('customDNS')) {
                         document.getElementById('customDNS').value = config.customDNS || '';
@@ -6490,23 +6253,24 @@
                     if (document.getElementById('customECHDomain')) {
                         document.getElementById('customECHDomain').value = config.customECHDomain || '';
                     }
-                    document.getElementById('scu').value = config.scu || '';
-                    if (document.getElementById('remoteConfigUrl')) {
-                        document.getElementById('remoteConfigUrl').value = config.remoteConfigUrl || '';
+                    if (document.getElementById('alpn')) {
+                        document.getElementById('alpn').value = config.alpn || '';
                     }
+                    document.getElementById('scu').value = config.scu || '';
                     document.getElementById('ena').checked = config.ena === 'yes';
                     document.getElementById('epd').checked = config.epd !== 'no';
                     document.getElementById('epi').checked = config.epi !== 'no';
                     document.getElementById('egi').checked = config.egi !== 'no';
                     if (document.getElementById('ipv4Enabled')) document.getElementById('ipv4Enabled').checked = config.ipv4 !== 'no';
                     if (document.getElementById('ipv6Enabled')) document.getElementById('ipv6Enabled').checked = config.ipv6 !== 'no';
+                if (document.getElementById('domainEnabled')) document.getElementById('domainEnabled').checked = config.domain !== 'no';
                     if (document.getElementById('ispMobile')) document.getElementById('ispMobile').checked = config.ispMobile !== 'no';
                     if (document.getElementById('ispUnicom')) document.getElementById('ispUnicom').checked = config.ispUnicom !== 'no';
                     if (document.getElementById('ispTelecom')) document.getElementById('ispTelecom').checked = config.ispTelecom !== 'no';
-                    document.getElementById('hostInput').value = config.host || '';
                     document.getElementById('customPath').value = config.d || '';
-                    document.getElementById('customIP').value = config.p || '';
-                    document.getElementById('yx').value = config.yx || '';
+                document.getElementById('customIP').value = config.p || '';
+                document.getElementById('hostInput').value = config.host || '';
+                document.getElementById('yx').value = config.yx || '';
                     document.getElementById('yxURL').value = config.yxURL || '';
                     document.getElementById('socksConfig').value = config.s || '';
                     document.getElementById('customHomepage').value = config.homepage || '';
@@ -6656,15 +6420,23 @@
                                 wk: '',
                                 d: '',
                                 p: '',
+                        host: '',
                                 yx: '',
                                 yxURL: '',
                                 s: '', ae: '',
                                 rm: '',
                                 qj: '',
                                 dkby: '',
+<<<<<<< local_明文源吗
+                                yxby: '', ev: '', et: '', ex: '', ech: '', randomPath: '', tp: '', scu: '', epd: '', epi: '', egi: '',
+                                ipv4: '', ipv6: '', domain: '', ispMobile: '', ispUnicom: '', ispTelecom: '',
+                                homepage: ''
+=======
                                 yxby: '', ev: '', et: '', ex: '', tp: '', scu: '', epd: '', epi: '', egi: '',
                                 ipv4: '', ipv6: '', ispMobile: '', ispUnicom: '', ispTelecom: '',
-                                homepage: ''
+                                homepage: '',
+                                alpn: ''
+>>>>>>> upstream_明文源吗
                             })
                         });
 
@@ -6793,6 +6565,7 @@
                         tp: val('tp'),
                         customDNS: val('customDNS'),
                         customECHDomain: val('customECHDomain'),
+                        alpn: val('alpn'),
                         d: val('customPath'),
                         p: val('customIP'),
                         host: val('hostInput'),
@@ -6801,16 +6574,15 @@
                         s: val('socksConfig'),
                         homepage: val('customHomepage'),
                         scu: val('scu'),
-                        remoteConfigUrl: val('remoteConfigUrl'),
                         ena: chk('ena', 'no'),
                         epd: chk('epd', 'yes'), epi: chk('epi', 'yes'), egi: chk('egi', 'yes'),
-                        domain: chk('domainEnabled', 'yes'),
                         ae: val('apiEnabled'),
                         rm: val('regionMatching'),
                         qj: val('downgradeControl'),
                         dkby: val('portControl'),
                         yxby: val('preferredControl'),
                         ipv4: chk('ipv4Enabled', 'yes'), ipv6: chk('ipv6Enabled', 'yes'),
+                domain: chk('domainEnabled', 'yes'),
                         ispMobile: chk('ispMobile', 'yes'), ispUnicom: chk('ispUnicom', 'yes'), ispTelecom: chk('ispTelecom', 'yes')
                     };
                 }
@@ -7281,7 +7053,6 @@
                         try {
                             const configData = {
                                 customIP: document.getElementById('customIP').value,
-                                host: document.getElementById('hostInput').value,
                                 yx: newValue,
                                 yxURL: document.getElementById('yxURL').value,
                                 s: document.getElementById('socksConfig').value
@@ -7317,7 +7088,6 @@
                         try {
                             const configData = {
                                 customIP: document.getElementById('customIP').value,
-                                host: document.getElementById('hostInput').value,
                                 yx: newValue,
                                 yxURL: document.getElementById('yxURL').value,
                                 s: document.getElementById('socksConfig').value
@@ -7619,7 +7389,6 @@
         </script>
     </body>
     </html>`;
-        
         return new Response(pageHtml, { 
             status: 200, 
             headers: { 'Content-Type': 'text/html; charset=utf-8' } 
@@ -7627,24 +7396,24 @@
     }
 
     async function parseTrojanHeader(buffer, ut) {
-        
+        const bytes = toUint8Array(buffer);
         const passwordToHash = tp || ut;
         const sha224Password = await sha224Hash(passwordToHash);
-        
-        if (buffer.byteLength < 56) {
+
+        if (bytes.byteLength < 56) {
             return {
                 hasError: true,
                 message: "invalid " + atob('dHJvamFu') + " data - too short"
             };
         }
         let crLfIndex = 56;
-        if (new Uint8Array(buffer.slice(56, 57))[0] !== 0x0d || new Uint8Array(buffer.slice(57, 58))[0] !== 0x0a) {
+        if (bytes[56] !== 0x0d || bytes[57] !== 0x0a) {
             return {
                 hasError: true,
                 message: "invalid " + atob('dHJvamFu') + " header format (missing CR LF)"
             };
         }
-        const password = new TextDecoder().decode(buffer.slice(0, crLfIndex));
+        const password = sharedDecoder.decode(bytes.subarray(0, crLfIndex));
         if (password !== sha224Password) {
             return {
                 hasError: true,
@@ -7652,7 +7421,7 @@
             };
         }
 
-        const socks5DataBuffer = buffer.slice(crLfIndex + 2);
+        const socks5DataBuffer = bytes.subarray(crLfIndex + 2);
         if (socks5DataBuffer.byteLength < 6) {
             return {
                 hasError: true,
@@ -7660,7 +7429,7 @@
             };
         }
 
-        const view = new DataView(socks5DataBuffer);
+        const view = new DataView(socks5DataBuffer.buffer, socks5DataBuffer.byteOffset, socks5DataBuffer.byteLength);
         const cmd = view.getUint8(0);
         if (cmd !== 1) {
             return {
@@ -7676,22 +7445,16 @@
         switch (atype) {
             case 1:
                 addressLength = 4;
-                address = new Uint8Array(
-                socks5DataBuffer.slice(addressIndex, addressIndex + addressLength)
-                ).join(".");
+                address = socks5DataBuffer.subarray(addressIndex, addressIndex + addressLength).join(".");
                 break;
             case 3:
-                addressLength = new Uint8Array(
-                socks5DataBuffer.slice(addressIndex, addressIndex + 1)
-                )[0];
+                addressLength = socks5DataBuffer[addressIndex];
                 addressIndex += 1;
-                address = new TextDecoder().decode(
-                socks5DataBuffer.slice(addressIndex, addressIndex + addressLength)
-                );
+                address = sharedDecoder.decode(socks5DataBuffer.subarray(addressIndex, addressIndex + addressLength));
                 break;
             case 4:
                 addressLength = 16;
-                const dataView = new DataView(socks5DataBuffer.slice(addressIndex, addressIndex + addressLength));
+                const dataView = new DataView(socks5DataBuffer.buffer, socks5DataBuffer.byteOffset + addressIndex, addressLength);
                 const ipv6 = [];
                 for (let i = 0; i < 8; i++) {
                     ipv6.push(dataView.getUint16(i * 2).toString(16));
@@ -7713,23 +7476,22 @@
         }
 
         const portIndex = addressIndex + addressLength;
-        const portBuffer = socks5DataBuffer.slice(portIndex, portIndex + 2);
-        const portRemote = new DataView(portBuffer).getUint16(0);
-        
+        const portRemote = new DataView(socks5DataBuffer.buffer, socks5DataBuffer.byteOffset + portIndex, 2).getUint16(0);
+
         return {
             hasError: false,
             addressRemote: address,
             addressType: atype,
             port: portRemote,
             hostname: address,
-            rawClientData: socks5DataBuffer.slice(portIndex + 4)
+            rawClientData: socks5DataBuffer.subarray(portIndex + 4)
         };
     }
 
     async function sha224Hash(text) {
         const encoder = new TextEncoder();
         const data = encoder.encode(text);
-        
+
         const K = [
             0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
             0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
@@ -7740,37 +7502,37 @@
             0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
             0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2
         ];
-        
+
         let H = [
             0xc1059ed8, 0x367cd507, 0x3070dd17, 0xf70e5939,
             0xffc00b31, 0x68581511, 0x64f98fa7, 0xbefa4fa4
         ];
-        
+
         const msgLen = data.length;
         const bitLen = msgLen * 8;
         const paddedLen = Math.ceil((msgLen + 9) / 64) * 64;
         const padded = new Uint8Array(paddedLen);
         padded.set(data);
         padded[msgLen] = 0x80;
-        
+
         const view = new DataView(padded.buffer);
         view.setUint32(paddedLen - 4, bitLen, false);
-        
+
         for (let chunk = 0; chunk < paddedLen; chunk += 64) {
             const W = new Uint32Array(64);
-            
+
             for (let i = 0; i < 16; i++) {
                 W[i] = view.getUint32(chunk + i * 4, false);
             }
-            
+
             for (let i = 16; i < 64; i++) {
                 const s0 = rightRotate(W[i - 15], 7) ^ rightRotate(W[i - 15], 18) ^ (W[i - 15] >>> 3);
                 const s1 = rightRotate(W[i - 2], 17) ^ rightRotate(W[i - 2], 19) ^ (W[i - 2] >>> 10);
                 W[i] = (W[i - 16] + s0 + W[i - 7] + s1) >>> 0;
             }
-            
+
             let [a, b, c, d, e, f, g, h] = H;
-            
+
             for (let i = 0; i < 64; i++) {
                 const S1 = rightRotate(e, 6) ^ rightRotate(e, 11) ^ rightRotate(e, 25);
                 const ch = (e & f) ^ (~e & g);
@@ -7778,7 +7540,7 @@
                 const S0 = rightRotate(a, 2) ^ rightRotate(a, 13) ^ rightRotate(a, 22);
                 const maj = (a & b) ^ (a & c) ^ (b & c);
                 const temp2 = (S0 + maj) >>> 0;
-                
+
                 h = g;
                 g = f;
                 f = e;
@@ -7788,7 +7550,7 @@
                 b = a;
                 a = (temp1 + temp2) >>> 0;
             }
-            
+
             H[0] = (H[0] + a) >>> 0;
             H[1] = (H[1] + b) >>> 0;
             H[2] = (H[2] + c) >>> 0;
@@ -7798,7 +7560,7 @@
             H[6] = (H[6] + g) >>> 0;
             H[7] = (H[7] + h) >>> 0;
         }
-        
+
         const result = [];
         for (let i = 0; i < 7; i++) {
             result.push(
@@ -7808,7 +7570,7 @@
                 (H[i] & 0xff).toString(16).padStart(2, '0')
             );
         }
-        
+
         return result.join('');
     }
 
@@ -7818,7 +7580,7 @@
 
     let ACTIVE_CONNECTIONS = 0;
     const XHTTP_BUFFER_SIZE = 128 * 1024;
-    const CONNECT_TIMEOUT_MS = 8000;
+    const CONNECT_TIMEOUT_MS = 5000;
     const IDLE_TIMEOUT_MS = 45000;
     const MAX_RETRIES = 2;
     const MAX_CONCURRENT = 32;
@@ -7999,15 +7761,13 @@
         try {
             await inner_upload(httpx.data);
             let chunkCount = 0;
-            let lastXhttpUpTime = Date.now();
             while (!httpx.done) {
                 const r = await httpx.reader.read(get_xhttp_buffer());
                 if (r.done) break;
                 await inner_upload(r.value);
                 httpx.done = r.done;
                 chunkCount++;
-                if (Date.now() - lastXhttpUpTime > 20) {
-                    lastXhttpUpTime = Date.now();
+                if (chunkCount % 10 === 0) {
                     await xhttp_sleep(0);
                 }
                 if (!r.value || r.value.length === 0) {
@@ -8022,7 +7782,7 @@
     function create_xhttp_uploader(httpx, writable) {
         const counter = new XhttpCounter();
         const writer = writable.getWriter();
-        
+
         const done = (async () => {
             try {
                 await upload_to_remote_xhttp(counter, writer, httpx);
@@ -8078,7 +7838,7 @@
                     clearInterval(idleTimer);
                     reject('idle timeout');
                 }
-            }, 8000);
+            }, 5000);
 
             const reader = remote_readable.getReader();
             const writer = stream.writable.getWriter();
@@ -8086,7 +7846,6 @@
             ;(async () => {
                 try {
                     let chunkCount = 0;
-                    let lastXhttpDownTime = Date.now();
                     while (true) {
                         const r = await reader.read();
                         if (r.done) {
@@ -8095,8 +7854,7 @@
                         lastActivity = Date.now();
                         await writer.write(r.value);
                         chunkCount++;
-                        if (Date.now() - lastXhttpDownTime > 20) {
-                            lastXhttpDownTime = Date.now();
+                        if (chunkCount % 5 === 0) {
                             await xhttp_sleep(0);
                         }
                     }
@@ -8130,12 +7888,12 @@
     async function connect_to_remote_xhttp(httpx, ...remotes) {
         let attempt = 0;
         let lastErr;
-        
+
         const connectionList = [httpx.hostname, ...remotes.filter(r => r && r !== httpx.hostname)];
-        
+
         for (const hostname of connectionList) {
             if (!hostname) continue;
-            
+
             attempt = 0;
             while (attempt < MAX_RETRIES) {
                 attempt++;
@@ -8144,12 +7902,12 @@
                     const timeoutPromise = xhttp_sleep(CONNECT_TIMEOUT_MS).then(() => {
                         throw new Error(atob('Y29ubmVjdCB0aW1lb3V0'));
                     });
-                    
+
                     await Promise.race([remote.opened, timeoutPromise]);
 
                     const uploader = create_xhttp_uploader(httpx, remote.writable);
                     const downloader = create_xhttp_downloader(httpx.resp, remote.readable);
-                    
+
                     return { 
                         downloader, 
                         uploader,
@@ -8165,7 +7923,7 @@
                 }
             }
         }
-        
+
         return null;
     }
 
@@ -8173,7 +7931,7 @@
         if (ACTIVE_CONNECTIONS >= MAX_CONCURRENT) {
             return new Response('Too many connections', { status: 429 });
         }
-        
+
         ACTIVE_CONNECTIONS++;
         
         let cleaned = false;
@@ -8245,22 +8003,6 @@
         catch (error) { return { error }; }
     }
 
-    function 数据转Uint8Array(data) {
-        if (data instanceof Uint8Array) return data;
-        if (data instanceof ArrayBuffer) return new Uint8Array(data);
-        if (ArrayBuffer.isView(data)) return new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
-        if (typeof data === 'string') return new TextEncoder().encode(data);
-        return new Uint8Array(data || []);
-    }
-
-    async function withTimeout(promise, timeoutMs, errorMsg = 'Operation timed out') {
-        let timeoutId;
-        const timeoutPromise = new Promise((_, reject) => {
-            timeoutId = setTimeout(() => reject(new Error(errorMsg)), timeoutMs);
-        });
-        return Promise.race([promise, timeoutPromise]).finally(() => clearTimeout(timeoutId));
-    }
-
     function closeSocketQuietly(socket) { try { if (socket.readyState === 1 || socket.readyState === 2) socket.close(); } catch (error) {} }
 
     const hexTable = Array.from({ length: 256 }, (v, i) => (i + 256).toString(16).slice(1));
@@ -8274,8 +8016,8 @@
         const url = piu;
         try {
             const urls = url.includes(',') ? url.split(',').map(u => u.trim()).filter(u => u) : [url];
-            const apiResults = await fetchPreferredAPI(urls, '443', 8000);
-            
+            const apiResults = await fetchPreferredAPI(urls, '443', 5000);
+
             if (apiResults.length > 0) {
                 const results = [];
                 const regex = /^(\[[\da-fA-F:]+\]|[\d.]+|[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?)*)(?::(\d+))?(?:#(.+))?$/;
@@ -8285,18 +8027,17 @@
                     const isIPv6 = item.includes(':') && !item.includes('[') && (item.split(':').length > 2);
                     
                     if (match) {
+                        const rawIP = match[1].replace(/^\[|\]$/g, '');
                         results.push({
-                            ip: match[1],
+                            ip: rawIP,
                             port: parseInt(match[2] || '443', 10),
-                            name: match[3]?.trim() || match[1]
+                            name: match[3]?.trim() || rawIP
                         });
                     } else if (isIPv6) {
-                        // 处理未加中括号的 raw IPv6
                         const hashIndex = item.indexOf('#');
                         let hostPart = hashIndex > -1 ? item.substring(0, hashIndex) : item;
                         const remark = hashIndex > -1 ? item.substring(hashIndex + 1) : '';
                         
-                        // 简单判断末尾是否带端口 (如 :443)
                         const lastColonIndex = hostPart.lastIndexOf(':');
                         const possiblePort = hostPart.substring(lastColonIndex + 1);
                         let port = 443;
@@ -8316,8 +8057,29 @@
                 }
                 return results;
             }
-            
-            const response = await fetch(url);
+
+            // ✅ 新增：随机路径支持 (针对纯文本/CSV URL 源)
+            const randomPathEnabled = enableRandomPath;
+            const commonPathDirs = ["#","about","account","acg","act","activity","ad","admin","ads","ajax","album","albums","anime","api","app","apps","archive","archives","article","articles","ask","auth","avatar","bbs","bd","blog","blogs","book","books","bt","buy","cart","category","categories","cb","channel","channels","chat","china","city","class","classify","clip","clips","club","cn","code","collect","collection","comic","comics","community","company","config","contact","content","course","courses","cp","data","detail","details","dh","directory","discount","discuss","dl","dload","doc","docs","document","documents","doujin","download","downloads","drama","edu","en","ep","episode","episodes","event","events","f","faq","favorite","favourites","favs","feedback","file","files","film","films","forum","forums","friend","friends","game","games","gif","go","go.html","go.php","group","groups","help","home","hot","htm","html","image","images","img","index","info","intro","item","items","ja","jp","jump","jump.html","jump.php","jumping","knowledge","lang","lesson","lessons","lib","library","link","links","list","live","lives","login","logout","m","mag","magnet","mall","manhua","map","member","members","message","messages","mobile","movie","movies","music","my","new","news","note","novel","novels","online","order","out","out.html","out.php","outbound","p","page","pages","pay","payment","pdf","photo","photos","pic","pics","picture","pictures","play","player","playlist","post","posts","product","products","program","programs","project","qa","question","rank","ranking","read","readme","redirect","redirect.html","redirect.php","reg","register","res","resource","retrieve","sale","search","season","seasons","section","seller","series","service","services","setting","settings","share","shop","show","shows","site","soft","sort","source","special","star","stars","static","stock","store","stream","streaming","streams","student","study","tag","tags","task","teacher","team","tech","temp","temporary","test","theme","themes","tip","tips","tool","tools","top","topic","tour","tutorial","tv","uk","update","upload","url","us","user","users","v","version","video","videos","wap","web","website","win","windows","world","www","x","xml","xx","y","z","zone"];
+
+            // 处理所有候选 URL，按需注入随机路径段
+            const processedUrls = urls.map(u => {
+                let fetchUrl = u;
+                if (randomPathEnabled) {
+                    try {
+                        const urlObj = new URL(u);
+                        const pathParts = urlObj.pathname.split('/');
+                        const randDirs = commonPathDirs.sort(() => 0.5 - Math.random()).slice(0, Math.floor(Math.random() * 3 + 1)).join('/');
+                        pathParts.push(randDirs);
+                        urlObj.pathname = pathParts.join('/');
+                        fetchUrl = urlObj.toString();
+                    } catch (e) { /* URL 格式异常则保持原样，避免阻断流程 */ }
+                }
+                return fetchUrl;
+            });
+
+            // 使用处理后的 URL 发起请求
+            const response = await fetch(processedUrls[0]);
             if (!response.ok) return [];
             const text = await response.text();
             const results = [];
@@ -8329,7 +8091,7 @@
                 if (!trimmedLine) continue;
                 const match = trimmedLine.match(simpleRegex);
                 const isIPv6 = trimmedLine.includes(':') && (trimmedLine.split(':').length > 2);
-
+                
                 if (match) {
                     results.push({
                         ip: match[1],
@@ -8364,313 +8126,282 @@
         }
     }
 
-    function replaceWildcards(h) {
-        if (!h || !h.includes('*')) return h;
-        const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
-        return h.replace(/\*/g, () => {
-            let s = '';
-            for (let i = 0; i < Math.floor(Math.random() * 14) + 3; i++) {
-                s += chars[Math.floor(Math.random() * chars.length)];
+<<<<<<< local_明文源吗
+
+    async function generateLinksFromNewIPs(list, user, workerDomain, echConfig = null, skipNumbering = false) {
+=======
+    function generateLinksFromNewIPs(list, user, workerDomain, echConfig = null, skipNumbering = false, aliasNamer = null) {
+>>>>>>> upstream_明文源吗
+        const CF_HTTP_PORTS = [80, 8080, 8880, 2052, 2082, 2086, 2095];
+        const CF_HTTPS_PORTS = [443, 2053, 2083, 2087, 2096, 8443];
+        const links = [];
+        const proto = atob('dmxlc3M=');
+
+        const makeNodeName = aliasNamer || createCompactNodeNamer(skipNumbering);
+
+        let yieldCounter = 0;
+        for (const item of list) {
+<<<<<<< local_明文源吗
+            if (++yieldCounter % 50 === 0) await new Promise(r => setTimeout(r, 0));
+            const nodeNameBase = item.name.replace(/\s/g, '_');
+=======
+>>>>>>> upstream_明文源吗
+            const port = item.port;
+            const safeIP = item.ip.includes(':') ? `[${item.ip}]` : item.ip;
+            const nodeHost = getRandomHost(workerDomain) || workerDomain;
+            const wsPath = enableRandomPath ? randomPath('/?ed=2560') : '/?ed=2560';
+
+            if (CF_HTTPS_PORTS.includes(port)) {
+<<<<<<< local_明文源吗
+                const suffix = '-WS-TLS';
+                const wsNodeName = getNodeName(suffix);
+                let link = `${proto}://${user}@${safeIP}:${port}?encryption=none&security=tls&sni=${nodeHost}&fp=${enableECH ? 'chrome' : 'randomized'}&type=ws&host=${nodeHost}&path=${wsPath}`;
+=======
+                const wsNodeName = makeNodeName(item);
+                let link = `${proto}://${user}@${safeIP}:${port}?encryption=none&security=tls&sni=${workerDomain}&fp=${enableECH ? 'chrome' : 'randomized'}&type=ws&host=${workerDomain}&path=${wsPath}`;
+                if (customALPN) link += `&alpn=${encodeURIComponent(customALPN)}`;
+>>>>>>> upstream_明文源吗
+
+                // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
+                if (enableECH) {
+                    const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
+                    const echDomain = customECHDomain || getRandomHost(workerDomain) || workerDomain;
+                    link += `&ech=${encodeURIComponent(`${echDomain}+${dnsServer}`)}`;
+                    // 获取并缓存 ECH 配置列表
+                    let echConfig = globalEchCache.get(echDomain);
+                    if (!echConfig) {
+                        echConfig = await fetchECHConfig(echDomain);
+                        if (echConfig) globalEchCache.set(echDomain, echConfig);
+                    }
+                    if (echConfig) link += `&echconfiglist=${encodeURIComponent(echConfig)}`;
+                }
+
+                link += `#${encodeURIComponent(wsNodeName)}`;
+                links.push(link);
+            } else if (CF_HTTP_PORTS.includes(port)) {
+                if (!disableNonTLS) {
+<<<<<<< local_明文源吗
+                    const suffix = '-WS';
+                    const wsNodeName = getNodeName(suffix);
+                    const link = `${proto}://${user}@${safeIP}:${port}?encryption=none&security=none&type=ws&host=${nodeHost}&path=${wsPath}#${encodeURIComponent(wsNodeName)}`;
+                    links.push(link);
+                }
+            } else {
+                const suffix = '-WS-TLS';
+                const wsNodeName = getNodeName(suffix);
+                let link = `${proto}://${user}@${safeIP}:${port}?encryption=none&security=tls&sni=${nodeHost}&fp=${enableECH ? 'chrome' : 'randomized'}&type=ws&host=${nodeHost}&path=${wsPath}`;
+=======
+                    const wsNodeName = makeNodeName(item);
+                    const link = `${proto}://${user}@${safeIP}:${port}?encryption=none&security=none&type=ws&host=${workerDomain}&path=${wsPath}#${encodeURIComponent(wsNodeName)}`;
+                    links.push(link);
+                }
+            } else {
+                const wsNodeName = makeNodeName(item);
+                let link = `${proto}://${user}@${safeIP}:${port}?encryption=none&security=tls&sni=${workerDomain}&fp=${enableECH ? 'chrome' : 'randomized'}&type=ws&host=${workerDomain}&path=${wsPath}`;
+                if (customALPN) link += `&alpn=${encodeURIComponent(customALPN)}`;
+>>>>>>> upstream_明文源吗
+
+                // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
+                if (enableECH) {
+                    const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
+                    const echDomain = customECHDomain || getRandomHost(workerDomain) || workerDomain;
+                    link += `&ech=${encodeURIComponent(`${echDomain}+${dnsServer}`)}`;
+                    // 获取并缓存 ECH 配置列表
+                    let echConfig = globalEchCache.get(echDomain);
+                    if (!echConfig) {
+                        echConfig = await fetchECHConfig(echDomain);
+                        if (echConfig) globalEchCache.set(echDomain, echConfig);
+                    }
+                    if (echConfig) link += `&echconfiglist=${encodeURIComponent(echConfig)}`;
+                }
+
+                link += `#${encodeURIComponent(wsNodeName)}`;
+                links.push(link);
             }
-            return s;
-        });
+        }
+        return links;
     }
 
-    function getRandomHost(defaultHost) {
+<<<<<<< local_明文源吗
+    async function generateXhttpLinksFromSource(list, user, workerDomain, echConfig = null, skipNumbering = false) {
+=======
+    function generateXhttpLinksFromSource(list, user, workerDomain, echConfig = null, skipNumbering = false, aliasNamer = null) {
+>>>>>>> upstream_明文源吗
+        const links = [];
+        const nodePath = user.substring(0, 8);
+
+        const makeNodeName = aliasNamer || createCompactNodeNamer(skipNumbering);
+
+        let yieldCounter = 0;
+        for (const item of list) {
+<<<<<<< local_明文源吗
+            if (++yieldCounter % 50 === 0) await new Promise(r => setTimeout(r, 0));
+            let nodeNameBase = item.isp || item.name || item.ip;
+            if (!nodeNameBase) continue;
+            nodeNameBase = nodeNameBase.replace(/\s/g, '_');
+            if (item.colo) nodeNameBase = `${nodeNameBase}-${item.colo}`;
+            const safeIP = item.ip.includes(':') ? `[${item.ip}]` : item.ip;
+            const port = item.port || 443;
+            const nodeHost = getRandomHost(workerDomain) || workerDomain;
+
+            const getNodeName = (suffix) => {
+                const nodeName = `${nodeNameBase}-${port}${suffix}`;
+                if (skipNumbering) return nodeName;
+                return namer(nodeNameBase, nodeName);
+            };
+
+            const suffix = '-xhttp';
+            const wsNodeName = getNodeName(suffix);
+=======
+            const safeIP = item.ip.includes(':') ? `[${item.ip}]` : item.ip;
+            const port = item.port || 443;
+            const wsNodeName = makeNodeName(item);
+>>>>>>> upstream_明文源吗
+
+            const params = new URLSearchParams({
+                encryption: 'none',
+                security: 'tls',
+                sni: nodeHost,
+                fp: 'chrome',
+                type: 'xhttp',
+                host: nodeHost,
+                path: enableRandomPath ? randomPath('/' + nodePath) : '/' + nodePath,
+                mode: 'stream-one'
+            });
+            applyALPNParam(params);
+
+            if (enableECH) {
+                const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
+                const echDomain = customECHDomain || getRandomHost(workerDomain) || workerDomain;
+                params.set('ech', `${echDomain}+${dnsServer}`);
+                // 获取并缓存 ECH 配置列表
+                let echConfig = globalEchCache.get(echDomain);
+                if (!echConfig) {
+                    echConfig = await fetchECHConfig(echDomain);
+                    if (echConfig) globalEchCache.set(echDomain, echConfig);
+                }
+                if (echConfig) params.set('echconfiglist', echConfig);
+            }
+
+            links.push(`vless://${user}@${safeIP}:${port}?${params.toString()}#${encodeURIComponent(wsNodeName)}`);
+        }
+        return links;
+    }
+
+    async function generateTrojanLinksFromNewIPs(list, user, workerDomain, echConfig = null, skipNumbering = false, aliasNamer = null) {
+        const CF_HTTP_PORTS = [80, 8080, 8880, 2052, 2082, 2086, 2095];
+        const CF_HTTPS_PORTS = [443, 2053, 2083, 2087, 2096, 8443];
+
+        const links = [];
+
+        const password = tp || user;
+
+        const makeNodeName = aliasNamer || createCompactNodeNamer(skipNumbering);
+
+        let yieldCounter = 0;
+        for (const item of list) {
+<<<<<<< local_明文源吗
+            if (++yieldCounter % 50 === 0) await new Promise(r => setTimeout(r, 0));
+            const nodeNameBase = item.name.replace(/\s/g, '_');
+=======
+>>>>>>> upstream_明文源吗
+            const port = item.port;
+            const safeIP = item.ip.includes(':') ? `[${item.ip}]` : item.ip;
+            const nodeHost = getRandomHost(workerDomain) || workerDomain;
+            const wsPath = enableRandomPath ? randomPath('/?ed=2560') : '/?ed=2560';
+
+            if (CF_HTTPS_PORTS.includes(port)) {
+<<<<<<< local_明文源吗
+                const suffix = `-${atob('VHJvamFu')}-WS-TLS`;
+                const wsNodeName = getNodeName(suffix);
+                let link = `${atob('dHJvamFuOi8v')}${password}@${safeIP}:${port}?security=tls&sni=${nodeHost}&fp=chrome&type=ws&host=${nodeHost}&path=${wsPath}`;
+=======
+                const wsNodeName = makeNodeName(item);
+                let link = `${atob('dHJvamFuOi8v')}${password}@${safeIP}:${port}?security=tls&sni=${workerDomain}&fp=chrome&type=ws&host=${workerDomain}&path=${wsPath}`;
+                if (customALPN) link += `&alpn=${encodeURIComponent(customALPN)}`;
+>>>>>>> upstream_明文源吗
+
+                // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
+                if (enableECH) {
+                    const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
+                    const echDomain = customECHDomain || getRandomHost(workerDomain) || workerDomain;
+                    link += `&ech=${encodeURIComponent(`${echDomain}+${dnsServer}`)}`;
+                    // 获取并缓存 ECH 配置列表
+                    let echConfig = globalEchCache.get(echDomain);
+                    if (!echConfig) {
+                        echConfig = await fetchECHConfig(echDomain);
+                        if (echConfig) globalEchCache.set(echDomain, echConfig);
+                    }
+                    if (echConfig) link += `&echconfiglist=${encodeURIComponent(echConfig)}`;
+                }
+
+                link += `#${encodeURIComponent(wsNodeName)}`;
+                links.push(link);
+            } else if (CF_HTTP_PORTS.includes(port)) {
+                if (!disableNonTLS) {
+<<<<<<< local_明文源吗
+                    const suffix = `-${atob('VHJvamFu')}-WS`;
+                    const wsNodeName = getNodeName(suffix);
+                    const link = `${atob('dHJvamFuOi8v')}${password}@${safeIP}:${port}?security=none&type=ws&host=${nodeHost}&path=${wsPath}#${encodeURIComponent(wsNodeName)}`;
+                    links.push(link);
+                }
+            } else {
+                const suffix = `-${atob('VHJvamFu')}-WS-TLS`;
+                const wsNodeName = getNodeName(suffix);
+                let link = `${atob('dHJvamFuOi8v')}${password}@${safeIP}:${port}?security=tls&sni=${nodeHost}&fp=chrome&type=ws&host=${nodeHost}&path=${wsPath}`;
+=======
+                    const wsNodeName = makeNodeName(item);
+                    const link = `${atob('dHJvamFuOi8v')}${password}@${safeIP}:${port}?security=none&type=ws&host=${workerDomain}&path=${wsPath}#${encodeURIComponent(wsNodeName)}`;
+                    links.push(link);
+                }
+            } else {
+                const wsNodeName = makeNodeName(item);
+                let link = `${atob('dHJvamFuOi8v')}${password}@${safeIP}:${port}?security=tls&sni=${workerDomain}&fp=chrome&type=ws&host=${workerDomain}&path=${wsPath}`;
+                if (customALPN) link += `&alpn=${encodeURIComponent(customALPN)}`;
+>>>>>>> upstream_明文源吗
+
+                // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
+                if (enableECH) {
+                    const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
+                    const echDomain = customECHDomain || getRandomHost(workerDomain) || workerDomain;
+                    link += `&ech=${encodeURIComponent(`${echDomain}+${dnsServer}`)}`;
+                }
+                link += `#${encodeURIComponent(wsNodeName)}`;
+                links.push(link);
+            }
+        }
+        return links;
+    }
+
+    function randomPath(fullNodePath = "/") {
+        const commonPathDirs = ["#","about","account","acg","act","activity","ad","admin","ads","ajax","album","albums","anime","api","app","apps","archive","archives","article","articles","ask","auth","avatar","bbs","bd","blog","blogs","book","books","bt","buy","cart","category","categories","cb","channel","channels","chat","china","city","class","classify","clip","clips","club","cn","code","collect","collection","comic","comics","community","company","config","contact","content","course","courses","cp","data","detail","details","dh","directory","discount","discuss","dl","dload","doc","docs","document","documents","doujin","download","downloads","drama","edu","en","ep","episode","episodes","event","events","f","faq","favorite","favourites","favs","feedback","file","files","film","films","forum","forums","friend","friends","game","games","gif","go","go.html","go.php","group","groups","help","home","hot","htm","html","image","images","img","index","info","intro","item","items","ja","jp","jump","jump.html","jump.php","jumping","knowledge","lang","lesson","lessons","lib","library","link","links","list","live","lives","login","logout","m","mag","magnet","mall","manhua","map","member","members","message","messages","mobile","movie","movies","music","my","new","news","note","novel","novels","online","order","out","out.html","out.php","outbound","p","page","pages","pay","payment","pdf","photo","photos","pic","pics","picture","pictures","play","player","playlist","post","posts","product","products","program","programs","project","qa","question","rank","ranking","read","readme","redirect","redirect.html","redirect.php","reg","register","res","resource","retrieve","sale","search","season","seasons","section","seller","series","service","services","setting","settings","share","shop","show","shows","site","soft","sort","source","special","star","stars","static","stock","store","stream","streaming","streams","student","study","tag","tags","task","teacher","team","tech","temp","temporary","test","theme","themes","tip","tips","tool","tools","top","topic","tour","tutorial","tv","uk","update","upload","url","us","user","users","v","version","video","videos","wap","web","website","win","windows","world","www","x","xml","xx","y","z","zone"];
+        const randomCount = Math.floor(Math.random() * 3 + 1);
+        const randomPath = commonPathDirs.sort(() => 0.5 - Math.random()).slice(0, randomCount).join('/');
+        if (fullNodePath === "/") return `/${randomPath}`;
+        else return `/${randomPath + fullNodePath.replace('/?', '?')}`;
+    }
+
+    function replaceWildcards(str) {
+        return str
+            .replace(/\$\{timestamp\}/g, Date.now())
+            .replace(/\$\{random\}/g, Math.random().toString(36).substring(2, 8))
+            .replace(/\$\{uuid\}/g, 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+                const r = Math.random() * 16 | 0;
+                return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+            }));
+    }
+
+    function getRandomHost(fallback) {
         if (hostList && hostList.length > 0) {
             const randomIndex = Math.floor(Math.random() * hostList.length);
             return replaceWildcards(hostList[randomIndex]);
         }
-        return replaceWildcards(defaultHost);
-    }
-
-    async function generateLinksFromNewIPs(list, user, workerDomain) {
-        
-        const CF_HTTP_PORTS = [80, 8080, 8880, 2052, 2082, 2086, 2095];
-        const CF_HTTPS_PORTS = [443, 2053, 2083, 2087, 2096, 8443];
-        
-        const links = [];
-        const proto = atob('dmxlc3M=');
-        
-        let newIPLinksProcessedCount = 0;
-        for (let i = 0; i < list.length; i++) {
-            newIPLinksProcessedCount++;
-            if (newIPLinksProcessedCount % 200 === 0) {
-                await new Promise(r => setTimeout(r, 0));
-            }
-            const item = list[i];
-            const nodeName = item.name.replace(/\s/g, '_');
-            const port = item.port;
-            const currentNodePath = enableRandomPath ? randomPath('/?ed=2560') : '/?ed=2560';
-            const safeIP = (item.ip.includes(':') && !item.ip.includes('[')) ? `[${item.ip}]` : item.ip;
-            const randomHost = getRandomHost(workerDomain);
-            
-            if (CF_HTTPS_PORTS.includes(port)) {
-                
-                const wsNodeName = `${nodeName}-${port}-WS-TLS`;
-                const wsParams = new URLSearchParams({
-                    encryption: 'none',
-                    security: 'tls',
-                    sni: randomHost,
-                    fp: enableECH ? 'chrome' : 'randomized',
-                    type: 'ws',
-                    host: randomHost,
-                    path: currentNodePath
-                });
-                
-                // 如果启用了ECH，添加ech和echconfiglist参数
-                if (enableECH) {
-                    const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
-<<<<<<< local_明文源吗
-                    const echDomain = customECHDomain || getRandomHost(workerDomain);
-                    wsParams.set('ech', `${echDomain}+${dnsServer}`);
-                    
-                    let echConfig = '';
-                    if (globalEchCache.has(echDomain)) {
-                        echConfig = globalEchCache.get(echDomain);
-                    } else {
-                        echConfig = await getECHConfig(echDomain);
-                        globalEchCache.set(echDomain, echConfig);
-                    }
-                    if (echConfig) {
-                        wsParams.set('echconfiglist', echConfig);
-                    }
-=======
-                    const echDomain = customECHDomain || 'cloudflare-ech.com';
-                    link += `&ech=${encodeURIComponent(`${echDomain}+${dnsServer}`)}`;
->>>>>>> upstream_明文源吗
-                }
-                
-                links.push(`${proto}://${user}@${safeIP}:${port}?${wsParams.toString()}#${encodeURIComponent(wsNodeName)}`);
-            } else if (CF_HTTP_PORTS.includes(port)) {
-                
-                if (!disableNonTLS) {
-                    const wsNodeName = `${nodeName}-${port}-WS`;
-                    const wsParams = new URLSearchParams({
-                        encryption: 'none',
-                        security: 'none',
-                        type: 'ws',
-                        host: randomHost,
-                        path: currentNodePath
-                    });
-                    links.push(`${proto}://${user}@${safeIP}:${port}?${wsParams.toString()}#${encodeURIComponent(wsNodeName)}`);
-                }
-            } else {
-                
-                const wsNodeName = `${nodeName}-${port}-WS-TLS`;
-                const wsParams = new URLSearchParams({
-                    encryption: 'none',
-                    security: 'tls',
-                    sni: randomHost,
-                    fp: enableECH ? 'chrome' : 'randomized',
-                    type: 'ws',
-                    host: randomHost,
-                    path: currentNodePath
-                });
-                
-                // 如果启用了ECH，添加ech和echconfiglist参数
-                if (enableECH) {
-                    const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
-<<<<<<< local_明文源吗
-                    const echDomain = customECHDomain || getRandomHost(workerDomain);
-                    wsParams.set('ech', `${echDomain}+${dnsServer}`);
-                    
-                    let echConfig = '';
-                    if (globalEchCache.has(echDomain)) {
-                        echConfig = globalEchCache.get(echDomain);
-                    } else {
-                        echConfig = await getECHConfig(echDomain);
-                        globalEchCache.set(echDomain, echConfig);
-                    }
-                    if (echConfig) {
-                        wsParams.set('echconfiglist', echConfig);
-                    }
-=======
-                    const echDomain = customECHDomain || 'cloudflare-ech.com';
-                    link += `&ech=${encodeURIComponent(`${echDomain}+${dnsServer}`)}`;
->>>>>>> upstream_明文源吗
-                }
-                
-                links.push(`${proto}://${user}@${safeIP}:${port}?${wsParams.toString()}#${encodeURIComponent(wsNodeName)}`);
-            }
-        }
-        return links;
-    }
-
-    async function generateXhttpLinksFromSource(list, user, workerDomain) {
-        const links = [];
-        const nodePath = user.substring(0, 8);
-        
-        let xhttpLinksProcessedCount = 0;
-        for (let i = 0; i < list.length; i++) {
-            xhttpLinksProcessedCount++;
-            if (xhttpLinksProcessedCount % 200 === 0) {
-                await new Promise(r => setTimeout(r, 0));
-            }
-            const item = list[i];
-            let nodeNameBase = item.isp.replace(/\s/g, '_');
-            if (item.colo && item.colo.trim()) {
-                nodeNameBase = `${nodeNameBase}-${item.colo.trim()}`;
-            }
-            const safeIP = (item.ip.includes(':') && !item.ip.includes('[')) ? `[${item.ip}]` : item.ip;
-            const port = item.port || 443;
-            const randomHost = getRandomHost(workerDomain);
-            
-            const wsNodeName = `${nodeNameBase}-${port}-xhttp`;
-            const params = new URLSearchParams({
-                encryption: 'none',
-                security: 'tls',
-                sni: randomHost,
-                fp: 'chrome',
-                type: 'xhttp',
-                host: randomHost,
-                path: enableRandomPath ? randomPath(`/${nodePath}`) : `/${nodePath}`,
-                mode: 'stream-one'
-            });
-            
-            // 如果启用了ECH，添加ech和echconfiglist参数
-            if (enableECH) {
-                const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
-<<<<<<< local_明文源吗
-                const echDomain = customECHDomain || getRandomHost(workerDomain);
-=======
-                const echDomain = customECHDomain || 'cloudflare-ech.com';
->>>>>>> upstream_明文源吗
-                params.set('ech', `${echDomain}+${dnsServer}`);
-                
-                // 获取并添加 ECH 配置列表
-                let echConfig = '';
-                if (globalEchCache.has(echDomain)) {
-                    echConfig = globalEchCache.get(echDomain);
-                } else {
-                    echConfig = await getECHConfig(echDomain);
-                    globalEchCache.set(echDomain, echConfig);
-                }
-                if (echConfig) {
-                    params.set('echconfiglist', echConfig);
-                }
-            }
-            
-            links.push(`vless://${user}@${safeIP}:${port}?${params.toString()}#${encodeURIComponent(wsNodeName)}`);
-        }
-        
-        return links;
-    }
-
-    async function generateTrojanLinksFromNewIPs(list, user, workerDomain) {
-        
-        const CF_HTTP_PORTS = [80, 8080, 8880, 2052, 2082, 2086, 2095];
-        const CF_HTTPS_PORTS = [443, 2053, 2083, 2087, 2096, 8443];
-        
-        const links = [];
-        
-        const password = tp || user;
-        
-        let trojanNewIPProcessedCount = 0;
-        for (let i = 0; i < list.length; i++) {
-            trojanNewIPProcessedCount++;
-            if (trojanNewIPProcessedCount % 200 === 0) {
-                await new Promise(r => setTimeout(r, 0));
-            }
-            const item = list[i];
-            const nodeName = item.name.replace(/\s/g, '_');
-            const port = item.port;
-            const currentNodePath = enableRandomPath ? randomPath('/?ed=2560') : '/?ed=2560';
-            const safeIP = (item.ip.includes(':') && !item.ip.includes('[')) ? `[${item.ip}]` : item.ip;
-            const randomHost = getRandomHost(workerDomain);
-            
-            if (CF_HTTPS_PORTS.includes(port)) {
-                
-                const wsNodeName = `${nodeName}-${port}-${atob('VHJvamFu')}-WS-TLS`;
-                const wsParams = new URLSearchParams({
-                    security: 'tls',
-                    sni: randomHost,
-                    fp: 'chrome',
-                    type: 'ws',
-                    host: randomHost,
-                    path: currentNodePath
-                });
-                
-                // 如果启用了ECH，添加ech和echconfiglist参数
-                if (enableECH) {
-                    const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
-<<<<<<< local_明文源吗
-                    const echDomain = customECHDomain || getRandomHost(workerDomain);
-                    wsParams.set('ech', `${echDomain}+${dnsServer}`);
-                    
-                    let echConfig = '';
-                    if (globalEchCache.has(echDomain)) {
-                        echConfig = globalEchCache.get(echDomain);
-                    } else {
-                        echConfig = await getECHConfig(echDomain);
-                        globalEchCache.set(echDomain, echConfig);
-                    }
-                    if (echConfig) {
-                        wsParams.set('echconfiglist', echConfig);
-                    }
-=======
-                    const echDomain = customECHDomain || 'cloudflare-ech.com';
-                    link += `&ech=${encodeURIComponent(`${echDomain}+${dnsServer}`)}`;
->>>>>>> upstream_明文源吗
-                }
-                
-                links.push(`${atob('dHJvamFuOi8v')}${password}@${safeIP}:${port}?${wsParams.toString()}#${encodeURIComponent(wsNodeName)}`);
-            } else if (CF_HTTP_PORTS.includes(port)) {
-                
-                if (!disableNonTLS) {
-                    const wsNodeName = `${nodeName}-${port}-${atob('VHJvamFu')}-WS`;
-                    const wsParams = new URLSearchParams({
-                        security: 'none',
-                        type: 'ws',
-                        host: randomHost,
-                        path: currentNodePath
-                    });
-                    links.push(`${atob('dHJvamFuOi8v')}${password}@${safeIP}:${port}?${wsParams.toString()}#${encodeURIComponent(wsNodeName)}`);
-                }
-            } else {
-                
-                const wsNodeName = `${nodeName}-${port}-${atob('VHJvamFu')}-WS-TLS`;
-                const wsParams = new URLSearchParams({
-                    security: 'tls',
-                    sni: randomHost,
-                    fp: 'chrome',
-                    type: 'ws',
-                    host: randomHost,
-                    path: currentNodePath
-                });
-                
-                // 如果启用了ECH，添加ech和echconfiglist参数
-                if (enableECH) {
-                    const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
-<<<<<<< local_明文源吗
-                    const echDomain = customECHDomain || getRandomHost(workerDomain);
-                    wsParams.set('ech', `${echDomain}+${dnsServer}`);
-                    
-                    let echConfig = '';
-                    if (globalEchCache.has(echDomain)) {
-                        echConfig = globalEchCache.get(echDomain);
-                    } else {
-                        echConfig = await getECHConfig(echDomain);
-                        globalEchCache.set(echDomain, echConfig);
-                    }
-                    if (echConfig) {
-                        wsParams.set('echconfiglist', echConfig);
-                    }
-=======
-                    const echDomain = customECHDomain || 'cloudflare-ech.com';
-                    link += `&ech=${encodeURIComponent(`${echDomain}+${dnsServer}`)}`;
->>>>>>> upstream_明文源吗
-                }
-                
-                links.push(`${atob('dHJvamFuOi8v')}${password}@${safeIP}:${port}?${wsParams.toString()}#${encodeURIComponent(wsNodeName)}`);
-            }
-        }
-        return links;
+        return replaceWildcards(fallback);
     }
 
     async function handleConfigAPI(request) {
         if (request.method === 'GET') {
-            
+
             if (!kvStore) {
                 return new Response(JSON.stringify({
                     error: 'KV存储未配置',
@@ -8680,7 +8411,7 @@
                     headers: { 'Content-Type': 'application/json' }
                 });
             }
-            
+
             return new Response(JSON.stringify({
                 ...kvConfig,
                 kvEnabled: true
@@ -8698,7 +8429,7 @@
                     headers: { 'Content-Type': 'application/json' }
                 });
             }
-            
+
             try {
                 const newConfig = await request.json();
                 
@@ -8709,15 +8440,15 @@
                         kvConfig[key] = value;
                     }
                 }
-                
+
                 await saveKVConfig();
-                
-                // 更新内存缓存，确保当前 Isolate 的后续请求能立即看到更新
-                kvConfigCache = JSON.parse(JSON.stringify(kvConfig));
-                kvConfigCacheTime = Date.now();
-                
+
                 updateConfigVariables();
                 
+                if (newConfig.yx !== undefined) {
+                    updateCustomPreferredFromYx();
+                }
+
                 return new Response(JSON.stringify({
                     success: true,
                     message: '配置已保存',
@@ -8726,7 +8457,6 @@
                     headers: { 'Content-Type': 'application/json' }
                 });
             } catch (error) {
-                
                 return new Response(JSON.stringify({
                     success: false,
                     message: '保存配置失败: ' + error.message
@@ -8736,7 +8466,7 @@
                 });
             }
         }
-        
+
         return new Response(JSON.stringify({ error: 'Method not allowed' }), { 
             status: 405,
             headers: { 'Content-Type': 'application/json' }
@@ -8744,7 +8474,6 @@
     }
 
     async function handlePreferredIPsAPI(request) {
-        
         if (!kvStore) {
             return new Response(JSON.stringify({
                 success: false,
@@ -8755,7 +8484,7 @@
                 headers: { 'Content-Type': 'application/json' }
             });
         }
-        
+
         const ae = getConfigValue('ae', '') === 'yes';
         if (!ae) {
             return new Response(JSON.stringify({
@@ -8767,7 +8496,7 @@
                 headers: { 'Content-Type': 'application/json' }
             });
         }
-        
+
         try {
             if (request.method === 'GET') {
                 
@@ -8781,13 +8510,10 @@
                 }), {
                     headers: { 'Content-Type': 'application/json' }
                 });
-                
             } else if (request.method === 'POST') {
-                
                 const body = await request.json();
-                
                 const ipsToAdd = Array.isArray(body) ? body : [body];
-                
+
                 if (ipsToAdd.length === 0) {
                     return new Response(JSON.stringify({
                         success: false,
@@ -8798,54 +8524,54 @@
                         headers: { 'Content-Type': 'application/json' }
                     });
                 }
-                
+
                 const yxValue = getConfigValue('yx', '');
                 let pi = parseYxToArray(yxValue);
-                
+
                 const addedIPs = [];
                 const skippedIPs = [];
                 const errors = [];
-                
+
                 for (const item of ipsToAdd) {
-                    
                     if (!item.ip) {
                         errors.push({ ip: '未知', reason: 'IP地址是必需的' });
                         continue;
                     }
-                    
+
                     const port = item.port || 443;
                     const name = item.name || `API优选-${item.ip}:${port}`;
-                    
+
                     if (!isValidIP(item.ip) && !isValidDomain(item.ip)) {
                         errors.push({ ip: item.ip, reason: '无效的IP或域名格式' });
                         continue;
                     }
-                    
+
                     const exists = pi.some(existItem => 
                         existItem.ip === item.ip && existItem.port === port
                     );
-                    
+
                     if (exists) {
                         skippedIPs.push({ ip: item.ip, port: port, reason: '已存在' });
                         continue;
                     }
-                    
+
                     const newIP = {
                         ip: item.ip,
                         port: port,
                         name: name,
                         addedAt: new Date().toISOString()
                     };
-                    
+
                     pi.push(newIP);
                     addedIPs.push(newIP);
                 }
-                
+
                 if (addedIPs.length > 0) {
                     const newYxValue = arrayToYx(pi);
                     await setConfigValue('yx', newYxValue);
+                    updateCustomPreferredFromYx();
                 }
-                
+
                 return new Response(JSON.stringify({
                     success: addedIPs.length > 0,
                     message: `成功添加 ${addedIPs.length} 个IP`,
@@ -8860,19 +8586,17 @@
                 }), {
                     headers: { 'Content-Type': 'application/json' }
                 });
-                
             } else if (request.method === 'DELETE') {
-                
                 const body = await request.json();
-                
+
                 if (body.all === true) {
-                    
                     const yxValue = getConfigValue('yx', '');
                     const pi = parseYxToArray(yxValue);
                     const deletedCount = pi.length;
-                    
+
                     await setConfigValue('yx', '');
-                    
+                    updateCustomPreferredFromYx();
+
                     return new Response(JSON.stringify({
                         success: true,
                         message: `已清空所有优选IP，共删除 ${deletedCount} 个`,
@@ -8881,7 +8605,7 @@
                         headers: { 'Content-Type': 'application/json' }
                     });
                 }
-                
+
                 if (!body.ip) {
                     return new Response(JSON.stringify({
                         success: false,
@@ -8892,17 +8616,17 @@
                         headers: { 'Content-Type': 'application/json' }
                     });
                 }
-                
+
                 const port = body.port || 443;
-                
+
                 const yxValue = getConfigValue('yx', '');
                 let pi = parseYxToArray(yxValue);
                 const initialLength = pi.length;
-                
+
                 const filteredIPs = pi.filter(item => 
                     !(item.ip === body.ip && item.port === port)
                 );
-                
+
                 if (filteredIPs.length === initialLength) {
                     return new Response(JSON.stringify({
                         success: false,
@@ -8913,11 +8637,11 @@
                         headers: { 'Content-Type': 'application/json' }
                     });
                 }
-                
+
                 const newYxValue = arrayToYx(filteredIPs);
                 await setConfigValue('yx', newYxValue);
-                
-                
+                updateCustomPreferredFromYx();
+
                 return new Response(JSON.stringify({
                     success: true,
                     message: '优选IP已删除',
@@ -8925,7 +8649,6 @@
                 }), {
                     headers: { 'Content-Type': 'application/json' }
                 });
-                
             } else {
                 return new Response(JSON.stringify({
                     success: false,
@@ -8948,27 +8671,19 @@
         }
     }
 
-    function updateConfigVariables(env = {}) {
-        // 1. 区域与匹配模式
-        const wk = getConfigValue('wk', env.wk || env.WK || '');
-        if (wk && wk.trim()) {
-            manualWorkerRegion = wk.trim().toUpperCase();
+    function updateConfigVariables() {
+        const manualRegion = getConfigValue('wk', '');
+        if (manualRegion && manualRegion.trim()) {
+            manualWorkerRegion = manualRegion.trim().toUpperCase();
             currentWorkerRegion = manualWorkerRegion;
         } else {
-            const p = getConfigValue('p', env.p || env.P || '');
-            if (p && p.trim()) {
+            const ci = getConfigValue('p', '');
+            if (ci && ci.trim()) {
                 currentWorkerRegion = 'CUSTOM';
-                fallbackAddress = p.trim();
             } else {
                 manualWorkerRegion = '';
             }
         }
-<<<<<<< local_明文源吗
-        
-        const rm = getConfigValue('rm', env.rm || env.RM || '');
-        if (rm !== '') {
-            enableRegionMatching = (rm.toLowerCase() !== 'no' && rm !== false && rm !== 'false');
-=======
 
         const regionMatchingControl = getConfigValue('rm', '');
         if (regionMatchingControl && regionMatchingControl.toLowerCase() === 'no') {
@@ -9013,103 +8728,76 @@
         const githubIPsControl = getConfigValue('egi', '');
         if (githubIPsControl !== undefined && githubIPsControl !== '') {
             egi = githubIPsControl !== 'no' && githubIPsControl !== false && githubIPsControl !== 'false';
->>>>>>> upstream_明文源吗
         }
-        
-        // 2. 协议开关 (VLESS, Trojan, xhttp)
-        const evVal = getConfigValue('ev', env.ev);
-        if (evVal !== undefined && evVal !== '') {
-            ev = evVal === 'yes' || evVal === true || evVal === 'true';
-        }
-        
-        const etVal = getConfigValue('et', env.et);
-        if (etVal !== undefined && etVal !== '') {
-            et = etVal === 'yes' || etVal === true || etVal === 'true';
-        }
-        
-        const exVal = getConfigValue('ex', env.ex);
-        if (exVal !== undefined && exVal !== '') {
-            ex = exVal === 'yes' || exVal === true || exVal === 'true';
-        }
-        
-        // 默认至少启用 VLESS
-        if (!ev && !et && !ex) ev = true;
-        
-        tp = getConfigValue('tp', env.tp) || '';
-        scu = getConfigValue('scu', env.scu) || 'https://url.v1.mk/sub';
-        remoteConfigUrl = getConfigValue('remoteConfigUrl', env.remoteConfigUrl) || 'https://raw.githubusercontent.com/lizhi123le/ACL4SSR/master/Clash/config/ACL4SSR_Online_Full_MultiMode.ini';
 
-        // 3. 订阅与节点过滤逻辑
-        const getBoolConfig = (key, envVal, def = true) => {
-            const val = getConfigValue(key, envVal);
-            if (val === '' || val === undefined) return def;
-            return val !== 'no' && val !== false && val !== 'false' && val !== '0' && val !== 0;
-        };
+        const nativeAddressControl = getConfigValue('ena', '');
+        if (nativeAddressControl !== undefined && nativeAddressControl !== '') {
+            ena = nativeAddressControl !== 'no' && nativeAddressControl !== false && nativeAddressControl !== 'false';
+        }
 
-        epd = getBoolConfig('epd', env.epd, true);
-        epi = getBoolConfig('epi', env.epi, true);
-        egi = getBoolConfig('egi', env.egi, false);
-        ena = getBoolConfig('ena', env.ena, false);
-        domainEnabled = getBoolConfig('domain', env.domain, true);
-        ipv4Enabled = getBoolConfig('ipv4', env.ipv4, true);
-        ipv6Enabled = getBoolConfig('ipv6', env.ipv6, true);
-        ispMobile = getBoolConfig('ispMobile', env.ispMobile, true);
-        ispUnicom = getBoolConfig('ispUnicom', env.ispUnicom, true);
-        ispTelecom = getBoolConfig('ispTelecom', env.ispTelecom, true);
-        
-        // 4. ECH 与 DNS 设置
-        const echVal = getConfigValue('ech', env.ech);
-        if (echVal !== undefined && echVal !== '') {
-            enableECH = echVal === 'yes' || echVal === true || echVal === 'true';
+        const echControl = getConfigValue('ech', '');
+        if (echControl !== undefined && echControl !== '') {
+            enableECH = echControl === 'yes' || echControl === true || echControl === 'true';
         }
-        
-        const randomPathVal = getConfigValue('randomPath', env.randomPath || env.RANDOMPATH);
-        if (randomPathVal !== undefined && randomPathVal !== '') {
-            enableRandomPath = randomPathVal === 'yes' || randomPathVal === true || randomPathVal === 'true';
+
+        // 更新自定义DNS和ECH域名
+        const customDNSValue = getConfigValue('customDNS', '');
+        if (customDNSValue && customDNSValue.trim()) {
+            customDNS = customDNSValue.trim();
+        } else {
+            customDNS = 'https://223.5.5.5/dns-query';
         }
-        
-        const dnsVal = getConfigValue('customDNS', env.customDNS);
-        customDNS = (dnsVal && dnsVal.trim()) ? dnsVal.trim() : 'https://223.5.5.5/dns-query';
-        
-        const echDomainVal = getConfigValue('customECHDomain', env.customECHDomain);
-        customECHDomain = (echDomainVal && echDomainVal.trim()) ? echDomainVal.trim() : '';
-        
-        // 5. 传输安全与回退
-        if (enableECH) disableNonTLS = true;
-        
-        const dkbyVal = getConfigValue('dkby', env.dkby || env.DKBY);
-        if (dkbyVal && dkbyVal.toLowerCase() === 'yes') {
+
+        const customECHDomainValue = getConfigValue('customECHDomain', '');
+        if (customECHDomainValue && customECHDomainValue.trim()) {
+            customECHDomain = customECHDomainValue.trim();
+        } else {
+            customECHDomain = '';
+        }
+
+        customALPN = normalizeALPN(getConfigValue('alpn', ''));
+
+        // 如果启用了ECH，自动启用仅TLS模式（避免80端口干扰）
+        // ECH需要TLS才能工作，所以必须禁用非TLS节点
+        if (enableECH) {
             disableNonTLS = true;
         }
-        
-        cp = getConfigValue('d', env.d || env.D) || '';
-        host = getConfigValue('host', env.host || env.HOST) || '';
-        if (host && host.trim()) {
-            hostList = host.split(',').map(h => h.trim()).filter(h => h).sort(() => Math.random() - 0.5);
-        } else {
-            hostList = [];
+
+        // 检查dkby配置（如果手动设置了dkby=yes，也会启用仅TLS）
+        const dkbyControl = getConfigValue('dkby', '');
+        if (dkbyControl && dkbyControl.toLowerCase() === 'yes') {
+            disableNonTLS = true;
         }
-        
-        piu = getConfigValue('yxURL', env.yxURL || env.YXURL) || '';
-        
-        const socksVal = getConfigValue('s', env.s || env.S) || '';
-        if (socksVal) {
+
+        cp = getConfigValue('d', '') || '';
+
+        piu = getConfigValue('yxURL', '') || '';
+
+        const envFallback = getConfigValue('p', '');
+        if (envFallback) {
+            fallbackAddress = envFallback.trim();
+        } else {
+            fallbackAddress = '';
+        }
+
+        socks5Config = getConfigValue('s', '') || '';
+        if (socks5Config) {
             try {
-                parsedSocks5Config = parseSocksConfig(socksVal);
+                parsedSocks5Config = parseSocksConfig(socks5Config);
                 isSocksEnabled = true;
-                socks5Config = socksVal;
             } catch (err) {
                 isSocksEnabled = false;
             }
         } else {
             isSocksEnabled = false;
         }
-        
-        const yxbyVal = getConfigValue('yxby', env.yxby || env.YXBY);
-        disablePreferred = (yxbyVal && yxbyVal.toLowerCase() === 'yes');
 
-        // 6. 联动更新优选IP内存状态
-        updateCustomPreferredFromYx();
+        const yxbyControl = getConfigValue('yxby', '');
+        if (yxbyControl && yxbyControl.toLowerCase() === 'yes') {
+            disablePreferred = true;
+        } else {
+            disablePreferred = false;
+        }
     }
 
     function updateCustomPreferredFromYx() {
@@ -9119,23 +8807,23 @@
                 const preferredList = yxValue.split(',').map(item => item.trim()).filter(item => item);
                 customPreferredIPs = [];
                 customPreferredDomains = [];
-                
+
                 preferredList.forEach(item => {
                     let nodeName = '';
                     let addressPart = item;
-                    
+
                     if (item.includes('#')) {
                         const parts = item.split('#');
                         addressPart = parts[0].trim();
                         nodeName = parts[1].trim();
                     }
-                    
+
                     const { address, port } = parseAddressAndPort(addressPart);
-                    
+
                     if (!nodeName) {
                         nodeName = '自定义优选-' + address + (port ? ':' + port : '');
                     }
-                    
+
                     if (isValidIP(address)) {
                         customPreferredIPs.push({ 
                             ip: address, 
@@ -9162,27 +8850,26 @@
 
     function parseYxToArray(yxValue) {
         if (!yxValue || !yxValue.trim()) return [];
-        
+
         const items = yxValue.split(',').map(item => item.trim()).filter(item => item);
         const result = [];
-        
+
         for (const item of items) {
-            
             let nodeName = '';
             let addressPart = item;
-            
+
             if (item.includes('#')) {
                 const parts = item.split('#');
                 addressPart = parts[0].trim();
                 nodeName = parts[1].trim();
             }
-            
+
             const { address, port } = parseAddressAndPort(addressPart);
-            
+
             if (!nodeName) {
                 nodeName = address + (port ? ':' + port : '');
             }
-            
+
             result.push({
                 ip: address,
                 port: port || 443,
@@ -9190,13 +8877,13 @@
                 addedAt: new Date().toISOString()
             });
         }
-        
+
         return result;
     }
 
     function arrayToYx(array) {
         if (!array || array.length === 0) return '';
-        
+
         return array.map(item => {
             const port = item.port || 443;
             return `${item.ip}:${port}#${item.name}`;
@@ -9215,7 +8902,7 @@
         return processed.split(',');
     }
 
-    async function fetchPreferredAPI(urls, defaultPort = '443', timeout = 10000) {
+    async function fetchPreferredAPI(urls, defaultPort = '443', timeout = 3000) {
         if (!urls?.length) return [];
         const results = new Set();
         await Promise.allSettled(urls.map(async (url) => {
@@ -9263,26 +8950,20 @@
                 }
                 const lines = text.trim().split('\n').map(l => l.trim()).filter(l => l);
                 const isCSV = lines.length > 1 && lines[0].includes(',');
-                const IPV6_PATTERN = /^(?:\[[\da-fA-F:]+\]|[\da-fA-F]*:[\da-fA-F:]*:[\da-fA-F:]*)/;
+                const IPV6_PATTERN = /^[^\[\]]*:[^\[\]]*:[^\[\]]/;
                 if (!isCSV) {
                     lines.forEach(line => {
                         const hashIndex = line.indexOf('#');
                         const [hostPart, remark] = hashIndex > -1 ? [line.substring(0, hashIndex), line.substring(hashIndex)] : [line, ''];
-                        const isIPv6 = IPV6_PATTERN.test(hostPart);
                         let hasPort = false;
                         if (hostPart.startsWith('[')) {
                             hasPort = /\]:(\d+)$/.test(hostPart);
-                        } else if (!isIPv6) {
+                        } else {
                             const colonIndex = hostPart.lastIndexOf(':');
                             hasPort = colonIndex > -1 && /^\d+$/.test(hostPart.substring(colonIndex + 1));
                         }
                         const port = new URL(url).searchParams.get('port') || defaultPort;
-                        if (hasPort) {
-                            results.add(line);
-                        } else {
-                            const wrappedHost = isIPv6 && !hostPart.startsWith('[') ? `[${hostPart}]` : hostPart;
-                            results.add(`${wrappedHost}:${port}${remark}`);
-                        }
+                        results.add(hasPort ? line : `${hostPart}:${port}${remark}`);
                     });
                 } else {
                     const headers = lines[0].split(',').map(h => h.trim());
@@ -9313,155 +8994,4 @@
             } catch (e) { }
         }));
         return Array.from(results);
-    }
-
-    async function DoH查询(域名, 记录类型, DoH解析服务 = "https://cloudflare-dns.com/dns-query") {
-        const 开始时间 = performance.now();
-
-        try {
-            // 记录类型字符串转数值
-            const 类型映射 = { 'A': 1, 'NS': 2, 'CNAME': 5, 'MX': 15, 'TXT': 16, 'AAAA': 28, 'SRV': 33, 'HTTPS': 65 };
-            const qtype = 类型映射[记录类型.toUpperCase()] || 1;
-
-            // 编码域名为 DNS wire format labels
-            const 编码域名 = (name) => {
-                const parts = name.endsWith('.') ? name.slice(0, -1).split('.') : name.split('.');
-                const bufs = [];
-                for (const label of parts) {
-                    const enc = new TextEncoder().encode(label);
-                    bufs.push(new Uint8Array([enc.length]), enc);
-                }
-                bufs.push(new Uint8Array([0]));
-                const total = bufs.reduce((s, b) => s + b.length, 0);
-                const result = new Uint8Array(total);
-                let off = 0;
-                for (const b of bufs) { result.set(b, off); off += b.length; }
-                return result;
-            };
-
-            // 构建 DNS 查询报文
-            const qname = 编码域名(域名);
-            const query = new Uint8Array(12 + qname.length + 4);
-            const qview = new DataView(query.buffer);
-            qview.setUint16(0, 0);       // ID
-            qview.setUint16(2, 0x0100);  // Flags: RD=1 (递归查询)
-            qview.setUint16(4, 1);       // QDCOUNT
-            query.set(qname, 12);
-            qview.setUint16(12 + qname.length, qtype);
-            qview.setUint16(12 + qname.length + 2, 1); // QCLASS = IN
-
-            // 通过 POST 发送 dns-message 请求
-            const response = await fetch(DoH解析服务, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/dns-message',
-                    'Accept': 'application/dns-message',
-                },
-                body: query,
-            });
-            if (!response.ok) return [];
-
-            // 解析 DNS 响应报文
-            const buf = new Uint8Array(await response.arrayBuffer());
-            const dv = new DataView(buf.buffer);
-            const qdcount = dv.getUint16(4);
-            const ancount = dv.getUint16(6);
-
-            // 解析域名（处理指针压缩）
-            const 解析域名 = (pos) => {
-                const labels = [];
-                let p = pos, jumped = false, endPos = -1, safe = 128;
-                while (p < buf.length && safe-- > 0) {
-                    const len = buf[p];
-                    if (len === 0) { if (!jumped) endPos = p + 1; break; }
-                    if ((len & 0xC0) === 0xC0) {
-                        if (!jumped) endPos = p + 2;
-                        p = ((len & 0x3F) << 8) | buf[p + 1];
-                        jumped = true;
-                        continue;
-                    }
-                    labels.push(new TextDecoder().decode(buf.slice(p + 1, p + 1 + len)));
-                    p += len + 1;
-                }
-                if (endPos === -1) endPos = p + 1;
-                return [labels.join('.'), endPos];
-            };
-
-            // 跳过 Question Section
-            let offset = 12;
-            for (let i = 0; i < qdcount; i++) {
-                const [, end] = 解析域名(offset);
-                offset = end + 4; // +4 跳过 QTYPE + QCLASS
-            }
-
-            // 解析 Answer Section
-            const answers = [];
-            for (let i = 0; i < ancount && offset < buf.length; i++) {
-                const [name, nameEnd] = 解析域名(offset);
-                offset = nameEnd;
-                const type = dv.getUint16(offset); offset += 2;
-                offset += 2; // CLASS
-                const ttl = dv.getUint32(offset); offset += 4;
-                const rdlen = dv.getUint16(offset); offset += 2;
-                const rdata = buf.slice(offset, offset + rdlen);
-                offset += rdlen;
-
-                let data;
-                if (type === 1 && rdlen === 4) {
-                    data = `${rdata[0]}.${rdata[1]}.${rdata[2]}.${rdata[3]}`;
-                } else if (type === 28 && rdlen === 16) {
-                    const segs = [];
-                    for (let j = 0; j < 16; j += 2) segs.push(((rdata[j] << 8) | rdata[j + 1]).toString(16));
-                    data = segs.join(':');
-                } else if (type === 16) {
-                    let tOff = 0;
-                    const parts = [];
-                    while (tOff < rdlen) {
-                        const tLen = rdata[tOff++];
-                        parts.push(new TextDecoder().decode(rdata.slice(tOff, tOff + tLen)));
-                        tOff += tLen;
-                    }
-                    data = parts.join('');
-                } else if (type === 5) {
-                    const [cname] = 解析域名(offset - rdlen);
-                    data = cname;
-                } else {
-                    data = Array.from(rdata).map(b => b.toString(16).padStart(2, '0')).join('');
-                }
-                answers.push({ name, type, TTL: ttl, data, rdata });
-            }
-            return answers;
-        } catch (error) {
-            console.error(`[DoH查询] 查询失败 ${域名} ${记录类型} via ${DoH解析服务}:`, error);
-            return [];
-        }
-    }
-
-    async function getECHConfig(host) {
-        try {
-            const dnsServer = customDNS || 'https://cloudflare-dns.com/dns-query';
-            const answers = await DoH查询(host, 'HTTPS', dnsServer);
-            if (!answers.length) return '';
-            for (const ans of answers) {
-                if (ans.type !== 65 || !ans.rdata) continue;
-                const bytes = ans.rdata;
-                let offset = 2; // SvcPriority
-                while (offset < bytes.length) {
-                    const len = bytes[offset];
-                    if (len === 0) { offset++; break; }
-                    offset += len + 1;
-                }
-                while (offset + 4 <= bytes.length) {
-                    const key = (bytes[offset] << 8) | bytes[offset + 1];
-                    const len = (bytes[offset + 2] << 8) | bytes[offset + 3];
-                    offset += 4;
-                    if (key === 5) return btoa(String.fromCharCode(...bytes.slice(offset, offset + len)));
-                    offset += len;
-                }
-            }
-            return '';
-        } catch {
-            return '';
-        }
-    }
-```
+    }```

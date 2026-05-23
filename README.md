@@ -38,7 +38,9 @@
   - 完整规则集：Clash 使用 Loyalsoldier `rule-providers`；Sing-box 使用 MetaCubeX SRS；Surge / Loon / QuanX 使用 ACL4SSR / blackmatrix7 远端规则
   - 各策略分组均包含「策略组 + 全部节点」，可直接切换具体节点（已移除「自动选择」url-test，避免周期性测速浪费请求）
   - 修复 Clash IPv6 节点 `server` 被解析为数组、代理组 `🎯 全球直连` ↔ `🚀 节点选择` 循环引用等问题
-- 链接参数 ALPN 留空：生成的 VLESS / Trojan / xhttp 分享链接不再写死 `alpn=h3`，由客户端自行协商
+- 传输优化：参考 GrainTCP 思路优化 WebSocket/TCP 转发，上行小包队列合并、下行小包聚合、大包直发，并优化 VLESS 解析热路径
+- 图形化 ALPN：新增 `alpn` 下拉选项，留空时不写 `alpn`，也可选择 `h3`、`h2`、`http/1.1` 或组合值
+- 节点别名简化：域名统一为 `优选域名-序号`，IPv6 统一为 `IPv6优选-序号`，IPv4 使用 `isp-colo-序号`
 - KV 配置缓存：30s 短窗口 + 跨 isolate 版本键 `c_ver`，保存后无需刷新两次
 - SOCKS5 降级超时：直连 3.5s 无数据自动走 fallback
 - 标签：「启用 GitHub 默认优选」改为「启用自定义优选」
@@ -136,6 +138,7 @@
 | `ex` | yes/no | 可选，启用xhttp（默认禁用） |
 | `tp` | 自定义密码 | 可选，Trojan密码，留空用UUID |
 | `ech` | yes/no | 可选，启用ECH功能（默认禁用） |
+| `alpn` | ALPN列表 | 可选，TLS节点ALPN参数。留空不写，由客户端协商；可选 `h3`、`h2`、`http/1.1`、`h3,h2`、`h2,http/1.1`、`h3,h2,http/1.1` |
 
 #### 图形化配置（推荐）
 
@@ -155,6 +158,7 @@
 | `qj` | no | 可选，设为`no`启用降级：CF直连失败→SOCKS5→fallback |
 | `dkby` | yes | 可选，设为`yes`只生成TLS节点 |
 | `ech` | yes/no | 可选，启用ECH功能（默认禁用，启用后自动开启仅TLS模式） |
+| `alpn` | ALPN列表 | 可选，只写入TLS节点链接参数，留空则不写 |
 | `yxby` | yes | 可选，设为`yes`关闭所有优选功能 |
 | `rm` | no | 可选，设为`no`关闭地区智能匹配 |
 | `ae` | yes | 可选，设为`yes`允许API管理（默认关闭） |
@@ -320,9 +324,10 @@ path 示例：
 
 #### 优选节点命名
 
-- 支持自定义名称，格式：`IP:端口#节点名称`
-- 示例：`1.1.1.1:443#香港节点,8.8.8.8:53#Google DNS`
-- 不设置名称会自动生成 `自定义优选-IP:端口`
+- 订阅别名默认使用短名称，不再追加端口、协议、TLS/WS 等信息
+- 域名节点：`优选域名-01`、`优选域名-02`
+- IPv6节点：`IPv6优选-01`、`IPv6优选-02`
+- IPv4节点：优先使用 `isp-colo-序号`，缺少运营商信息时回退为 `IPv4优选-序号`
 
 #### 系统状态
 
@@ -335,6 +340,7 @@ path 示例：
 - `qj=no` 启用降级模式（CF直连失败→SOCKS5→fallback）
 - `dkby=yes` 只生成TLS节点
 - `ech=yes` 启用ECH功能（启用后自动开启仅TLS模式）
+- `alpn=h3,h2` 指定TLS节点ALPN，留空则不写
 - `yxby=yes` 关闭所有优选功能
 
 #### 多客户端支持
@@ -346,7 +352,7 @@ path 示例：
 - 点按钮自动打开对应客户端
 - 根据User-Agent自动识别并返回对应格式
 - 不同客户端自动适配最佳协议组合
-- 所有TLS链接自动包含 `h3,h2,http/1.1` 协议协商
+- TLS 链接默认不写 `alpn`，可在图形界面或通过 `alpn` 配置指定
 
 #### 性能优化
 
