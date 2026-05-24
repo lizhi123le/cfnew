@@ -2885,7 +2885,7 @@
             if (item.colo && item.colo.trim()) {
                 nodeNameBase = `${nodeNameBase}-${item.colo.trim()}`;
             }
-            const safeIP = item.ip.includes(':') ? `[${item.ip}]` : item.ip;
+            const safeIP = item.ip.includes(':') && !item.ip.includes('[') ? `[${item.ip}]` : item.ip;
             const nodeHost = getRandomHost(workerDomain) || workerDomain;
             const wsPath = enableRandomPath ? randomPath('/?ed=2560') : '/?ed=2560';
 
@@ -2978,7 +2978,7 @@
             if (item.colo && item.colo.trim()) {
                 nodeNameBase = `${nodeNameBase}-${item.colo.trim()}`;
             }
-            const safeIP = item.ip.includes(':') ? `[${item.ip}]` : item.ip;
+            const safeIP = item.ip.includes(':') && !item.ip.includes('[') ? `[${item.ip}]` : item.ip;
             const nodeHost = getRandomHost(workerDomain) || workerDomain;
             const wsPath = enableRandomPath ? randomPath('/?ed=2560') : '/?ed=2560';
 
@@ -7772,7 +7772,7 @@
             if (++yieldCounter % 50 === 0) await new Promise(r => setTimeout(r, 0));
             const nodeNameBase = (item.name || '').split(/[?#@]/)[0].trim().replace(/\s/g, '_') || item.ip.replace(/\s/g, '_');
             const port = item.port;
-            const safeIP = item.ip.includes(':') ? `[${item.ip}]` : item.ip;
+            const safeIP = item.ip.includes(':') && !item.ip.includes('[') ? `[${item.ip}]` : item.ip;
             const nodeHost = getRandomHost(workerDomain) || workerDomain;
             const wsPath = enableRandomPath ? randomPath('/?ed=2560') : '/?ed=2560';
 
@@ -7836,7 +7836,7 @@
             let nodeNameBase = (item.isp || item.name || item.ip || '').split(/[?#@]/)[0].trim().replace(/\s/g, '_');
             if (!nodeNameBase) continue;
             if (item.colo) nodeNameBase = `${nodeNameBase}-${item.colo}`;
-            const safeIP = item.ip.includes(':') ? `[${item.ip}]` : item.ip;
+            const safeIP = item.ip.includes(':') && !item.ip.includes('[') ? `[${item.ip}]` : item.ip;
             const port = item.port || 443;
             const nodeHost = getRandomHost(workerDomain) || workerDomain;
 
@@ -7890,7 +7890,7 @@
             if (++yieldCounter % 50 === 0) await new Promise(r => setTimeout(r, 0));
             const nodeNameBase = (item.name || '').split(/[?#@]/)[0].trim().replace(/\s/g, '_') || item.ip.replace(/\s/g, '_');
             const port = item.port;
-            const safeIP = item.ip.includes(':') ? `[${item.ip}]` : item.ip;
+            const safeIP = item.ip.includes(':') && !item.ip.includes('[') ? `[${item.ip}]` : item.ip;
             const nodeHost = getRandomHost(workerDomain) || workerDomain;
             const wsPath = enableRandomPath ? randomPath('/?ed=2560') : '/?ed=2560';
 
