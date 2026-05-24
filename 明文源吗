@@ -2848,7 +2848,7 @@
 
         const responseHeaders = { 
             'Content-Type': contentType,
-            'Cache-Control': 'public, max-age=300, s-maxage=300',
+            'Cache-Control': 'public, max-age=720, s-maxage=300',
         };
 
         // 添加ECH状态到响应头
@@ -5998,6 +5998,10 @@
                         await loadCurrentConfig();
                         // 更新wk地区选择状态
                         updateWkRegionState();
+                        // 预取 /sub 以更新浏览器缓存中的 ECH 状态
+                        try {
+                            await fetch(window.location.href + '/sub', { cache: 'reload' });
+                        } catch (_) {}
                         // 保存成功后刷新页面以更新系统状态
                         setTimeout(function() {
                             window.location.reload();
