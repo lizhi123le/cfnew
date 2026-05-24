@@ -6129,34 +6129,38 @@
                 checkKVStatus();
                 checkECHStatus();
 
-                // ECH 开启时自动联动开启仅TLS，并禁用ALPN设置（ECH不支持ALPN）
+                // ECH 开启时自动联动开启仅TLS，并锁定ALPN设置（ECH不支持ALPN）
                 const echCheckbox = document.getElementById('ech');
                 const portControl = document.getElementById('portControl');
                 const alpnSelect = document.getElementById('alpn');
+                let lastAlpnValue = '';
                 if (echCheckbox && portControl) {
                     echCheckbox.addEventListener('change', function() {
                         if (this.checked) {
-                            // ECH 开启时，自动设置仅TLS为 yes
-                            portControl.value = 'yes';
-                            // ECH 开启时，禁用ALPN设置
+                            // ECH 开启时，保存当前ALPN值再清空
                             if (alpnSelect) {
+                                lastAlpnValue = alpnSelect.value;
                                 alpnSelect.disabled = true;
                                 alpnSelect.style.opacity = '0.5';
                                 alpnSelect.value = '';
                             }
+                            // ECH 开启时，自动设置仅TLS为 yes
+                            portControl.value = 'yes';
                         } else {
                             // ECH 关闭时，恢复ALPN设置
                             if (alpnSelect) {
                                 alpnSelect.disabled = false;
                                 alpnSelect.style.opacity = '1';
+                                alpnSelect.value = lastAlpnValue;
                             }
                         }
                     });
 
-                    // 页面加载时，如果 ECH 已勾选，也自动设置仅TLS并禁用ALPN
+                    // 页面加载时，如果 ECH 已勾选，保存ALPN值并锁定
                     if (echCheckbox.checked) {
                         portControl.value = 'yes';
                         if (alpnSelect) {
+                            lastAlpnValue = alpnSelect.value;
                             alpnSelect.disabled = true;
                             alpnSelect.style.opacity = '0.5';
                             alpnSelect.value = '';
