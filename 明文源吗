@@ -743,47 +743,6 @@
                         }
                     }
 
-                    // 处理 /{UUID}/api/ech-status - 轻量级 ECH 状态查询（避免触发完整订阅生成）
-                    if (url.pathname.endsWith('/api/ech-status')) {
-                        const pathParts = url.pathname.split('/').filter(p => p);
-
-                        if (pathParts.length === 3 && pathParts[1] === 'api' && pathParts[2] === 'ech-status') {
-                            const pathIdentifier = pathParts[0];
-                            let isValid = false;
-
-                            if (cp && cp.trim()) {
-                                const cleanCustomPath = cp.trim().startsWith('/') ? cp.trim().substring(1) : cp.trim();
-                                isValid = (pathIdentifier === cleanCustomPath);
-                            } else {
-                                isValid = (isValidFormat(pathIdentifier) && pathIdentifier === at);
-                            }
-
-                            if (isValid) {
-                                let echConfigStr = '';
-                                if (enableECH) {
-                                    const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
-                                    const echDomain = customECHDomain || getRandomHost(url.hostname) || url.hostname;
-                                    echConfigStr = echDomain + '+' + dnsServer;
-                                }
-
-                                return new Response(JSON.stringify({
-                                    enabled: enableECH,
-                                    configLength: echConfigStr.length
-                                }), {
-                                    headers: { 'Content-Type': 'application/json' }
-                                });
-                            } else {
-                                return new Response(JSON.stringify({
-                                    error: '访问被拒绝',
-                                    message: '路径验证失败'
-                                }), {
-                                    status: 403,
-                                    headers: { 'Content-Type': 'application/json' }
-                                });
-                            }
-                        }
-                    }
-
                     // 处理 /{UUID}/test-api 或 /{自定义路径}/test-api
                     if (url.pathname.endsWith('/test-api')) {
                         const pathParts = url.pathname.split('/').filter(p => p);
@@ -2668,9 +2627,9 @@
     async function handleSubscriptionRequest(request, user, url = null) {
         if (!url) url = new URL(request.url);
 
-        // Cache API: 尝试获取缓存（ECH 开启时跳过，因为 ECH 配置会动态变更）
+        // Cache API: 尝试获取缓存
         const cachedResponse = await cfCache.match(request);
-        if (cachedResponse && !enableECH) return cachedResponse;
+        if (cachedResponse) return cachedResponse;
 
         const finalLinks = [];
         const workerDomain = url.hostname;
@@ -6135,16 +6094,23 @@
                 if (!echStatusEl) return;
 
                 try {
-                    // 使用轻量级 /api/ech-status 端点，避免触发完整订阅生成
-                    const apiUrl = window.location.pathname.replace(/\/+$/, '') + '/api/ech-status';
+                    const currentUrl = window.location.href;
+                    const subscriptionUrl = currentUrl + '/sub';
 
                     echStatusEl.innerHTML = 'ECH状态: <span style="color: #ffb400;">检测中...</span>';
 
-                    const response = await fetch(apiUrl);
-                    const data = await response.json();
+                    const response = await fetch(subscriptionUrl, {
+                        method: 'GET',
+                        headers: {
+                            'Accept': 'text/plain'
+                        }
+                    });
 
-                    if (data.enabled) {
-                        echStatusEl.innerHTML = 'ECH状态: <span style="color: #00ff9d;">✅ 已启用' + (data.configLength ? ' (配置长度: ' + data.configLength + ')' : '') + '</span>';
+                    const echStatusHeader = response.headers.get('X-ECH-Status');
+                    const echConfigLength = response.headers.get('X-ECH-Config-Length');
+
+                    if (echStatusHeader === 'ENABLED') {
+                        echStatusEl.innerHTML = 'ECH状态: <span style="color: #00ff9d;">✅ 已启用' + (echConfigLength ? ' (配置长度: ' + echConfigLength + ')' : '') + '</span>';
                     } else {
                         echStatusEl.innerHTML = 'ECH状态: <span style="color: #ffb400;">⚠️ 未启用</span>';
                     }
@@ -8039,6 +8005,14 @@
                 if (newConfig.yx !== undefined) {
                     updateCustomPreferredFromYx();
                 }
+
+                // 清除订阅缓存，使 ECH 状态等立即更新
+                try {
+                    const reqUrl = new URL(request.url);
+                    const basePath = reqUrl.pathname.replace(/\/api\/config.*$/, '');
+                    const subUrl = reqUrl.origin + basePath + '/sub';
+                    await cfCache.delete(new Request(subUrl));
+                } catch (_) {}
 
                 return new Response(JSON.stringify({
                     success: true,
