@@ -2627,9 +2627,9 @@
     async function handleSubscriptionRequest(request, user, url = null) {
         if (!url) url = new URL(request.url);
 
-        // Cache API: 尝试获取缓存
+        // Cache API: 尝试获取缓存（ECH 开启时跳过，因为 ECH 配置会动态变更）
         const cachedResponse = await cfCache.match(request);
-        if (cachedResponse) return cachedResponse;
+        if (cachedResponse && !enableECH) return cachedResponse;
 
         const finalLinks = [];
         const workerDomain = url.hostname;
@@ -2848,7 +2848,7 @@
 
         const responseHeaders = { 
             'Content-Type': contentType,
-            'Cache-Control': 'public, max-age=300, s-maxage=300',
+            'Cache-Control': 'public, max-age=720, s-maxage=720',
         };
 
         // 添加ECH状态到响应头
@@ -6094,8 +6094,8 @@
                 if (!echStatusEl) return;
 
                 try {
-                    const currentUrl = window.location.href;
-                    const subscriptionUrl = currentUrl + '/sub';
+                    // 添加随机参数避免 Cache API 返回旧缓存（ECH 状态检测需要实时）
+                    const subscriptionUrl = window.location.origin + window.location.pathname.replace(/\/+$/, '') + '/sub?_echck=' + Date.now();
 
                     echStatusEl.innerHTML = 'ECH状态: <span style="color: #ffb400;">检测中...</span>';
 
