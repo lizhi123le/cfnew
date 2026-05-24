@@ -28,8 +28,10 @@
     let customDNS = 'https://223.5.5.5/dns-query';
     // 自定义ECH域名（留空则从 hostList 随机抽取）
     let customECHDomain = '';
-    // ECH 配置缓存（域名 -> ECH config 列表）
-    const globalEchCache = new Map();
+    // ECH 配置缓存（内存 + KV 冷触发混合模式）
+    const echConfigCache = new Map();
+    const echConfigCacheTime = new Map();
+    const ECH_CACHE_TTL = 21600000; // 6 小时
     // 自定义ALPN（可选：h3, h2, http/1.1，逗号分隔）
     let customALPN = '';
     // Cache API 缓存
@@ -47,9 +49,10 @@
 
     let kvStore = null;
     let kvConfig = {};
-    let kvConfigLastLoad = 0;
-    const KV_CACHE_TTL = 30 * 1000; // 30秒缓存（短窗口内跳过版本检查）
-    let kvConfigVersion = '';
+    let kvConfigCache = null;       // 内存缓存（深拷贝隔离，防污染）
+    let kvConfigCacheTime = 0;      // 缓存时间戳
+    const KV_CACHE_TTL = 259200000; // 3 天缓存（冷触发混合模式）
+    let kvConfigVersion = ''; 
 
     const regionMapping = {
         'HK': ['🇭🇰 香港', 'HK', 'Hong Kong'],
@@ -142,6 +145,7 @@
 
     // 应用 ALPN 参数到 WebSocket 参数
     function applyALPNParam(params) {
+        if (enableECH) return;
         const alpn = normalizeALPN(customALPN);
         if (alpn) params.set('alpn', alpn);
     }
@@ -188,36 +192,42 @@
             return;
         }
 
-        // 短窗口内完全信任缓存，避免高频请求时打爆 KV
-        if (!force && kvConfigLastLoad > 0 && (Date.now() - kvConfigLastLoad) < KV_CACHE_TTL) {
+        // 冷触发混合模式：TTL 内从缓存深拷贝，零 KV 操作
+        if (!force && kvConfigCache && Date.now() - kvConfigCacheTime < KV_CACHE_TTL) {
+            kvConfig = JSON.parse(JSON.stringify(kvConfigCache));
             return;
         }
 
         try {
-            // 读取小体积的版本键 c_ver（约 13B），用于跨 isolate 缓存失效
+            // 版本检查：未变化则从缓存深拷贝（仅刷新时间戳）
             let ver = '';
             try { ver = (await kvStore.get('c_ver')) || ''; } catch (_) {}
-
-            // 版本未变化且已有缓存，仅刷新时间戳，跳过完整读取
-            if (!force && ver && ver === kvConfigVersion && kvConfig && Object.keys(kvConfig).length > 0) {
-                kvConfigLastLoad = Date.now();
+            if (!force && ver && ver === kvConfigVersion && kvConfigCache) {
+                kvConfigCacheTime = Date.now();
+                kvConfig = JSON.parse(JSON.stringify(kvConfigCache));
                 return;
             }
 
-            // 随机延迟 0-300ms，缓解 KV 并发打满
+            // 随机延迟 0-300ms，缓解 KV 并发
             if (!force) {
                 await new Promise(r => setTimeout(r, Math.random() * 300));
             }
 
+            // 完整读取 KV
             const configData = await kvStore.get('c');
             if (configData) {
                 kvConfig = JSON.parse(configData);
+                kvConfigCache = JSON.parse(JSON.stringify(kvConfig));
+                kvConfigCacheTime = Date.now();
             }
             kvConfigVersion = ver;
-            kvConfigLastLoad = Date.now();
-        } catch (error) {
-            // 读取失败时保留现有缓存，避免临时故障导致配置丢失
+
+            // KV 读取失败时保留现有缓存，避免临时故障导致配置丢失
             if (!kvConfig) kvConfig = {};
+            if (!kvConfigCache) kvConfigCache = {};
+        } catch (error) {
+            if (!kvConfig) kvConfig = {};
+            if (!kvConfigCache) kvConfigCache = {};
         }
     }
 
@@ -233,7 +243,9 @@
             const newVer = String(Date.now());
             kvConfigVersion = newVer;
             try { await kvStore.put('c_ver', newVer); } catch (_) {}
-            kvConfigLastLoad = Date.now();
+            // 同步更新内存缓存
+            kvConfigCache = JSON.parse(JSON.stringify(kvConfig));
+            kvConfigCacheTime = Date.now();
         } catch (error) {
             throw error; 
         }
@@ -249,6 +261,7 @@
     async function setConfigValue(key, value) {
         kvConfig[key] = value;
         await saveKVConfig();
+        updateConfigVariables();
     }
 
     async function detectWorkerRegion(request) {
@@ -2004,12 +2017,12 @@
     }
 
     // 内部生成 Sing-box JSON 配置（完整规则集：MetaCubeX 镜像 rule-set）
-    function generateSingBoxJson(links) {
+    async function generateSingBoxJson(links) {
         const nodes = links.map(parseShareLink).filter(n => n && (n.proto === 'vless' || n.proto === 'trojan'));
         const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
         const outboundTags = nodes.map(n => n.name);
 
-        function nodeToOutbound(n) {
+        async function nodeToOutbound(n) {
             const out = {
                 type: n.proto,
                 tag: n.name,
@@ -2031,7 +2044,10 @@
                 };
                 if (n.alpn && n.alpn.length) out.tls.alpn = n.alpn;
                 if (n.ech) {
+                    const echDomain = (n.ech.includes('+') ? n.ech.split('+')[0] : n.ech) || getRandomHost(workerDomain) || workerDomain;
+                    const echConfig = await fetchECHConfig(echDomain);
                     out.tls.ech = { enabled: true, pq_signature_schemes_enabled: false, dynamic_record_sizing_disabled: false };
+                    if (echConfig) out.tls.ech.ech_config = echConfig;
                 }
             }
             if (n.network === 'ws' || n.network === 'xhttp') {
@@ -2108,7 +2124,7 @@
                 { type: 'selector', tag: '🎬 奈飞视频', outbounds: ['select', '🌍 国外媒体', 'direct', ...outboundTags] },
                 { type: 'selector', tag: '🎯 全球直连', outbounds: ['direct'] },
                 { type: 'selector', tag: '🐟 漏网之鱼', outbounds: ['select', 'direct', ...outboundTags] },
-                ...nodes.map(nodeToOutbound),
+                ...await Promise.all(nodes.map(nodeToOutbound)),
                 { type: 'direct', tag: 'direct' },
                 { type: 'block', tag: 'block' },
                 { type: 'dns', tag: 'dns-out' }
@@ -2415,12 +2431,121 @@
     function generateSurgeConfig(links) { return generateSurgeIni(links); }
     function generateLoonConfig(links) { return generateLoonIni(links); }
     function generateQuantumultXConfig(links) { return generateQuanxConf(links); }
-    function generateSingBoxConfig(links) { return generateSingBoxJson(links); }
+    async function generateSingBoxConfig(links) { return generateSingBoxJson(links); }
     function generateSSConfig(links) { return btoa(links.join('\n')); }
     function generateV2RayConfig(links) { return btoa(links.join('\n')); }
 
     // 全局变量存储ECH调试信息
     let echDebugInfo = '';
+
+    // 通过 DoH（DNS-over-HTTPS）查询指定域名的 DNS 记录，返回解析后的答案数组
+    async function DoH查询(域名, 记录类型, DoH解析服务 = "https://cloudflare-dns.com/dns-query") {
+        try {
+            const 类型映射 = { 'A': 1, 'NS': 2, 'CNAME': 5, 'MX': 15, 'TXT': 16, 'AAAA': 28, 'SRV': 33, 'HTTPS': 65 };
+            const qtype = 类型映射[记录类型.toUpperCase()] || 1;
+
+            const 编码域名 = (name) => {
+                const parts = name.endsWith('.') ? name.slice(0, -1).split('.') : name.split('.');
+                const bufs = [];
+                for (const label of parts) {
+                    const enc = new TextEncoder().encode(label);
+                    bufs.push(new Uint8Array([enc.length]), enc);
+                }
+                bufs.push(new Uint8Array([0]));
+                const total = bufs.reduce((s, b) => s + b.length, 0);
+                const result = new Uint8Array(total);
+                let off = 0;
+                for (const b of bufs) { result.set(b, off); off += b.length; }
+                return result;
+            };
+
+            const qname = 编码域名(域名);
+            const query = new Uint8Array(12 + qname.length + 4);
+            const qview = new DataView(query.buffer);
+            qview.setUint16(0, 0);
+            qview.setUint16(2, 0x0100);
+            qview.setUint16(4, 1);
+            query.set(qname, 12);
+            qview.setUint16(12 + qname.length, qtype);
+            qview.setUint16(12 + qname.length + 2, 1);
+
+            const response = await fetch(DoH解析服务, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/dns-message', 'Accept': 'application/dns-message' },
+                body: query,
+            });
+            if (!response.ok) return [];
+
+            const buf = new Uint8Array(await response.arrayBuffer());
+            const dv = new DataView(buf.buffer);
+            const qdcount = dv.getUint16(4);
+            const ancount = dv.getUint16(6);
+
+            const 解析域名 = (pos) => {
+                const labels = [];
+                let p = pos, jumped = false, endPos = -1, safe = 128;
+                while (p < buf.length && safe-- > 0) {
+                    const len = buf[p];
+                    if (len === 0) { if (!jumped) endPos = p + 1; break; }
+                    if ((len & 0xC0) === 0xC0) {
+                        if (!jumped) endPos = p + 2;
+                        p = ((len & 0x3F) << 8) | buf[p + 1];
+                        jumped = true;
+                        continue;
+                    }
+                    labels.push(new TextDecoder().decode(buf.slice(p + 1, p + 1 + len)));
+                    p += len + 1;
+                }
+                if (endPos === -1) endPos = p + 1;
+                return [labels.join('.'), endPos];
+            };
+
+            let offset = 12;
+            for (let i = 0; i < qdcount; i++) {
+                const [, end] = 解析域名(offset);
+                offset = end + 4;
+            }
+
+            const answers = [];
+            for (let i = 0; i < ancount && offset < buf.length; i++) {
+                const [name, nameEnd] = 解析域名(offset);
+                offset = nameEnd;
+                const type = dv.getUint16(offset); offset += 2;
+                offset += 2;
+                const ttl = dv.getUint32(offset); offset += 4;
+                const rdlen = dv.getUint16(offset); offset += 2;
+                const rdata = buf.slice(offset, offset + rdlen);
+                offset += rdlen;
+
+                let data;
+                if (type === 1 && rdlen === 4) {
+                    data = `${rdata[0]}.${rdata[1]}.${rdata[2]}.${rdata[3]}`;
+                } else if (type === 28 && rdlen === 16) {
+                    const segs = [];
+                    for (let j = 0; j < 16; j += 2) segs.push(((rdata[j] << 8) | rdata[j + 1]).toString(16));
+                    data = segs.join(':');
+                } else if (type === 16) {
+                    let tOff = 0;
+                    const parts = [];
+                    while (tOff < rdlen) {
+                        const tLen = rdata[tOff++];
+                        parts.push(new TextDecoder().decode(rdata.slice(tOff, tOff + tLen)));
+                        tOff += tLen;
+                    }
+                    data = parts.join('');
+                } else if (type === 5) {
+                    const [cname] = 解析域名(offset - rdlen);
+                    data = cname;
+                } else {
+                    data = Array.from(rdata).map(b => b.toString(16).padStart(2, '0')).join('');
+                }
+                answers.push({ name, type, TTL: ttl, data, rdata });
+            }
+            return answers;
+        } catch (error) {
+            return [];
+        }
+    }
 
     async function fetchECHConfig(domain) {
         if (!enableECH) {
@@ -2428,142 +2553,73 @@
             return null;
         }
 
-        echDebugInfo = '';
-        const debugSteps = [];
+        // L1: 内存缓存（同域名不读KV，仅内存）
+        const cached = echConfigCache.get(domain);
+        const cachedTime = echConfigCacheTime.get(domain);
+        if (cached && cachedTime && Date.now() - cachedTime < ECH_CACHE_TTL) {
+            echDebugInfo = `✅ 使用缓存中的 ${domain} ECH 配置`;
+            return cached;
+        }
 
+        // L2: KV 冷触发缓存（仅内存未命中时读取，恢复后同域名不再读KV）
+        if (kvStore) {
+            try {
+                const kvData = await kvStore.get('ech_' + domain);
+                if (kvData) {
+                    const parsed = JSON.parse(kvData);
+                    if (parsed && parsed.config && parsed.time && Date.now() - parsed.time < ECH_CACHE_TTL) {
+                        echConfigCache.set(domain, parsed.config);
+                        echConfigCacheTime.set(domain, parsed.time);
+                        echDebugInfo = `✅ 从 KV 缓存恢复 ${domain} 的 ECH 配置`;
+                        return parsed.config;
+                    }
+                }
+            } catch (_) { /* KV 读取失败，降级到 DoH */ }
+        }
+
+        // L3: DoH 查询
         try {
-            // 优先使用 Google DNS 查询 cloudflare-ech.com 的 ECH 配置
-            debugSteps.push('尝试使用 Google DNS 查询 cloudflare-ech.com...');
-            const echDomainUrl = `https://v.recipes/dns/dns.google/dns-query?name=cloudflare-ech.com&type=65`;
-            const echResponse = await fetch(echDomainUrl, {
-                headers: {
-                    'Accept': 'application/json'
-                }
-            });
-
-            debugSteps.push(`Google DNS 响应状态: ${echResponse.status}`);
-
-            if (echResponse.ok) {
-                const echData = await echResponse.json();
-                debugSteps.push(`Google DNS 返回数据: ${JSON.stringify(echData).substring(0, 200)}...`);
-
-                if (echData.Answer && echData.Answer.length > 0) {
-                    debugSteps.push(`找到 ${echData.Answer.length} 条答案记录`);
-                    for (const answer of echData.Answer) {
-                        if (answer.data) {
-                            debugSteps.push(`解析答案数据: ${typeof answer.data}, 长度: ${String(answer.data).length}`);
-                            // Google DNS 返回的数据格式可能不同，需要解析
-                            const dataStr = typeof answer.data === 'string' ? answer.data : JSON.stringify(answer.data);
-                            const echMatch = dataStr.match(/ech=([^\s"']+)/);
-                            if (echMatch && echMatch[1]) {
-                                echDebugInfo = debugSteps.join('\\n') + '\\n✅ 成功从 Google DNS 获取 ECH 配置';
-                                return echMatch[1];
-                            }
-                            // 如果没有找到，尝试直接使用 data（可能是 base64 编码的）
-                            if (answer.data && !dataStr.includes('ech=')) {
-                                try {
-                                    const decoded = atob(answer.data);
-                                    debugSteps.push(`尝试 base64 解码，解码后长度: ${decoded.length}`);
-                                    const decodedMatch = decoded.match(/ech=([^\s"']+)/);
-                                    if (decodedMatch && decodedMatch[1]) {
-                                        echDebugInfo = debugSteps.join('\\n') + '\\n✅ 成功从 Google DNS (base64解码) 获取 ECH 配置';
-                                        return decodedMatch[1];
-                                    }
-                                } catch (e) {
-                                    debugSteps.push(`base64 解码失败: ${e.message}`);
-                                }
-                            }
-                        }
-                    }
-                } else {
-                    debugSteps.push('Google DNS 未返回答案记录');
-                }
-            } else {
-                debugSteps.push(`Google DNS 请求失败: ${echResponse.status}`);
+            const dnsServer = customDNS || 'https://cloudflare-dns.com/dns-query';
+            const answers = await DoH查询(domain, 'HTTPS', dnsServer);
+            if (!answers.length) {
+                echDebugInfo = `❌ ${domain} 的 HTTPS/SVCB 记录未找到`;
+                return null;
             }
-
-            // 如果 cloudflare-ech.com 查询失败，尝试使用 Google DNS 查询目标域名的 HTTPS 记录
-            debugSteps.push(`尝试使用 Google DNS 查询目标域名 ${domain}...`);
-            const dohUrl = `https://v.recipes/dns/dns.google/dns-query?name=${encodeURIComponent(domain)}&type=65`;
-            const response = await fetch(dohUrl, {
-                headers: {
-                    'Accept': 'application/json'
+            for (const ans of answers) {
+                if (ans.type !== 65 || !ans.rdata) continue;
+                const bytes = ans.rdata;
+                let offset = 2; // 跳过 SvcPriority
+                while (offset < bytes.length) {
+                    const len = bytes[offset];
+                    if (len === 0) { offset++; break; }
+                    offset += len + 1;
                 }
-            });
-
-            debugSteps.push(`Google DNS (目标域名) 响应状态: ${response.status}`);
-
-            if (response.ok) {
-                const data = await response.json();
-                debugSteps.push(`Google DNS (目标域名) 返回数据: ${JSON.stringify(data).substring(0, 200)}...`);
-
-                if (data.Answer && data.Answer.length > 0) {
-                    debugSteps.push(`找到 ${data.Answer.length} 条答案记录`);
-                    for (const answer of data.Answer) {
-                        if (answer.data) {
-                            const dataStr = typeof answer.data === 'string' ? answer.data : JSON.stringify(answer.data);
-                            const echMatch = dataStr.match(/ech=([^\s"']+)/);
-                            if (echMatch && echMatch[1]) {
-                                echDebugInfo = debugSteps.join('\\n') + '\\n✅ 成功从 Google DNS (目标域名) 获取 ECH 配置';
-                                return echMatch[1];
-                            }
-                            // 尝试 base64 解码
+                while (offset + 4 <= bytes.length) {
+                    const key = (bytes[offset] << 8) | bytes[offset + 1];
+                    const len = (bytes[offset + 2] << 8) | bytes[offset + 3];
+                    offset += 4;
+                    if (key === 5) {
+                        const config = btoa(String.fromCharCode(...bytes.slice(offset, offset + len)));
+                        const now = Date.now();
+                        // 回填 L1 内存缓存
+                        echConfigCache.set(domain, config);
+                        echConfigCacheTime.set(domain, now);
+                        // 回填 L2 KV 缓存（全局持久化，供冷启动恢复）
+                        if (kvStore) {
                             try {
-                                const decoded = atob(answer.data);
-                                const decodedMatch = decoded.match(/ech=([^\s"']+)/);
-                                if (decodedMatch && decodedMatch[1]) {
-                                    echDebugInfo = debugSteps.join('\\n') + '\\n✅ 成功从 Google DNS (目标域名, base64解码) 获取 ECH 配置';
-                                    return decodedMatch[1];
-                                }
-                            } catch (e) {
-                                debugSteps.push(`base64 解码失败: ${e.message}`);
-                            }
+                                await kvStore.put('ech_' + domain, JSON.stringify({ config, time: now }));
+                            } catch (_) { /* KV 写入失败不影响主流程 */ }
                         }
+                        echDebugInfo = `✅ 成功通过 DoH 获取 ${domain} 的 ECH 配置`;
+                        return config;
                     }
-                } else {
-                    debugSteps.push('Google DNS (目标域名) 未返回答案记录');
+                    offset += len;
                 }
-            } else {
-                debugSteps.push(`Google DNS (目标域名) 请求失败: ${response.status}`);
             }
-
-            // 如果 Google DNS 失败，尝试使用 Cloudflare DNS 作为备选
-            debugSteps.push('尝试使用 Cloudflare DNS 作为备选...');
-            const cfEchUrl = `https://cloudflare-dns.com/dns-query?name=cloudflare-ech.com&type=65`;
-            const cfResponse = await fetch(cfEchUrl, {
-                headers: {
-                    'Accept': 'application/dns-json'
-                }
-            });
-
-            debugSteps.push(`Cloudflare DNS 响应状态: ${cfResponse.status}`);
-
-            if (cfResponse.ok) {
-                const cfData = await cfResponse.json();
-                debugSteps.push(`Cloudflare DNS 返回数据: ${JSON.stringify(cfData).substring(0, 200)}...`);
-
-                if (cfData.Answer && cfData.Answer.length > 0) {
-                    debugSteps.push(`找到 ${cfData.Answer.length} 条答案记录`);
-                    for (const answer of cfData.Answer) {
-                        if (answer.data) {
-                            const echMatch = answer.data.match(/ech=([^\s"']+)/);
-                            if (echMatch && echMatch[1]) {
-                                echDebugInfo = debugSteps.join('\\n') + '\\n✅ 成功从 Cloudflare DNS 获取 ECH 配置';
-                                return echMatch[1];
-                            }
-                        }
-                    }
-                } else {
-                    debugSteps.push('Cloudflare DNS 未返回答案记录');
-                }
-            } else {
-                debugSteps.push(`Cloudflare DNS 请求失败: ${cfResponse.status}`);
-            }
-
-            echDebugInfo = debugSteps.join('\\n') + '\\n❌ 所有DNS查询均失败，未获取到ECH配置';
+            echDebugInfo = `❌ ${domain} 的 HTTPS/SVCB 记录中未找到 ECH 配置`;
             return null;
         } catch (error) {
-            echDebugInfo = debugSteps.join('\\n') + '\\n❌ 获取ECH配置时发生错误: ' + error.message;
+            echDebugInfo = `❌ 获取 ECH 配置失败: ${error.message}`;
             return null;
         }
     }
@@ -2783,7 +2839,7 @@
             case atob('c2luZ2JveA=='):  // singbox
             case 'sing-box':
             case 'singbox':
-                subscriptionContent = generateSingBoxJson(finalLinks);
+                subscriptionContent = await generateSingBoxJson(finalLinks);
                 contentType = 'application/json; charset=utf-8';
                 break;
             default:
@@ -2882,12 +2938,7 @@
                         const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
                         const echDomain = customECHDomain || getRandomHost(workerDomain) || workerDomain;
                         wsParams.set('ech', `${echDomain}+${dnsServer}`);
-                        // 获取并缓存 ECH 配置列表
-                        let echConfig = globalEchCache.get(echDomain);
-                        if (!echConfig) {
-                            echConfig = await fetchECHConfig(echDomain);
-                            if (echConfig) globalEchCache.set(echDomain, echConfig);
-                        }
+                        const echConfig = await fetchECHConfig(echDomain);
                         if (echConfig) wsParams.set('echconfiglist', echConfig);
                     }
 
@@ -2979,12 +3030,7 @@
                         const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
                         const echDomain = customECHDomain || getRandomHost(workerDomain) || workerDomain;
                         wsParams.set('ech', `${echDomain}+${dnsServer}`);
-                        // 获取并缓存 ECH 配置列表
-                        let echConfig = globalEchCache.get(echDomain);
-                        if (!echConfig) {
-                            echConfig = await fetchECHConfig(echDomain);
-                            if (echConfig) globalEchCache.set(echDomain, echConfig);
-                        }
+                        const echConfig = await fetchECHConfig(echDomain);
                         if (echConfig) wsParams.set('echconfiglist', echConfig);
                     }
 
@@ -6079,20 +6125,38 @@
                 checkKVStatus();
                 checkECHStatus();
 
-                // ECH 开启时自动联动开启仅TLS
+                // ECH 开启时自动联动开启仅TLS，并禁用ALPN设置（ECH不支持ALPN）
                 const echCheckbox = document.getElementById('ech');
                 const portControl = document.getElementById('portControl');
+                const alpnSelect = document.getElementById('alpn');
                 if (echCheckbox && portControl) {
                     echCheckbox.addEventListener('change', function() {
                         if (this.checked) {
                             // ECH 开启时，自动设置仅TLS为 yes
                             portControl.value = 'yes';
+                            // ECH 开启时，禁用ALPN设置
+                            if (alpnSelect) {
+                                alpnSelect.disabled = true;
+                                alpnSelect.style.opacity = '0.5';
+                                alpnSelect.value = '';
+                            }
+                        } else {
+                            // ECH 关闭时，恢复ALPN设置
+                            if (alpnSelect) {
+                                alpnSelect.disabled = false;
+                                alpnSelect.style.opacity = '1';
+                            }
                         }
                     });
 
-                    // 页面加载时，如果 ECH 已勾选，也自动设置仅TLS
+                    // 页面加载时，如果 ECH 已勾选，也自动设置仅TLS并禁用ALPN
                     if (echCheckbox.checked) {
                         portControl.value = 'yes';
+                        if (alpnSelect) {
+                            alpnSelect.disabled = true;
+                            alpnSelect.style.opacity = '0.5';
+                            alpnSelect.value = '';
+                        }
                     }
                 }
 
@@ -7723,18 +7787,14 @@
                     host: nodeHost,
                     path: wsPath
                 });
-                // 如果配置了ALPN，添加alpn参数
-                if (customALPN) wsParams.set('alpn', customALPN);
+                // 如果配置了ALPN，添加alpn参数（ECH启用时禁用ALPN）
+                if (!enableECH && customALPN) wsParams.set('alpn', customALPN);
                 // 如果启用了ECH，添加ech参数
                 if (enableECH) {
                     const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
                     const echDomain = customECHDomain || getRandomHost(workerDomain) || workerDomain;
                     wsParams.set('ech', `${echDomain}+${dnsServer}`);
-                    let echConfig = globalEchCache.get(echDomain);
-                    if (!echConfig) {
-                        echConfig = await fetchECHConfig(echDomain);
-                        if (echConfig) globalEchCache.set(echDomain, echConfig);
-                    }
+                    const echConfig = await fetchECHConfig(echDomain);
                     if (echConfig) wsParams.set('echconfiglist', echConfig);
                 }
                 links.push(`${proto}://${user}@${safeIP}:${port}?${wsParams.toString()}#${encodeURIComponent(wsNodeName)}`);
@@ -7798,12 +7858,7 @@
                 const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
                 const echDomain = customECHDomain || getRandomHost(workerDomain) || workerDomain;
                 params.set('ech', `${echDomain}+${dnsServer}`);
-                // 获取并缓存 ECH 配置列表
-                let echConfig = globalEchCache.get(echDomain);
-                if (!echConfig) {
-                    echConfig = await fetchECHConfig(echDomain);
-                    if (echConfig) globalEchCache.set(echDomain, echConfig);
-                }
+                const echConfig = await fetchECHConfig(echDomain);
                 if (echConfig) params.set('echconfiglist', echConfig);
             }
 
@@ -7848,18 +7903,14 @@
                     host: nodeHost,
                     path: wsPath
                 });
-                // 如果配置了ALPN，添加alpn参数
-                if (customALPN) wsParams.set('alpn', customALPN);
+                // 如果配置了ALPN，添加alpn参数（ECH启用时禁用ALPN）
+                if (!enableECH && customALPN) wsParams.set('alpn', customALPN);
                 // 如果启用了ECH，添加ech参数
                 if (enableECH) {
                     const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
                     const echDomain = customECHDomain || getRandomHost(workerDomain) || workerDomain;
                     wsParams.set('ech', `${echDomain}+${dnsServer}`);
-                    let echConfig = globalEchCache.get(echDomain);
-                    if (!echConfig) {
-                        echConfig = await fetchECHConfig(echDomain);
-                        if (echConfig) globalEchCache.set(echDomain, echConfig);
-                    }
+                    const echConfig = await fetchECHConfig(echDomain);
                     if (echConfig) wsParams.set('echconfiglist', echConfig);
                 }
                 links.push(`${atob('dHJvamFuOi8v')}${password}@${safeIP}:${port}?${wsParams.toString()}#${encodeURIComponent(wsNodeName)}`);
