@@ -743,7 +743,7 @@
                         }
                     }
 
-                    // 处理 /{UUID}/api/ech-status - 轻量级 ECH 状态查询（无需触发完整订阅生成）
+                    // 处理 /{UUID}/api/ech-status - 轻量级 ECH 状态查询（避免触发完整订阅生成）
                     if (url.pathname.endsWith('/api/ech-status')) {
                         const pathParts = url.pathname.split('/').filter(p => p);
 
@@ -2889,7 +2889,7 @@
 
         const responseHeaders = { 
             'Content-Type': contentType,
-            'Cache-Control': 'public, max-age=720, s-maxage=720',
+            'Cache-Control': 'public, max-age=300, s-maxage=300',
         };
 
         // 添加ECH状态到响应头
