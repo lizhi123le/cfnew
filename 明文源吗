@@ -5903,8 +5903,30 @@
                     // 检查p变量，如果有值则禁用wk地区选择
                     updateWkRegionState();
 
+                    // 配置加载完成后，根据 ECH 状态同步锁定/解锁 ALPN
+                    updateECHLockState();
+
                 } catch (error) {
                     document.getElementById('currentConfig').textContent = '加载配置失败: ' + error.message;
+                }
+            }
+
+            // ECH 开启时锁定 ALPN，关闭时恢复（在 loadCurrentConfig 和 change 事件中共用）
+            function updateECHLockState() {
+                const cb = document.getElementById('ech');
+                const alpn = document.getElementById('alpn');
+                if (!cb || !alpn) return;
+                if (cb.checked) {
+                    const currentVal = alpn.value;
+                    if (currentVal) localStorage.setItem('ech_alpn_backup', currentVal);
+                    alpn.disabled = true;
+                    alpn.style.opacity = '0.5';
+                    alpn.value = '';
+                } else {
+                    const backup = localStorage.getItem('ech_alpn_backup');
+                    alpn.value = backup || alpn.value;
+                    alpn.disabled = false;
+                    alpn.style.opacity = '1';
                 }
             }
 
@@ -6132,40 +6154,13 @@
                 // ECH 开启时自动联动开启仅TLS，并锁定ALPN设置（ECH不支持ALPN）
                 const echCheckbox = document.getElementById('ech');
                 const portControl = document.getElementById('portControl');
-                const alpnSelect = document.getElementById('alpn');
-                let lastAlpnValue = '';
                 if (echCheckbox && portControl) {
                     echCheckbox.addEventListener('change', function() {
+                        updateECHLockState();
                         if (this.checked) {
-                            // ECH 开启时，保存当前ALPN值再清空
-                            if (alpnSelect) {
-                                lastAlpnValue = alpnSelect.value;
-                                alpnSelect.disabled = true;
-                                alpnSelect.style.opacity = '0.5';
-                                alpnSelect.value = '';
-                            }
-                            // ECH 开启时，自动设置仅TLS为 yes
                             portControl.value = 'yes';
-                        } else {
-                            // ECH 关闭时，恢复ALPN设置
-                            if (alpnSelect) {
-                                alpnSelect.disabled = false;
-                                alpnSelect.style.opacity = '1';
-                                alpnSelect.value = lastAlpnValue;
-                            }
                         }
                     });
-
-                    // 页面加载时，如果 ECH 已勾选，保存ALPN值并锁定
-                    if (echCheckbox.checked) {
-                        portControl.value = 'yes';
-                        if (alpnSelect) {
-                            lastAlpnValue = alpnSelect.value;
-                            alpnSelect.disabled = true;
-                            alpnSelect.style.opacity = '0.5';
-                            alpnSelect.value = '';
-                        }
-                    }
                 }
 
                 // 监听customIP输入框变化，实时更新wk地区选择状态
