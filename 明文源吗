@@ -1308,8 +1308,9 @@
                             <span class="terminal-error" id="adminLoginErrorText">密码错误</span>
                     </div>
                 </div>
-                <!-- 普通终端（管理员认证通过后显示，或未设置管理员密码时直接显示） -->
-                <div id="normalTerminalSection" style="display:${requiresAdminAuth ? 'none' : 'block'}">
+                ${!requiresAdminAuth ? `
+                <!-- 普通终端（仅未设置管理员密码时显示） -->
+                <div id="normalTerminalSection" style="display:block">
                 <div class="terminal-line">
                     <span class="terminal-prompt">root:~$</span>
                         <span class="terminal-output">${t.congratulations}</span>
@@ -1328,6 +1329,7 @@
                     <span class="terminal-cursor"></span>
                 </div>
                 </div>
+                ` : ''}
             </div>
         </div>
         <script>
