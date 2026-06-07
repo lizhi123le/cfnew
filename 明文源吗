@@ -3669,7 +3669,7 @@
         const cookies = cookieHeader.split(';').map(c => c.trim());
         for (const cookie of cookies) {
             if (cookie.startsWith('cfnew_admin_token=')) {
-                const token = cookie.split('=')[1];
+                const token = cookie.substring('cfnew_admin_token='.length);
                 return await validateAdminToken(token, adminPassword, request);
             }
         }
