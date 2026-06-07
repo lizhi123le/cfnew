@@ -15,6 +15,7 @@
     let piu = '';
     let cp = '';  
     let enableRandomPath = false; // 随机路径开关
+    let adminPassword = '';       // 管理员密码 (env.ADMIN)
     const commonPathDirs = ["#","about","account","acg","act","activity","ad","admin","ads","ajax","album","albums","anime","api","app","apps","archive","archives","article","articles","ask","auth","avatar","bbs","bd","blog","blogs","book","books","bt","buy","cart","category","categories","cb","channel","channels","chat","china","city","class","classify","clip","clips","club","cn","code","collect","collection","comic","comics","community","company","config","contact","content","course","courses","cp","data","detail","details","dh","directory","discount","discuss","dl","dload","doc","docs","document","documents","doujin","download","downloads","drama","edu","en","ep","episode","episodes","event","events","f","faq","favorite","favourites","favs","feedback","file","files","film","films","forum","forums","friend","friends","game","games","gif","go","go.html","go.php","group","groups","help","home","hot","htm","html","image","images","img","index","info","intro","item","items","ja","jp","jump","jump.html","jump.php","jumping","knowledge","lang","lesson","lessons","lib","library","link","links","list","live","lives","login","logout","m","mag","magnet","mall","manhua","map","member","members","message","messages","mobile","movie","movies","music","my","new","news","note","novel","novels","online","order","out","out.html","out.php","outbound","p","page","pages","pay","payment","pdf","photo","photos","pic","pics","picture","pictures","play","player","playlist","post","posts","product","products","program","programs","project","qa","question","rank","ranking","read","readme","redirect","redirect.html","redirect.php","reg","register","res","resource","retrieve","sale","search","season","seasons","section","seller","series","service","services","setting","settings","share","shop","show","shows","site","soft","sort","source","special","star","stars","static","stock","store","stream","streaming","streams","student","study","tag","tags","task","teacher","team","tech","temp","test","thread","tool","tools","topic","topics","torrent","trade","travel","tv","txt","type","u","upload","uploads","url","urls","user","users","v","version","video","videos","view","vip","vod","watch","web","wenku","wiki","work","www","zh","zh-cn","zh-tw","zip","about-us","access","accounting","activation","address","advertising","affiliate","agreement","alert","alerts","analytics-dashboard","announcement","api-docs","apply","archive-news","article-detail","attendance","author","auto","backup","banner","billing","board","brand","browse-all","business","calendar","campaign","career","cart-checkout","catalog","certificate","checkout-success","client","cloud","comment","company-info","competition","complaint","conference","connect","console","contact-form","contest","contract","contribute","control","cookie","copyright","coupon","create","crm","currency","custom","customer","dashboard-admin","data-center","deal","default","demo","department","design","developer","development","device","directory-list","discounts","display","donate","editor","email","employee","employment","enterprise","entry","environment","error-log","estimate","exam","example","exchange","experience","expert","export","faq-page","feature","feedback-form","finance","financial","fleet","flow","form","gallery","gateway","general","global","guide","hardware","health","history-page","holiday","host","hosting","identity","image-gallery","import","index-page","industry","info-center","information","inquiry","install","instruction","insurance","integration","interface","internal","invoice","issue","job","join","journal","key","knowledge-base","lab","landing","language","launch","legal","license","limited","location","log","logging","logs","machine","mail","manage","management","manual","map-view","market","marketing","master","media-center","member-area","menu","merchant","message-board","meta","method","metrics","misc","moderator","module","monitor","monthly","navigation","network","newsletter","notification","office","official","open","operation","opinion","option","order-detail","organization","overview","owner","package","partner","password","payment-info","people","performance","personal","phone","photo-gallery","plan","platform","policy","portal","portfolio","position","preferences","press-release","preview","pricing","print","privacy-policy","problem","process","profile-edit","project-detail","promotion","property","proposal","public","publication","purchase","quality","queue","quote","ranking-list","rate","rating","record","register-form","release","report","reporting","request","requirement","research","resource-center","response","result","resume","review","role","rule","sales","sample","schedule","school","score","screen","script","search-results","section-list","security","server","session","setting-page","setup","shop-cart","shopping","signin","signup-form","site-map","solution","staff","statistics","status-page","storage","store-front","studio","submission","subscribe-form","subscription","success","summary","support-center","survey","system","table","task-list","team-member","template","terms-of-service","test-case","ticket","timeline","toolbox","topic-list","tour","tracking-info","training","transaction","transfer","translation","tutorial","update","upgrade","upload-file","usage","user-guide","utility","validation","value","vendor","verification","version-info","visitor","voice","webmail","workflow"];
     let hostList = []; let host = ''; // 由 getConfigValue 填充
 
@@ -416,6 +417,8 @@
                 at = (env.u || env.U || at).toLowerCase();
                 const subPath = (env.d || env.D || at).toLowerCase();
 
+                adminPassword = env.ADMIN || env.admin || '';
+
                 const ci = getConfigValue('p', env.p || env.P);
                 let useCustomIP = false;
 
@@ -598,6 +601,14 @@
 
                 const url = new URL(request.url);
 
+                // 根路径管理员登录 API（主域名终端面板认证用）
+                if (url.pathname === '/api/login') {
+                    if (request.method === 'POST') {
+                        return await handleLoginPage(request);
+                    }
+                    return new Response('Method Not Allowed', { status: 405 });
+                }
+
                 if (url.pathname.includes('/api/config')) {
                     const pathParts = url.pathname.split('/').filter(p => p);
 
@@ -615,7 +626,46 @@
                         }
 
                         if (isValid) {
+                            // 需要管理员认证
+                            if (adminPassword && !(await isAdminAuthenticated(request))) {
+                                return new Response(JSON.stringify({ error: '未登录', message: '需要管理员登录' }), {
+                                    status: 401,
+                                    headers: { 'Content-Type': 'application/json' }
+                                });
+                            }
                             return await handleConfigAPI(request);
+                        } else {
+                            return new Response(JSON.stringify({ error: '路径验证失败' }), { 
+                                status: 403,
+                                headers: { 'Content-Type': 'application/json' }
+                            });
+                        }
+                    }
+
+                    return new Response(JSON.stringify({ error: '无效的API路径' }), { 
+                        status: 404,
+                        headers: { 'Content-Type': 'application/json' }
+                    });
+                }
+
+                // 管理员登录 API
+                if (url.pathname.includes('/api/login')) {
+                    const pathParts = url.pathname.split('/').filter(p => p);
+                    const apiIndex = pathParts.indexOf('api');
+                    if (apiIndex > 0) {
+                        const pathSegments = pathParts.slice(0, apiIndex);
+                        const pathIdentifier = pathSegments.join('/');
+
+                        let isValid = false;
+                        if (cp && cp.trim()) {
+                            const cleanCustomPath = cp.trim().startsWith('/') ? cp.trim().substring(1) : cp.trim();
+                            isValid = (pathIdentifier === cleanCustomPath);
+                        } else {
+                            isValid = (isValidFormat(pathIdentifier) && pathIdentifier === at);
+                        }
+
+                        if (isValid) {
+                            return await handleLoginPage(request);
                         } else {
                             return new Response(JSON.stringify({ error: '路径验证失败' }), { 
                                 status: 403,
@@ -646,6 +696,13 @@
                         }
 
                         if (isValid) {
+                            // 需要管理员认证
+                            if (adminPassword && !(await isAdminAuthenticated(request))) {
+                                return new Response(JSON.stringify({ error: '未登录', message: '需要管理员登录' }), {
+                                    status: 401,
+                                    headers: { 'Content-Type': 'application/json' }
+                                });
+                            }
                             return await handlePreferredIPsAPI(request);
                         } else {
                             return new Response(JSON.stringify({ error: '路径验证失败' }), { 
@@ -893,6 +950,9 @@
                         };
                             
                         const t = translations[isFarsi ? 'fa' : 'zh'];
+                        
+                        // 检查管理员认证状态（用于终端显示密码提示）
+                        const requiresAdminAuth = adminPassword && !(await isAdminAuthenticated(request));
                             
     const terminalHtml = `<!DOCTYPE html>
     <html lang="${langAttr}" dir="${isFarsi ? 'rtl' : 'ltr'}">
@@ -1218,6 +1278,32 @@
                     <div class="terminal-title cp-glitch">${t.terminal}</div>
             </div>
             <div class="terminal-body" id="terminalBody">
+                <!-- 管理员登录提示（当 env.ADMIN 已设置且未认证时显示） -->
+                <div id="adminLoginSection" style="display:${requiresAdminAuth ? 'block' : 'none'}">
+                    <div class="terminal-line">
+                        <span class="terminal-prompt">root:~$</span>
+                            <span class="terminal-output">管理员登录 / ADMIN LOGIN</span>
+                    </div>
+                    <div class="terminal-line">
+                        <span class="terminal-prompt">root:~$</span>
+                            <span class="terminal-error">AUTHENTICATION REQUIRED</span>
+                    </div>
+                    <div class="terminal-line">
+                        <span class="terminal-prompt">root:~$</span>
+                        <span class="terminal-output">请输入管理员密码</span>
+                    </div>
+                    <div class="terminal-line">
+                        <span class="terminal-prompt">root:~$</span>
+                            <input type="password" class="terminal-input" id="adminPwdInput" placeholder="password..." autofocus>
+                        <span class="terminal-cursor"></span>
+                    </div>
+                    <div id="adminLoginError" class="terminal-line" style="display:none">
+                        <span class="terminal-prompt">root:~$</span>
+                            <span class="terminal-error" id="adminLoginErrorText">密码错误</span>
+                    </div>
+                </div>
+                <!-- 普通终端（管理员认证通过后显示，或未设置管理员密码时直接显示） -->
+                <div id="normalTerminalSection" style="display:${requiresAdminAuth ? 'none' : 'block'}">
                 <div class="terminal-line">
                     <span class="terminal-prompt">root:~$</span>
                         <span class="terminal-output">${t.congratulations}</span>
@@ -1234,6 +1320,7 @@
                     <span class="terminal-prompt">root:~$</span>
                         <input type="text" class="terminal-input" id="uuidInput" placeholder="${cp && cp.trim() ? t.inputD : t.inputU}" autofocus>
                     <span class="terminal-cursor"></span>
+                </div>
                 </div>
             </div>
         </div>
@@ -1397,6 +1484,52 @@
                 }
             }
 
+            // 管理员登录处理
+            function handleAdminLogin() {
+                var input = document.getElementById('adminPwdInput');
+                var error = document.getElementById('adminLoginError');
+                var errorText = document.getElementById('adminLoginErrorText');
+                var password = input.value.trim();
+                if (!password) {
+                    errorText.textContent = '请输入密码';
+                    error.style.display = '';
+                    return;
+                }
+                input.disabled = true;
+                error.style.display = 'none';
+                fetch('/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ password: password })
+                })
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (data.success) {
+                        // 登录成功，切换到普通终端
+                        document.getElementById('adminLoginSection').style.display = 'none';
+                        document.getElementById('normalTerminalSection').style.display = 'block';
+                        var uuidInput = document.getElementById('uuidInput');
+                        if (uuidInput) {
+                            uuidInput.focus();
+                            uuidInput.addEventListener('keypress', function(e) {
+                                if (e.key === 'Enter') handleUUIDInput();
+                            });
+                        }
+                    } else {
+                        errorText.textContent = data.message || '密码错误';
+                        error.style.display = '';
+                        input.disabled = false;
+                        input.value = '';
+                        input.focus();
+                    }
+                })
+                .catch(function(err) {
+                    errorText.textContent = '请求失败: ' + err.message;
+                    error.style.display = '';
+                    input.disabled = false;
+                });
+            }
+
             function changeLanguage(lang) {
                 localStorage.setItem('preferredLanguage', lang);
                 // 设置Cookie（有效期1年）
@@ -1444,14 +1577,25 @@
 
             document.addEventListener('DOMContentLoaded', function() {
                 try { createMatrixRain(); } catch (e) {}
-                const input = document.getElementById('uuidInput');
-                if (input) {
-                    input.focus();
-                    input.addEventListener('keypress', function(e) {
-                        if (e.key === 'Enter') {
-                            handleUUIDInput();
-                        }
-                    });
+                const requiresAuth = ${requiresAdminAuth ? 'true' : 'false'};
+                if (requiresAuth) {
+                    const adminInput = document.getElementById('adminPwdInput');
+                    if (adminInput) {
+                        adminInput.focus();
+                        adminInput.addEventListener('keypress', function(e) {
+                            if (e.key === 'Enter') handleAdminLogin();
+                        });
+                    }
+                } else {
+                    const input = document.getElementById('uuidInput');
+                    if (input) {
+                        input.focus();
+                        input.addEventListener('keypress', function(e) {
+                            if (e.key === 'Enter') {
+                                handleUUIDInput();
+                            }
+                        });
+                    }
                 }
             });
         </script>
@@ -1465,6 +1609,10 @@
                 const normalizedPath = url.pathname.endsWith('/') && url.pathname.length > 1 ? url.pathname.slice(0, -1) : url.pathname;
 
                     if (normalizedPath === normalizedCustomPath) {
+                        // 需要管理员认证，重定向到主域名终端登录
+                        if (adminPassword && !(await isAdminAuthenticated(request))) {
+                            return Response.redirect(new URL('/', request.url).toString(), 302);
+                        }
                         return await handleSubscriptionPage(request, at);
                     }
 
@@ -1490,6 +1638,10 @@
                         const user = url.pathname.replace(/\/$/, '').substring(1);
                         if (isValidFormat(user)) {
                             if (user === at) {
+                            // 需要管理员认证，重定向到主域名终端登录
+                                if (adminPassword && !(await isAdminAuthenticated(request))) {
+                                    return Response.redirect(new URL('/', request.url).toString(), 302);
+                                }
                                 return await handleSubscriptionPage(request, user);
                             } else {
                                 return new Response(JSON.stringify({ error: 'UUID错误 请注意变量名称是u不是uuid' }), { 
@@ -3435,6 +3587,90 @@
         if (hostname.includes(":") && !/^\[.*\]$/.test(hostname)) throw new Error(E_INVALID_SOCKS_ADDR);
 
         return { username, password, hostname, socksPort };
+    }
+
+    // ============================================================
+    // 管理员登录认证 (env.ADMIN)
+    // ============================================================
+
+    // 创建登录 token：HMAC-SHA256 签名 + UA 绑定，不包含密码明文
+    async function createAdminToken(password, request) {
+        const t = Date.now();
+        const encoder = new TextEncoder();
+
+        // 计算 User-Agent SHA-256 哈希用于绑定
+        const ua = request.headers.get('User-Agent') || '';
+        const uaHash = await crypto.subtle.digest('SHA-256', encoder.encode(ua));
+        const uaArr = new Uint8Array(uaHash);
+        let uaBin = '';
+        for (let i = 0; i < uaArr.length; i++) uaBin += String.fromCharCode(uaArr[i]);
+        const uaB64 = btoa(uaBin);
+
+        const payload = JSON.stringify({ t, ua: uaB64 });
+        const payloadB64 = btoa(payload);
+
+        const key = await crypto.subtle.importKey(
+            'raw', encoder.encode(password),
+            { name: 'HMAC', hash: 'SHA-256' },
+            false, ['sign']
+        );
+        const sigBuf = await crypto.subtle.sign('HMAC', key, encoder.encode(payloadB64));
+        const sigArr = new Uint8Array(sigBuf);
+        let sigBin = '';
+        for (let i = 0; i < sigArr.length; i++) sigBin += String.fromCharCode(sigArr[i]);
+
+        return payloadB64 + '.' + btoa(sigBin);
+    }
+
+    // 验证登录 token：HMAC 验签 + UA 绑定校验 + 1 小时内
+    async function validateAdminToken(token, password, request) {
+        try {
+            const parts = token.split('.');
+            if (parts.length !== 2) return false;
+            const [payloadB64, sigB64] = parts;
+            const data = JSON.parse(atob(payloadB64));
+            if (Date.now() - data.t > 3600000) return false; // 1 小时
+
+            const encoder = new TextEncoder();
+
+            // 校验 User-Agent 绑定
+            const currentUA = request.headers.get('User-Agent') || '';
+            const uaHash = await crypto.subtle.digest('SHA-256', encoder.encode(currentUA));
+            const uaArr = new Uint8Array(uaHash);
+            let uaBin = '';
+            for (let i = 0; i < uaArr.length; i++) uaBin += String.fromCharCode(uaArr[i]);
+            const currentUAB64 = btoa(uaBin);
+            if (data.ua !== currentUAB64) return false;
+
+            // HMAC 验签
+            const key = await crypto.subtle.importKey(
+                'raw', encoder.encode(password),
+                { name: 'HMAC', hash: 'SHA-256' },
+                false, ['verify']
+            );
+            const sigBin = atob(sigB64);
+            const sigBytes = new Uint8Array(sigBin.length);
+            for (let i = 0; i < sigBin.length; i++) sigBytes[i] = sigBin.charCodeAt(i);
+
+            return await crypto.subtle.verify('HMAC', key, sigBytes, encoder.encode(payloadB64));
+        } catch (e) {
+            return false;
+        }
+    }
+
+    // 检查请求是否已通过管理员认证
+    async function isAdminAuthenticated(request) {
+        if (!adminPassword) return true; // 未设置密码，无需认证
+        const cookieHeader = request.headers.get('Cookie') || '';
+        if (!cookieHeader) return false;
+        const cookies = cookieHeader.split(';').map(c => c.trim());
+        for (const cookie of cookies) {
+            if (cookie.startsWith('cfnew_admin_token=')) {
+                const token = cookie.split('=')[1];
+                return await validateAdminToken(token, adminPassword, request);
+            }
+        }
+        return false;
     }
 
     async function handleSubscriptionPage(request, user = null) {
@@ -8039,6 +8275,58 @@
             status: 405,
             headers: { 'Content-Type': 'application/json' }
         });
+    }
+
+    // ============================================================
+    // 管理员登录页面
+    // ============================================================
+    async function handleLoginPage(request) {
+        const url = new URL(request.url);
+
+        // POST: 验证密码并设置 cookie
+        if (request.method === 'POST') {
+            try {
+                const body = await request.json();
+                const inputPassword = body.password || '';
+
+                if (inputPassword !== adminPassword) {
+                    return new Response(JSON.stringify({
+                        success: false,
+                        message: '密码错误'
+                    }), {
+                        status: 403,
+                        headers: { 'Content-Type': 'application/json' }
+                    });
+                }
+
+                const token = await createAdminToken(adminPassword, request);
+                const cookieExpiry = new Date(Date.now() + 3600000); // 1 小时
+                const redirectTo = url.pathname.replace(/\/api\/login.*$/, '') || '/';
+
+                return new Response(JSON.stringify({
+                    success: true,
+                    message: '登录成功',
+                    redirect: redirectTo
+                }), {
+                    status: 200,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Set-Cookie': `cfnew_admin_token=${token}; path=/; expires=${cookieExpiry.toUTCString()}; SameSite=Lax; HttpOnly; Secure`
+                    }
+                });
+            } catch (error) {
+                return new Response(JSON.stringify({
+                    success: false,
+                    message: '登录失败: ' + error.message
+                }), {
+                    status: 400,
+                    headers: { 'Content-Type': 'application/json' }
+                });
+            }
+        }
+
+        // GET 或其他方法: 重定向到主域名终端
+        return Response.redirect(new URL('/', request.url).toString(), 302);
     }
 
     async function handlePreferredIPsAPI(request) {
