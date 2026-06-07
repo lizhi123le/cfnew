@@ -4930,6 +4930,31 @@
                 .cp-action-btn { width: 42px; height: 42px; }
                 .cp-action-status { right: 14px; transform: translateY(8px); }
                 .cp-action-status.cp-show { transform: translateY(0); }
+                .cp-logout-btn { top: 74px; right: 14px; font-size: 10px; padding: 5px 10px; }
+            }
+            /* 登出按钮 - admin模式下退出登录 */
+            .cp-logout-btn {
+                position: fixed; top: 82px; right: 22px; z-index: 1001;
+                background: rgba(8,4,28,0.85);
+                border: 1px solid var(--cp-pink);
+                color: var(--cp-pink);
+                padding: 6px 12px;
+                font-family: inherit;
+                font-size: 11px;
+                letter-spacing: 0.18em;
+                text-transform: uppercase;
+                cursor: pointer;
+                text-shadow: 0 0 6px var(--cp-pink);
+                box-shadow: 0 0 10px rgba(255,43,214,0.35);
+                clip-path: polygon(7px 0, 100% 0, 100% calc(100% - 7px), calc(100% - 7px) 100%, 0 100%, 0 7px);
+                transition: all 0.2s ease;
+                display: inline-flex; align-items: center; gap: 6px;
+            }
+            .cp-logout-btn:hover {
+                color: var(--cp-cyan);
+                border-color: var(--cp-cyan);
+                text-shadow: 0 0 8px var(--cp-cyan);
+                box-shadow: 0 0 16px rgba(0,240,255,0.55);
             }
         </style>
     </head>
@@ -4941,6 +4966,9 @@
                 <span class="cp-hud-line"><span class="cp-hud-label">NODE::</span> NIGHT_CITY</span>
                 <span class="cp-hud-line"><span class="cp-hud-label">LINK::</span> SECURE / ENC</span>
             </div>
+            ${adminPassword ? `
+            <button type="button" class="cp-logout-btn" onclick="handleLogout()" title="${isFarsi ? 'خروج' : '登出'}">${isFarsi ? 'خروج' : '登出'}</button>
+            ` : ''}
             <div class="cp-lang-wrapper">
                 <span class="cp-lang-tag">LANG_</span>
                 <select id="languageSelector" onchange="changeLanguage(this.value)">
@@ -5384,6 +5412,13 @@
                 document.cookie = 'preferredLanguage=' + lang + '; path=/; expires=' + expiryDate.toUTCString() + '; SameSite=Lax';
                 // 刷新页面，不使用URL参数
                  window.location.reload();
+            }
+
+            function handleLogout() {
+                // 删除管理端认证Cookie
+                document.cookie = 'cfnew_admin_token=; path=/; max-age=0; SameSite=Lax';
+                // 跳转到根路径
+                window.location.href = '/';
             }
 
             // 页面加载时检查 localStorage 和 Cookie，并清理URL参数
@@ -8314,7 +8349,7 @@
                     status: 200,
                     headers: {
                         'Content-Type': 'application/json',
-                        'Set-Cookie': `cfnew_admin_token=${token}; path=/; expires=${cookieExpiry.toUTCString()}; SameSite=Lax; HttpOnly`
+                        'Set-Cookie': `cfnew_admin_token=${token}; path=/; expires=${cookieExpiry.toUTCString()}; Secure; SameSite=Lax; HttpOnly`
                     }
                 });
             } catch (error) {
