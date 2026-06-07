@@ -953,6 +953,12 @@
                         
                         // 检查管理员认证状态（用于终端显示密码提示）
                         const requiresAdminAuth = adminPassword && !(await isAdminAuthenticated(request));
+                        
+                        // 管理员已认证 → 直接跳转到订阅配置页面，不显示终端
+                        if (adminPassword && !requiresAdminAuth) {
+                            const targetPath = cp && cp.trim() ? '/' + cp.trim() : '/' + at;
+                            return Response.redirect(new URL(targetPath, request.url).toString(), 302);
+                        }
                             
     const terminalHtml = `<!DOCTYPE html>
     <html lang="${langAttr}" dir="${isFarsi ? 'rtl' : 'ltr'}">
@@ -1505,16 +1511,8 @@
                 .then(function(r) { return r.json(); })
                 .then(function(data) {
                     if (data.success) {
-                        // 登录成功，切换到普通终端
-                        document.getElementById('adminLoginSection').style.display = 'none';
-                        document.getElementById('normalTerminalSection').style.display = 'block';
-                        var uuidInput = document.getElementById('uuidInput');
-                        if (uuidInput) {
-                            uuidInput.focus();
-                            uuidInput.addEventListener('keypress', function(e) {
-                                if (e.key === 'Enter') handleUUIDInput();
-                            });
-                        }
+                        // 登录成功，跳转到配置页面
+                        window.location.href = adminRedirectUrl;
                     } else {
                         errorText.textContent = data.message || '密码错误';
                         error.style.display = '';
@@ -1574,6 +1572,9 @@
                     document.cookie = 'preferredLanguage=' + savedLang + '; path=/; expires=' + expiryDate.toUTCString() + '; SameSite=Lax';
                 }
             });
+
+            // 管理员登录成功后跳转的订阅配置页面地址
+            var adminRedirectUrl = '${cp && cp.trim() ? '/' + cp.trim() : '/' + at}';
 
             document.addEventListener('DOMContentLoaded', function() {
                 try { createMatrixRain(); } catch (e) {}
