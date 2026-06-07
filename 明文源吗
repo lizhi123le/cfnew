@@ -609,6 +609,11 @@
                     return new Response('Method Not Allowed', { status: 405 });
                 }
 
+                // 管理员登出 API
+                if (url.pathname === '/api/logout') {
+                    return await handleLogoutAPI();
+                }
+
                 if (url.pathname.includes('/api/config')) {
                     const pathParts = url.pathname.split('/').filter(p => p);
 
@@ -5415,9 +5420,7 @@
             }
 
             function handleLogout() {
-                // 删除管理端认证Cookie
-                document.cookie = 'cfnew_admin_token=; path=/; max-age=0; SameSite=Lax';
-                // 跳转到根路径
+                fetch('/api/logout', { method: 'POST' }).catch(function() {});
                 window.location.href = '/';
             }
 
@@ -8349,7 +8352,7 @@
                     status: 200,
                     headers: {
                         'Content-Type': 'application/json',
-                        'Set-Cookie': `cfnew_admin_token=${token}; path=/; expires=${cookieExpiry.toUTCString()}; Secure; SameSite=Lax`
+                        'Set-Cookie': `cfnew_admin_token=${token}; path=/; expires=${cookieExpiry.toUTCString()}; Secure; HttpOnly; SameSite=Lax`
                     }
                 });
             } catch (error) {
@@ -8365,6 +8368,17 @@
 
         // GET 或其他方法: 重定向到主域名终端
         return Response.redirect(new URL('/', request.url).toString(), 302);
+    }
+
+    // 管理员登出 API：服务端清除 cookie（兼容 HttpOnly）
+    async function handleLogoutAPI() {
+        return new Response(JSON.stringify({ success: true }), {
+            status: 200,
+            headers: {
+                'Content-Type': 'application/json',
+                'Set-Cookie': 'cfnew_admin_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; Secure; HttpOnly; SameSite=Lax'
+            }
+        });
     }
 
     async function handlePreferredIPsAPI(request) {
