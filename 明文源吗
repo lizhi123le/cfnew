@@ -956,7 +956,7 @@
                         
                         // 管理员已认证 → 直接跳转到订阅配置页面，不显示终端
                         if (adminPassword && !requiresAdminAuth) {
-                            const targetPath = cp && cp.trim() ? '/' + cp.trim() : '/' + at;
+                            const targetPath = cp && cp.trim() ? '/' + cp.trim().replace(/^\//, '') : '/' + at;
                             return Response.redirect(new URL(targetPath, request.url).toString(), 302);
                         }
                             
@@ -1575,8 +1575,8 @@
                 }
             });
 
-            // 管理员登录成功后跳转的订阅配置页面地址
-            var adminRedirectUrl = '${cp && cp.trim() ? '/' + cp.trim() : '/' + at}';
+            // 管理员登录成功后跳转的订阅配置页面地址（拼接完整 URL，避免路径解析异常）
+            var adminRedirectUrl = window.location.origin + '${cp && cp.trim() ? '/' + cp.trim().replace(/^\//, '') : '/' + at}';
 
             document.addEventListener('DOMContentLoaded', function() {
                 try { createMatrixRain(); } catch (e) {}
