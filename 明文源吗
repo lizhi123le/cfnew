@@ -8311,7 +8311,7 @@
                     status: 200,
                     headers: {
                         'Content-Type': 'application/json',
-                        'Set-Cookie': `cfnew_admin_token=${token}; path=/; expires=${cookieExpiry.toUTCString()}; SameSite=Lax; HttpOnly; Secure`
+                        'Set-Cookie': `cfnew_admin_token=${token}; path=/; expires=${cookieExpiry.toUTCString()}; SameSite=Lax; HttpOnly`
                     }
                 });
             } catch (error) {
