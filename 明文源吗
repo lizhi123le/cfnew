@@ -5420,7 +5420,7 @@
             }
 
             function handleLogout() {
-                fetch('/api/logout', { method: 'POST' }).catch(function() {});
+                fetch('/api/logout', { method: 'POST', keepalive: true }).catch(function() {});
                 window.location.href = '/';
             }
 
