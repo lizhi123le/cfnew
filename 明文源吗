@@ -7498,6 +7498,7 @@
     const IDLE_TIMEOUT_MS = 45000;
     const MAX_RETRIES = 2;
     const MAX_CONCURRENT = 32;
+    const XHTTP_FIRST_BYTE_TIMEOUT = 3500;            // 首字节超时
 
     function xhttp_sleep(ms) {
         return new Promise((r) => setTimeout(r, ms));
@@ -7543,13 +7544,20 @@
         return r;
     }
 
+    const uuidByteCache = new Map(); // UUID byte cache (ported from upstream v2.9.8b)
+
     function parse_uuid_xhttp(uuid) {
-        uuid = uuid.replaceAll('-', '');
+        if (uuidByteCache.has(uuid)) return uuidByteCache.get(uuid);
+        const hex = String(uuid || '').replace(/-/g, '');
+        if (hex.length !== 32) return [];
         const r = [];
         for (let index = 0; index < 16; index++) {
-            const v = parseInt(uuid.substr(index * 2, 2), 16);
+            const v = parseInt(hex.slice(index * 2, index * 2 + 2), 16);
+            if (isNaN(v)) return [];
             r.push(v);
         }
+        if (uuidByteCache.size > 16) uuidByteCache.clear();
+        uuidByteCache.set(uuid, r);
         return r;
     }
 
@@ -7743,47 +7751,86 @@
                 new ByteLengthQueuingStrategy({ highWaterMark: XHTTP_BUFFER_SIZE }),
             );
 
-            let lastActivity = Date.now();
-            const idleTimer = setInterval(() => {
-                if (Date.now() - lastActivity > IDLE_TIMEOUT_MS) {
-                    try {
-                        stream.writable.abort?.('idle timeout');
-                    } catch (_) {}
-                    clearInterval(idleTimer);
-                    reject('idle timeout');
-                }
-            }, 5000);
+            let hasFirstByte = false;
+            let firstByteTimer = null;
+            let dataTimer = null;
 
-            const reader = remote_readable.getReader();
+            function clearTimeouts() {
+                if (firstByteTimer) { clearTimeout(firstByteTimer); firstByteTimer = null; }
+                if (dataTimer) { clearTimeout(dataTimer); dataTimer = null; }
+            }
+
+            function onTimeout(reason) {
+                try { reader.cancel(); } catch (_) {}
+                try { stream.writable.abort?.(reason); } catch (_) {}
+                clearTimeouts();
+                reject(reason);
+            }
+
+            firstByteTimer = setTimeout(() => {
+                if (!hasFirstByte) onTimeout('first byte timeout');
+            }, XHTTP_FIRST_BYTE_TIMEOUT);
+
+            const bufferSize = XHTTP_BUFFER_SIZE;
+            let byobMode = false;
+            let readBuffer = new ArrayBuffer(bufferSize);
+            let reader;
+            try {
+                reader = remote_readable.getReader({ mode: 'byob' });
+                byobMode = true;
+            } catch (_) {
+                reader = remote_readable.getReader();
+            }
             const writer = stream.writable.getWriter();
 
             ;(async () => {
                 try {
                     let chunkCount = 0;
                     while (true) {
-                        const r = await reader.read();
-                        if (r.done) {
-                            break;
+                        let chunk;
+                        if (byobMode) {
+                            const r = await reader.read(new Uint8Array(readBuffer, 0, bufferSize));
+                            if (r.done) break;
+                            chunk = r.value;
+                            if (chunk.buffer instanceof ArrayBuffer && chunk.buffer.byteLength >= bufferSize) {
+                                readBuffer = chunk.buffer;
+                            } else {
+                                readBuffer = new ArrayBuffer(bufferSize);
+                            }
+                        } else {
+                            const r = await reader.read();
+                            if (r.done) break;
+                            chunk = r.value;
                         }
-                        lastActivity = Date.now();
-                        await writer.write(r.value);
+
+                        if (!hasFirstByte) {
+                            hasFirstByte = true;
+                            clearTimeout(firstByteTimer);
+                            firstByteTimer = null;
+                        }
+                        if (dataTimer) clearTimeout(dataTimer);
+                        dataTimer = setTimeout(() => onTimeout('data timeout'), IDLE_TIMEOUT_MS);
+
+                        await writer.write(byobMode ? chunk.slice() : chunk);
                         chunkCount++;
                         if (chunkCount % 5 === 0) {
                             await xhttp_sleep(0);
                         }
                     }
                     await writer.close();
+                    clearTimeouts();
                     resolve();
                 } catch (err) {
+                    clearTimeouts();
                     reject(err);
                 } finally {
+                    clearTimeouts();
                     try { 
                         reader.releaseLock(); 
                     } catch (_) {}
                     try { 
                         writer.releaseLock(); 
                     } catch (_) {}
-                    clearInterval(idleTimer);
                 }
             })();
         });
