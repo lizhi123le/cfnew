@@ -15,6 +15,8 @@
     let piu = '';
     let cp = '';  
     let enableRandomPath = false; // 随机路径开关
+    let adminPassword = '';       // 管理员密码 (env.ADMIN)
+    const commonPathDirs = ["#","about","account","acg","act","activity","ad","admin","ads","ajax","album","albums","anime","api","app","apps","archive","archives","article","articles","ask","auth","avatar","bbs","bd","blog","blogs","book","books","bt","buy","cart","category","categories","cb","channel","channels","chat","china","city","class","classify","clip","clips","club","cn","code","collect","collection","comic","comics","community","company","config","contact","content","course","courses","cp","data","detail","details","dh","directory","discount","discuss","dl","dload","doc","docs","document","documents","doujin","download","downloads","drama","edu","en","ep","episode","episodes","event","events","f","faq","favorite","favourites","favs","feedback","file","files","film","films","forum","forums","friend","friends","game","games","gif","go","go.html","go.php","group","groups","help","home","hot","htm","html","image","images","img","index","info","intro","item","items","ja","jp","jump","jump.html","jump.php","jumping","knowledge","lang","lesson","lessons","lib","library","link","links","list","live","lives","login","logout","m","mag","magnet","mall","manhua","map","member","members","message","messages","mobile","movie","movies","music","my","new","news","note","novel","novels","online","order","out","out.html","out.php","outbound","p","page","pages","pay","payment","pdf","photo","photos","pic","pics","picture","pictures","play","player","playlist","post","posts","product","products","program","programs","project","qa","question","rank","ranking","read","readme","redirect","redirect.html","redirect.php","reg","register","res","resource","retrieve","sale","search","season","seasons","section","seller","series","service","services","setting","settings","share","shop","show","shows","site","soft","sort","source","special","star","stars","static","stock","store","stream","streaming","streams","student","study","tag","tags","task","teacher","team","tech","temp","test","thread","tool","tools","topic","topics","torrent","trade","travel","tv","txt","type","u","upload","uploads","url","urls","user","users","v","version","video","videos","view","vip","vod","watch","web","wenku","wiki","work","www","zh","zh-cn","zh-tw","zip","about-us","access","accounting","activation","address","advertising","affiliate","agreement","alert","alerts","analytics-dashboard","announcement","api-docs","apply","archive-news","article-detail","attendance","author","auto","backup","banner","billing","board","brand","browse-all","business","calendar","campaign","career","cart-checkout","catalog","certificate","checkout-success","client","cloud","comment","company-info","competition","complaint","conference","connect","console","contact-form","contest","contract","contribute","control","cookie","copyright","coupon","create","crm","currency","custom","customer","dashboard-admin","data-center","deal","default","demo","department","design","developer","development","device","directory-list","discounts","display","donate","editor","email","employee","employment","enterprise","entry","environment","error-log","estimate","exam","example","exchange","experience","expert","export","faq-page","feature","feedback-form","finance","financial","fleet","flow","form","gallery","gateway","general","global","guide","hardware","health","history-page","holiday","host","hosting","identity","image-gallery","import","index-page","industry","info-center","information","inquiry","install","instruction","insurance","integration","interface","internal","invoice","issue","job","join","journal","key","knowledge-base","lab","landing","language","launch","legal","license","limited","location","log","logging","logs","machine","mail","manage","management","manual","map-view","market","marketing","master","media-center","member-area","menu","merchant","message-board","meta","method","metrics","misc","moderator","module","monitor","monthly","navigation","network","newsletter","notification","office","official","open","operation","opinion","option","order-detail","organization","overview","owner","package","partner","password","payment-info","people","performance","personal","phone","photo-gallery","plan","platform","policy","portal","portfolio","position","preferences","press-release","preview","pricing","print","privacy-policy","problem","process","profile-edit","project-detail","promotion","property","proposal","public","publication","purchase","quality","queue","quote","ranking-list","rate","rating","record","register-form","release","report","reporting","request","requirement","research","resource-center","response","result","resume","review","role","rule","sales","sample","schedule","school","score","screen","script","search-results","section-list","security","server","session","setting-page","setup","shop-cart","shopping","signin","signup-form","site-map","solution","staff","statistics","status-page","storage","store-front","studio","submission","subscribe-form","subscription","success","summary","support-center","survey","system","table","task-list","team-member","template","terms-of-service","test-case","ticket","timeline","toolbox","topic-list","tour","tracking-info","training","transaction","transfer","translation","tutorial","update","upgrade","upload-file","usage","user-guide","utility","validation","value","vendor","verification","version-info","visitor","voice","webmail","workflow"];
     let hostList = []; let host = ''; // 由 getConfigValue 填充
 
     let ev = true;   
@@ -27,14 +29,17 @@
     let customDNS = 'https://223.5.5.5/dns-query';
     // 自定义ECH域名（留空则从 hostList 随机抽取）
     let customECHDomain = '';
-    // ECH 配置缓存（域名 -> ECH config 列表）
-    const globalEchCache = new Map();
+    // ECH 配置缓存（内存 + KV 冷触发混合模式）
+    const echConfigCache = new Map();
+    const echConfigCacheTime = new Map();
+    const ECH_CACHE_TTL = 21600000; // 6 小时
+    // 自定义ALPN（可选：h3, h2, http/1.1，逗号分隔）
+    let customALPN = '';
     // Cache API 缓存
     const cfCache = caches.default;
     // IPv4 地址正则
     const globalIpv4Regex = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
 
-    let scu = 'https://url.v1.mk/sub';  
     // 远程配置URL（硬编码）
     const remoteConfigUrl = 'https://raw.githubusercontent.com/byJoey/test/refs/heads/main/tist.ini';
 
@@ -45,9 +50,10 @@
 
     let kvStore = null;
     let kvConfig = {};
-    let kvConfigLastLoad = 0;
-    const KV_CACHE_TTL = 30 * 1000; // 30秒缓存（短窗口内跳过版本检查）
-    let kvConfigVersion = '';
+    let kvConfigCache = null;       // 内存缓存（深拷贝隔离，防污染）
+    let kvConfigCacheTime = 0;      // 缓存时间戳
+    const KV_CACHE_TTL = 259200000; // 3 天缓存（冷触发混合模式）
+    let kvConfigVersion = ''; 
 
     const regionMapping = {
         'HK': ['🇭🇰 香港', 'HK', 'Hong Kong'],
@@ -131,6 +137,20 @@
         return false;
     }
 
+    // ALPN 规范化：只允许 h3, h2, http/1.1 及其组合
+    function normalizeALPN(value) {
+        const allowed = ['', 'h3', 'h2', 'http/1.1', 'h3,h2', 'h2,http/1.1', 'h3,h2,http/1.1'];
+        const alpn = String(value || '').trim();
+        return allowed.includes(alpn) ? alpn : '';
+    }
+
+    // 应用 ALPN 参数到 WebSocket 参数
+    function applyALPNParam(params) {
+        if (enableECH) return;
+        const alpn = normalizeALPN(customALPN);
+        if (alpn) params.set('alpn', alpn);
+    }
+
     function createNodeNamer(skip = false) {
         // 如果配置了 yxURL，则跳过编号
         const forceSkip = (typeof piu !== 'undefined' && piu && piu.trim());
@@ -173,36 +193,42 @@
             return;
         }
 
-        // 短窗口内完全信任缓存，避免高频请求时打爆 KV
-        if (!force && kvConfigLastLoad > 0 && (Date.now() - kvConfigLastLoad) < KV_CACHE_TTL) {
+        // 冷触发混合模式：TTL 内从缓存深拷贝，零 KV 操作
+        if (!force && kvConfigCache && Date.now() - kvConfigCacheTime < KV_CACHE_TTL) {
+            kvConfig = JSON.parse(JSON.stringify(kvConfigCache));
             return;
         }
 
         try {
-            // 读取小体积的版本键 c_ver（约 13B），用于跨 isolate 缓存失效
+            // 版本检查：未变化则从缓存深拷贝（仅刷新时间戳）
             let ver = '';
             try { ver = (await kvStore.get('c_ver')) || ''; } catch (_) {}
-
-            // 版本未变化且已有缓存，仅刷新时间戳，跳过完整读取
-            if (!force && ver && ver === kvConfigVersion && kvConfig && Object.keys(kvConfig).length > 0) {
-                kvConfigLastLoad = Date.now();
+            if (!force && ver && ver === kvConfigVersion && kvConfigCache) {
+                kvConfigCacheTime = Date.now();
+                kvConfig = JSON.parse(JSON.stringify(kvConfigCache));
                 return;
             }
 
-            // 随机延迟 0-300ms，缓解 KV 并发打满
+            // 随机延迟 0-300ms，缓解 KV 并发
             if (!force) {
                 await new Promise(r => setTimeout(r, Math.random() * 300));
             }
 
+            // 完整读取 KV
             const configData = await kvStore.get('c');
             if (configData) {
                 kvConfig = JSON.parse(configData);
+                kvConfigCache = JSON.parse(JSON.stringify(kvConfig));
+                kvConfigCacheTime = Date.now();
             }
             kvConfigVersion = ver;
-            kvConfigLastLoad = Date.now();
-        } catch (error) {
-            // 读取失败时保留现有缓存，避免临时故障导致配置丢失
+
+            // KV 读取失败时保留现有缓存，避免临时故障导致配置丢失
             if (!kvConfig) kvConfig = {};
+            if (!kvConfigCache) kvConfigCache = {};
+        } catch (error) {
+            if (!kvConfig) kvConfig = {};
+            if (!kvConfigCache) kvConfigCache = {};
         }
     }
 
@@ -218,7 +244,9 @@
             const newVer = String(Date.now());
             kvConfigVersion = newVer;
             try { await kvStore.put('c_ver', newVer); } catch (_) {}
-            kvConfigLastLoad = Date.now();
+            // 同步更新内存缓存
+            kvConfigCache = JSON.parse(JSON.stringify(kvConfig));
+            kvConfigCacheTime = Date.now();
         } catch (error) {
             throw error; 
         }
@@ -234,6 +262,7 @@
     async function setConfigValue(key, value) {
         kvConfig[key] = value;
         await saveKVConfig();
+        updateConfigVariables();
     }
 
     async function detectWorkerRegion(request) {
@@ -388,6 +417,8 @@
                 at = (env.u || env.U || at).toLowerCase();
                 const subPath = (env.d || env.D || at).toLowerCase();
 
+                adminPassword = env.ADMIN || env.admin || '';
+
                 const ci = getConfigValue('p', env.p || env.P);
                 let useCustomIP = false;
 
@@ -498,8 +529,6 @@
                     ex = xhttpControl === 'yes' || xhttpControl === true || xhttpControl === 'true';
                 }
 
-                scu = getConfigValue('scu', env.scu) || 'https://url.v1.mk/sub';
-
                 const preferredDomainsControl = getConfigValue('epd', env.epd || 'no');
                 if (preferredDomainsControl !== undefined && preferredDomainsControl !== '') {
                     epd = preferredDomainsControl !== 'no' && preferredDomainsControl !== false && preferredDomainsControl !== 'false';
@@ -536,6 +565,8 @@
                     customECHDomain = customECHDomainValue.trim();
                 }
 
+                customALPN = normalizeALPN(getConfigValue('alpn', env.alpn || env.ALPN || ''));
+
                 // 如果启用了ECH，自动启用仅TLS模式（避免80端口干扰）
                 // ECH需要TLS才能工作，所以必须禁用非TLS节点
                 if (enableECH) {
@@ -570,6 +601,19 @@
 
                 const url = new URL(request.url);
 
+                // 根路径管理员登录 API（主域名终端面板认证用）
+                if (url.pathname === '/api/login') {
+                    if (request.method === 'POST') {
+                        return await handleLoginPage(request);
+                    }
+                    return new Response('Method Not Allowed', { status: 405 });
+                }
+
+                // 管理员登出 API
+                if (url.pathname === '/api/logout') {
+                    return await handleLogoutAPI();
+                }
+
                 if (url.pathname.includes('/api/config')) {
                     const pathParts = url.pathname.split('/').filter(p => p);
 
@@ -587,7 +631,46 @@
                         }
 
                         if (isValid) {
+                            // 需要管理员认证
+                            if (adminPassword && !(await isAdminAuthenticated(request))) {
+                                return new Response(JSON.stringify({ error: '未登录', message: '需要管理员登录' }), {
+                                    status: 401,
+                                    headers: { 'Content-Type': 'application/json' }
+                                });
+                            }
                             return await handleConfigAPI(request);
+                        } else {
+                            return new Response(JSON.stringify({ error: '路径验证失败' }), { 
+                                status: 403,
+                                headers: { 'Content-Type': 'application/json' }
+                            });
+                        }
+                    }
+
+                    return new Response(JSON.stringify({ error: '无效的API路径' }), { 
+                        status: 404,
+                        headers: { 'Content-Type': 'application/json' }
+                    });
+                }
+
+                // 管理员登录 API
+                if (url.pathname.includes('/api/login')) {
+                    const pathParts = url.pathname.split('/').filter(p => p);
+                    const apiIndex = pathParts.indexOf('api');
+                    if (apiIndex > 0) {
+                        const pathSegments = pathParts.slice(0, apiIndex);
+                        const pathIdentifier = pathSegments.join('/');
+
+                        let isValid = false;
+                        if (cp && cp.trim()) {
+                            const cleanCustomPath = cp.trim().startsWith('/') ? cp.trim().substring(1) : cp.trim();
+                            isValid = (pathIdentifier === cleanCustomPath);
+                        } else {
+                            isValid = (isValidFormat(pathIdentifier) && pathIdentifier === at);
+                        }
+
+                        if (isValid) {
+                            return await handleLoginPage(request);
                         } else {
                             return new Response(JSON.stringify({ error: '路径验证失败' }), { 
                                 status: 403,
@@ -618,6 +701,13 @@
                         }
 
                         if (isValid) {
+                            // 需要管理员认证
+                            if (adminPassword && !(await isAdminAuthenticated(request))) {
+                                return new Response(JSON.stringify({ error: '未登录', message: '需要管理员登录' }), {
+                                    status: 401,
+                                    headers: { 'Content-Type': 'application/json' }
+                                });
+                            }
                             return await handlePreferredIPsAPI(request);
                         } else {
                             return new Response(JSON.stringify({ error: '路径验证失败' }), { 
@@ -865,6 +955,15 @@
                         };
                             
                         const t = translations[isFarsi ? 'fa' : 'zh'];
+                        
+                        // 检查管理员认证状态（用于终端显示密码提示）
+                        const requiresAdminAuth = adminPassword && !(await isAdminAuthenticated(request));
+                        
+                        // 管理员已认证 → 直接跳转到订阅配置页面，不显示终端
+                        if (adminPassword && !requiresAdminAuth) {
+                            const targetPath = cp && cp.trim() ? '/' + cp.trim().replace(/^\//, '') : '/' + at;
+                            return Response.redirect(new URL(targetPath, request.url).toString(), 302);
+                        }
                             
     const terminalHtml = `<!DOCTYPE html>
     <html lang="${langAttr}" dir="${isFarsi ? 'rtl' : 'ltr'}">
@@ -1190,6 +1289,33 @@
                     <div class="terminal-title cp-glitch">${t.terminal}</div>
             </div>
             <div class="terminal-body" id="terminalBody">
+                <!-- 管理员登录提示（当 env.ADMIN 已设置且未认证时显示） -->
+                <div id="adminLoginSection" style="display:${requiresAdminAuth ? 'block' : 'none'}">
+                    <div class="terminal-line">
+                        <span class="terminal-prompt">root:~$</span>
+                            <span class="terminal-output">管理员登录 / ADMIN LOGIN</span>
+                    </div>
+                    <div class="terminal-line">
+                        <span class="terminal-prompt">root:~$</span>
+                            <span class="terminal-error">AUTHENTICATION REQUIRED</span>
+                    </div>
+                    <div class="terminal-line">
+                        <span class="terminal-prompt">root:~$</span>
+                        <span class="terminal-output">请输入管理员密码</span>
+                    </div>
+                    <div class="terminal-line">
+                        <span class="terminal-prompt">root:~$</span>
+                            <input type="password" class="terminal-input" id="adminPwdInput" placeholder="password..." autofocus>
+                        <span class="terminal-cursor"></span>
+                    </div>
+                    <div id="adminLoginError" class="terminal-line" style="display:none">
+                        <span class="terminal-prompt">root:~$</span>
+                            <span class="terminal-error" id="adminLoginErrorText">密码错误</span>
+                    </div>
+                </div>
+                ${!requiresAdminAuth ? `
+                <!-- 普通终端（仅未设置管理员密码时显示） -->
+                <div id="normalTerminalSection" style="display:block">
                 <div class="terminal-line">
                     <span class="terminal-prompt">root:~$</span>
                         <span class="terminal-output">${t.congratulations}</span>
@@ -1207,6 +1333,8 @@
                         <input type="text" class="terminal-input" id="uuidInput" placeholder="${cp && cp.trim() ? t.inputD : t.inputU}" autofocus>
                     <span class="terminal-cursor"></span>
                 </div>
+                </div>
+                ` : ''}
             </div>
         </div>
         <script>
@@ -1369,6 +1497,44 @@
                 }
             }
 
+            // 管理员登录处理
+            function handleAdminLogin() {
+                var input = document.getElementById('adminPwdInput');
+                var error = document.getElementById('adminLoginError');
+                var errorText = document.getElementById('adminLoginErrorText');
+                var password = input.value.trim();
+                if (!password) {
+                    errorText.textContent = '请输入密码';
+                    error.style.display = '';
+                    return;
+                }
+                input.disabled = true;
+                error.style.display = 'none';
+                fetch('/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ password: password })
+                })
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (data.success) {
+                        // 登录成功，跳转到配置页面
+                        window.location.href = adminRedirectUrl;
+                    } else {
+                        errorText.textContent = data.message || '密码错误';
+                        error.style.display = '';
+                        input.disabled = false;
+                        input.value = '';
+                        input.focus();
+                    }
+                })
+                .catch(function(err) {
+                    errorText.textContent = '请求失败: ' + err.message;
+                    error.style.display = '';
+                    input.disabled = false;
+                });
+            }
+
             function changeLanguage(lang) {
                 localStorage.setItem('preferredLanguage', lang);
                 // 设置Cookie（有效期1年）
@@ -1414,16 +1580,30 @@
                 }
             });
 
+            // 管理员登录成功后跳转的订阅配置页面地址（拼接完整 URL，避免路径解析异常）
+            var adminRedirectUrl = window.location.origin + '${cp && cp.trim() ? '/' + cp.trim().replace(/^\//, '') : '/' + at}';
+
             document.addEventListener('DOMContentLoaded', function() {
                 try { createMatrixRain(); } catch (e) {}
-                const input = document.getElementById('uuidInput');
-                if (input) {
-                    input.focus();
-                    input.addEventListener('keypress', function(e) {
-                        if (e.key === 'Enter') {
-                            handleUUIDInput();
-                        }
-                    });
+                const requiresAuth = ${requiresAdminAuth ? 'true' : 'false'};
+                if (requiresAuth) {
+                    const adminInput = document.getElementById('adminPwdInput');
+                    if (adminInput) {
+                        adminInput.focus();
+                        adminInput.addEventListener('keypress', function(e) {
+                            if (e.key === 'Enter') handleAdminLogin();
+                        });
+                    }
+                } else {
+                    const input = document.getElementById('uuidInput');
+                    if (input) {
+                        input.focus();
+                        input.addEventListener('keypress', function(e) {
+                            if (e.key === 'Enter') {
+                                handleUUIDInput();
+                            }
+                        });
+                    }
                 }
             });
         </script>
@@ -1437,6 +1617,10 @@
                 const normalizedPath = url.pathname.endsWith('/') && url.pathname.length > 1 ? url.pathname.slice(0, -1) : url.pathname;
 
                     if (normalizedPath === normalizedCustomPath) {
+                        // 需要管理员认证，重定向到主域名终端登录
+                        if (adminPassword && !(await isAdminAuthenticated(request))) {
+                            return Response.redirect(new URL('/', request.url).toString(), 302);
+                        }
                         return await handleSubscriptionPage(request, at);
                     }
 
@@ -1462,6 +1646,10 @@
                         const user = url.pathname.replace(/\/$/, '').substring(1);
                         if (isValidFormat(user)) {
                             if (user === at) {
+                            // 需要管理员认证，重定向到主域名终端登录
+                                if (adminPassword && !(await isAdminAuthenticated(request))) {
+                                    return Response.redirect(new URL('/', request.url).toString(), 302);
+                                }
                                 return await handleSubscriptionPage(request, user);
                             } else {
                                 return new Response(JSON.stringify({ error: 'UUID错误 请注意变量名称是u不是uuid' }), { 
@@ -1905,8 +2093,8 @@
             `  ${name}:`,
             `    type: http`,
             `    behavior: ${behavior}`,
-            `    url: "${RP_BASE}/${name}.yaml"`,
-            `    path: ./rulesets/loyalsoldier/${name}.yaml`,
+            `    url: "${RP_BASE}/${name}.txt"`,
+            `    path: ./rulesets/loyalsoldier/${name}.txt`,
             `    interval: 86400`
         ].join('\n');
 
@@ -1989,12 +2177,12 @@
     }
 
     // 内部生成 Sing-box JSON 配置（完整规则集：MetaCubeX 镜像 rule-set）
-    function generateSingBoxJson(links) {
+    async function generateSingBoxJson(links) {
         const nodes = links.map(parseShareLink).filter(n => n && (n.proto === 'vless' || n.proto === 'trojan'));
         const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
         const outboundTags = nodes.map(n => n.name);
 
-        function nodeToOutbound(n) {
+        async function nodeToOutbound(n) {
             const out = {
                 type: n.proto,
                 tag: n.name,
@@ -2016,7 +2204,10 @@
                 };
                 if (n.alpn && n.alpn.length) out.tls.alpn = n.alpn;
                 if (n.ech) {
+                    const echDomain = (n.ech.includes('+') ? n.ech.split('+')[0] : n.ech) || getRandomHost(workerDomain) || workerDomain;
+                    const echConfig = await fetchECHConfig(echDomain);
                     out.tls.ech = { enabled: true, pq_signature_schemes_enabled: false, dynamic_record_sizing_disabled: false };
+                    if (echConfig) out.tls.ech.ech_config = echConfig;
                 }
             }
             if (n.network === 'ws' || n.network === 'xhttp') {
@@ -2093,7 +2284,7 @@
                 { type: 'selector', tag: '🎬 奈飞视频', outbounds: ['select', '🌍 国外媒体', 'direct', ...outboundTags] },
                 { type: 'selector', tag: '🎯 全球直连', outbounds: ['direct'] },
                 { type: 'selector', tag: '🐟 漏网之鱼', outbounds: ['select', 'direct', ...outboundTags] },
-                ...nodes.map(nodeToOutbound),
+                ...await Promise.all(nodes.map(nodeToOutbound)),
                 { type: 'direct', tag: 'direct' },
                 { type: 'block', tag: 'block' },
                 { type: 'dns', tag: 'dns-out' }
@@ -2400,12 +2591,121 @@
     function generateSurgeConfig(links) { return generateSurgeIni(links); }
     function generateLoonConfig(links) { return generateLoonIni(links); }
     function generateQuantumultXConfig(links) { return generateQuanxConf(links); }
-    function generateSingBoxConfig(links) { return generateSingBoxJson(links); }
+    async function generateSingBoxConfig(links) { return generateSingBoxJson(links); }
     function generateSSConfig(links) { return btoa(links.join('\n')); }
     function generateV2RayConfig(links) { return btoa(links.join('\n')); }
 
     // 全局变量存储ECH调试信息
     let echDebugInfo = '';
+
+    // 通过 DoH（DNS-over-HTTPS）查询指定域名的 DNS 记录，返回解析后的答案数组
+    async function DoH查询(域名, 记录类型, DoH解析服务 = "https://cloudflare-dns.com/dns-query") {
+        try {
+            const 类型映射 = { 'A': 1, 'NS': 2, 'CNAME': 5, 'MX': 15, 'TXT': 16, 'AAAA': 28, 'SRV': 33, 'HTTPS': 65 };
+            const qtype = 类型映射[记录类型.toUpperCase()] || 1;
+
+            const 编码域名 = (name) => {
+                const parts = name.endsWith('.') ? name.slice(0, -1).split('.') : name.split('.');
+                const bufs = [];
+                for (const label of parts) {
+                    const enc = new TextEncoder().encode(label);
+                    bufs.push(new Uint8Array([enc.length]), enc);
+                }
+                bufs.push(new Uint8Array([0]));
+                const total = bufs.reduce((s, b) => s + b.length, 0);
+                const result = new Uint8Array(total);
+                let off = 0;
+                for (const b of bufs) { result.set(b, off); off += b.length; }
+                return result;
+            };
+
+            const qname = 编码域名(域名);
+            const query = new Uint8Array(12 + qname.length + 4);
+            const qview = new DataView(query.buffer);
+            qview.setUint16(0, 0);
+            qview.setUint16(2, 0x0100);
+            qview.setUint16(4, 1);
+            query.set(qname, 12);
+            qview.setUint16(12 + qname.length, qtype);
+            qview.setUint16(12 + qname.length + 2, 1);
+
+            const response = await fetch(DoH解析服务, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/dns-message', 'Accept': 'application/dns-message' },
+                body: query,
+            });
+            if (!response.ok) return [];
+
+            const buf = new Uint8Array(await response.arrayBuffer());
+            const dv = new DataView(buf.buffer);
+            const qdcount = dv.getUint16(4);
+            const ancount = dv.getUint16(6);
+
+            const 解析域名 = (pos) => {
+                const labels = [];
+                let p = pos, jumped = false, endPos = -1, safe = 128;
+                while (p < buf.length && safe-- > 0) {
+                    const len = buf[p];
+                    if (len === 0) { if (!jumped) endPos = p + 1; break; }
+                    if ((len & 0xC0) === 0xC0) {
+                        if (!jumped) endPos = p + 2;
+                        p = ((len & 0x3F) << 8) | buf[p + 1];
+                        jumped = true;
+                        continue;
+                    }
+                    labels.push(new TextDecoder().decode(buf.slice(p + 1, p + 1 + len)));
+                    p += len + 1;
+                }
+                if (endPos === -1) endPos = p + 1;
+                return [labels.join('.'), endPos];
+            };
+
+            let offset = 12;
+            for (let i = 0; i < qdcount; i++) {
+                const [, end] = 解析域名(offset);
+                offset = end + 4;
+            }
+
+            const answers = [];
+            for (let i = 0; i < ancount && offset < buf.length; i++) {
+                const [name, nameEnd] = 解析域名(offset);
+                offset = nameEnd;
+                const type = dv.getUint16(offset); offset += 2;
+                offset += 2;
+                const ttl = dv.getUint32(offset); offset += 4;
+                const rdlen = dv.getUint16(offset); offset += 2;
+                const rdata = buf.slice(offset, offset + rdlen);
+                offset += rdlen;
+
+                let data;
+                if (type === 1 && rdlen === 4) {
+                    data = `${rdata[0]}.${rdata[1]}.${rdata[2]}.${rdata[3]}`;
+                } else if (type === 28 && rdlen === 16) {
+                    const segs = [];
+                    for (let j = 0; j < 16; j += 2) segs.push(((rdata[j] << 8) | rdata[j + 1]).toString(16));
+                    data = segs.join(':');
+                } else if (type === 16) {
+                    let tOff = 0;
+                    const parts = [];
+                    while (tOff < rdlen) {
+                        const tLen = rdata[tOff++];
+                        parts.push(new TextDecoder().decode(rdata.slice(tOff, tOff + tLen)));
+                        tOff += tLen;
+                    }
+                    data = parts.join('');
+                } else if (type === 5) {
+                    const [cname] = 解析域名(offset - rdlen);
+                    data = cname;
+                } else {
+                    data = Array.from(rdata).map(b => b.toString(16).padStart(2, '0')).join('');
+                }
+                answers.push({ name, type, TTL: ttl, data, rdata });
+            }
+            return answers;
+        } catch (error) {
+            return [];
+        }
+    }
 
     async function fetchECHConfig(domain) {
         if (!enableECH) {
@@ -2413,142 +2713,73 @@
             return null;
         }
 
-        echDebugInfo = '';
-        const debugSteps = [];
+        // L1: 内存缓存（同域名不读KV，仅内存）
+        const cached = echConfigCache.get(domain);
+        const cachedTime = echConfigCacheTime.get(domain);
+        if (cached && cachedTime && Date.now() - cachedTime < ECH_CACHE_TTL) {
+            echDebugInfo = `✅ 使用缓存中的 ${domain} ECH 配置`;
+            return cached;
+        }
 
+        // L2: KV 冷触发缓存（仅内存未命中时读取，恢复后同域名不再读KV）
+        if (kvStore) {
+            try {
+                const kvData = await kvStore.get('ech_' + domain);
+                if (kvData) {
+                    const parsed = JSON.parse(kvData);
+                    if (parsed && parsed.config && parsed.time && Date.now() - parsed.time < ECH_CACHE_TTL) {
+                        echConfigCache.set(domain, parsed.config);
+                        echConfigCacheTime.set(domain, parsed.time);
+                        echDebugInfo = `✅ 从 KV 缓存恢复 ${domain} 的 ECH 配置`;
+                        return parsed.config;
+                    }
+                }
+            } catch (_) { /* KV 读取失败，降级到 DoH */ }
+        }
+
+        // L3: DoH 查询
         try {
-            // 优先使用 Google DNS 查询 cloudflare-ech.com 的 ECH 配置
-            debugSteps.push('尝试使用 Google DNS 查询 cloudflare-ech.com...');
-            const echDomainUrl = `https://v.recipes/dns/dns.google/dns-query?name=cloudflare-ech.com&type=65`;
-            const echResponse = await fetch(echDomainUrl, {
-                headers: {
-                    'Accept': 'application/json'
-                }
-            });
-
-            debugSteps.push(`Google DNS 响应状态: ${echResponse.status}`);
-
-            if (echResponse.ok) {
-                const echData = await echResponse.json();
-                debugSteps.push(`Google DNS 返回数据: ${JSON.stringify(echData).substring(0, 200)}...`);
-
-                if (echData.Answer && echData.Answer.length > 0) {
-                    debugSteps.push(`找到 ${echData.Answer.length} 条答案记录`);
-                    for (const answer of echData.Answer) {
-                        if (answer.data) {
-                            debugSteps.push(`解析答案数据: ${typeof answer.data}, 长度: ${String(answer.data).length}`);
-                            // Google DNS 返回的数据格式可能不同，需要解析
-                            const dataStr = typeof answer.data === 'string' ? answer.data : JSON.stringify(answer.data);
-                            const echMatch = dataStr.match(/ech=([^\s"']+)/);
-                            if (echMatch && echMatch[1]) {
-                                echDebugInfo = debugSteps.join('\\n') + '\\n✅ 成功从 Google DNS 获取 ECH 配置';
-                                return echMatch[1];
-                            }
-                            // 如果没有找到，尝试直接使用 data（可能是 base64 编码的）
-                            if (answer.data && !dataStr.includes('ech=')) {
-                                try {
-                                    const decoded = atob(answer.data);
-                                    debugSteps.push(`尝试 base64 解码，解码后长度: ${decoded.length}`);
-                                    const decodedMatch = decoded.match(/ech=([^\s"']+)/);
-                                    if (decodedMatch && decodedMatch[1]) {
-                                        echDebugInfo = debugSteps.join('\\n') + '\\n✅ 成功从 Google DNS (base64解码) 获取 ECH 配置';
-                                        return decodedMatch[1];
-                                    }
-                                } catch (e) {
-                                    debugSteps.push(`base64 解码失败: ${e.message}`);
-                                }
-                            }
-                        }
-                    }
-                } else {
-                    debugSteps.push('Google DNS 未返回答案记录');
-                }
-            } else {
-                debugSteps.push(`Google DNS 请求失败: ${echResponse.status}`);
+            const dnsServer = customDNS || 'https://cloudflare-dns.com/dns-query';
+            const answers = await DoH查询(domain, 'HTTPS', dnsServer);
+            if (!answers.length) {
+                echDebugInfo = `❌ ${domain} 的 HTTPS/SVCB 记录未找到`;
+                return null;
             }
-
-            // 如果 cloudflare-ech.com 查询失败，尝试使用 Google DNS 查询目标域名的 HTTPS 记录
-            debugSteps.push(`尝试使用 Google DNS 查询目标域名 ${domain}...`);
-            const dohUrl = `https://v.recipes/dns/dns.google/dns-query?name=${encodeURIComponent(domain)}&type=65`;
-            const response = await fetch(dohUrl, {
-                headers: {
-                    'Accept': 'application/json'
+            for (const ans of answers) {
+                if (ans.type !== 65 || !ans.rdata) continue;
+                const bytes = ans.rdata;
+                let offset = 2; // 跳过 SvcPriority
+                while (offset < bytes.length) {
+                    const len = bytes[offset];
+                    if (len === 0) { offset++; break; }
+                    offset += len + 1;
                 }
-            });
-
-            debugSteps.push(`Google DNS (目标域名) 响应状态: ${response.status}`);
-
-            if (response.ok) {
-                const data = await response.json();
-                debugSteps.push(`Google DNS (目标域名) 返回数据: ${JSON.stringify(data).substring(0, 200)}...`);
-
-                if (data.Answer && data.Answer.length > 0) {
-                    debugSteps.push(`找到 ${data.Answer.length} 条答案记录`);
-                    for (const answer of data.Answer) {
-                        if (answer.data) {
-                            const dataStr = typeof answer.data === 'string' ? answer.data : JSON.stringify(answer.data);
-                            const echMatch = dataStr.match(/ech=([^\s"']+)/);
-                            if (echMatch && echMatch[1]) {
-                                echDebugInfo = debugSteps.join('\\n') + '\\n✅ 成功从 Google DNS (目标域名) 获取 ECH 配置';
-                                return echMatch[1];
-                            }
-                            // 尝试 base64 解码
+                while (offset + 4 <= bytes.length) {
+                    const key = (bytes[offset] << 8) | bytes[offset + 1];
+                    const len = (bytes[offset + 2] << 8) | bytes[offset + 3];
+                    offset += 4;
+                    if (key === 5) {
+                        const config = btoa(String.fromCharCode(...bytes.slice(offset, offset + len)));
+                        const now = Date.now();
+                        // 回填 L1 内存缓存
+                        echConfigCache.set(domain, config);
+                        echConfigCacheTime.set(domain, now);
+                        // 回填 L2 KV 缓存（全局持久化，供冷启动恢复）
+                        if (kvStore) {
                             try {
-                                const decoded = atob(answer.data);
-                                const decodedMatch = decoded.match(/ech=([^\s"']+)/);
-                                if (decodedMatch && decodedMatch[1]) {
-                                    echDebugInfo = debugSteps.join('\\n') + '\\n✅ 成功从 Google DNS (目标域名, base64解码) 获取 ECH 配置';
-                                    return decodedMatch[1];
-                                }
-                            } catch (e) {
-                                debugSteps.push(`base64 解码失败: ${e.message}`);
-                            }
+                                await kvStore.put('ech_' + domain, JSON.stringify({ config, time: now }));
+                            } catch (_) { /* KV 写入失败不影响主流程 */ }
                         }
+                        echDebugInfo = `✅ 成功通过 DoH 获取 ${domain} 的 ECH 配置`;
+                        return config;
                     }
-                } else {
-                    debugSteps.push('Google DNS (目标域名) 未返回答案记录');
+                    offset += len;
                 }
-            } else {
-                debugSteps.push(`Google DNS (目标域名) 请求失败: ${response.status}`);
             }
-
-            // 如果 Google DNS 失败，尝试使用 Cloudflare DNS 作为备选
-            debugSteps.push('尝试使用 Cloudflare DNS 作为备选...');
-            const cfEchUrl = `https://cloudflare-dns.com/dns-query?name=cloudflare-ech.com&type=65`;
-            const cfResponse = await fetch(cfEchUrl, {
-                headers: {
-                    'Accept': 'application/dns-json'
-                }
-            });
-
-            debugSteps.push(`Cloudflare DNS 响应状态: ${cfResponse.status}`);
-
-            if (cfResponse.ok) {
-                const cfData = await cfResponse.json();
-                debugSteps.push(`Cloudflare DNS 返回数据: ${JSON.stringify(cfData).substring(0, 200)}...`);
-
-                if (cfData.Answer && cfData.Answer.length > 0) {
-                    debugSteps.push(`找到 ${cfData.Answer.length} 条答案记录`);
-                    for (const answer of cfData.Answer) {
-                        if (answer.data) {
-                            const echMatch = answer.data.match(/ech=([^\s"']+)/);
-                            if (echMatch && echMatch[1]) {
-                                echDebugInfo = debugSteps.join('\\n') + '\\n✅ 成功从 Cloudflare DNS 获取 ECH 配置';
-                                return echMatch[1];
-                            }
-                        }
-                    }
-                } else {
-                    debugSteps.push('Cloudflare DNS 未返回答案记录');
-                }
-            } else {
-                debugSteps.push(`Cloudflare DNS 请求失败: ${cfResponse.status}`);
-            }
-
-            echDebugInfo = debugSteps.join('\\n') + '\\n❌ 所有DNS查询均失败，未获取到ECH配置';
+            echDebugInfo = `❌ ${domain} 的 HTTPS/SVCB 记录中未找到 ECH 配置`;
             return null;
         } catch (error) {
-            echDebugInfo = debugSteps.join('\\n') + '\\n❌ 获取ECH配置时发生错误: ' + error.message;
+            echDebugInfo = `❌ 获取 ECH 配置失败: ${error.message}`;
             return null;
         }
     }
@@ -2768,7 +2999,7 @@
             case atob('c2luZ2JveA=='):  // singbox
             case 'sing-box':
             case 'singbox':
-                subscriptionContent = generateSingBoxJson(finalLinks);
+                subscriptionContent = await generateSingBoxJson(finalLinks);
                 contentType = 'application/json; charset=utf-8';
                 break;
             default:
@@ -2777,7 +3008,7 @@
 
         const responseHeaders = { 
             'Content-Type': contentType,
-            'Cache-Control': 'public, max-age=300, s-maxage=300',
+            'Cache-Control': 'public, max-age=720, s-maxage=300',
         };
 
         // 添加ECH状态到响应头
@@ -2810,11 +3041,11 @@
         let yieldCounter = 0;
         for (const item of list) {
             if (++yieldCounter % 50 === 0) await new Promise(r => setTimeout(r, 0));
-            let nodeNameBase = item.isp.replace(/\s/g, '_');
+            let nodeNameBase = (item.isp || '').split(/[?#@]/)[0].trim().replace(/\s/g, '_') || item.ip.replace(/\s/g, '_');
             if (item.colo && item.colo.trim()) {
                 nodeNameBase = `${nodeNameBase}-${item.colo.trim()}`;
             }
-            const safeIP = item.ip.includes(':') ? `[${item.ip}]` : item.ip;
+            const safeIP = item.ip.includes(':') && !item.ip.includes('[') ? `[${item.ip}]` : item.ip;
             const nodeHost = getRandomHost(workerDomain) || workerDomain;
             const wsPath = enableRandomPath ? randomPath('/?ed=2560') : '/?ed=2560';
 
@@ -2860,17 +3091,14 @@
                         path: wsPath
                     });
 
+                    // 如果配置了ALPN，添加alpn参数
+                    applyALPNParam(wsParams);
                     // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
                     if (enableECH) {
                         const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
                         const echDomain = customECHDomain || getRandomHost(workerDomain) || workerDomain;
                         wsParams.set('ech', `${echDomain}+${dnsServer}`);
-                        // 获取并缓存 ECH 配置列表
-                        let echConfig = globalEchCache.get(echDomain);
-                        if (!echConfig) {
-                            echConfig = await fetchECHConfig(echDomain);
-                            if (echConfig) globalEchCache.set(echDomain, echConfig);
-                        }
+                        const echConfig = await fetchECHConfig(echDomain);
                         if (echConfig) wsParams.set('echconfiglist', echConfig);
                     }
 
@@ -2906,11 +3134,11 @@
         let yieldCounter = 0;
         for (const item of list) {
             if (++yieldCounter % 50 === 0) await new Promise(r => setTimeout(r, 0));
-            let nodeNameBase = item.isp.replace(/\s/g, '_');
+            let nodeNameBase = (item.isp || '').split(/[?#@]/)[0].trim().replace(/\s/g, '_') || item.ip.replace(/\s/g, '_');
             if (item.colo && item.colo.trim()) {
                 nodeNameBase = `${nodeNameBase}-${item.colo.trim()}`;
             }
-            const safeIP = item.ip.includes(':') ? `[${item.ip}]` : item.ip;
+            const safeIP = item.ip.includes(':') && !item.ip.includes('[') ? `[${item.ip}]` : item.ip;
             const nodeHost = getRandomHost(workerDomain) || workerDomain;
             const wsPath = enableRandomPath ? randomPath('/?ed=2560') : '/?ed=2560';
 
@@ -2955,17 +3183,14 @@
                         path: wsPath
                     });
 
+                    // 如果配置了ALPN，添加alpn参数
+                    applyALPNParam(wsParams);
                     // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
                     if (enableECH) {
                         const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
                         const echDomain = customECHDomain || getRandomHost(workerDomain) || workerDomain;
                         wsParams.set('ech', `${echDomain}+${dnsServer}`);
-                        // 获取并缓存 ECH 配置列表
-                        let echConfig = globalEchCache.get(echDomain);
-                        if (!echConfig) {
-                            echConfig = await fetchECHConfig(echDomain);
-                            if (echConfig) globalEchCache.set(echDomain, echConfig);
-                        }
+                        const echConfig = await fetchECHConfig(echDomain);
                         if (echConfig) wsParams.set('echconfiglist', echConfig);
                     }
 
@@ -3372,6 +3597,90 @@
         return { username, password, hostname, socksPort };
     }
 
+    // ============================================================
+    // 管理员登录认证 (env.ADMIN)
+    // ============================================================
+
+    // 创建登录 token：HMAC-SHA256 签名 + UA 绑定，不包含密码明文
+    async function createAdminToken(password, request) {
+        const t = Date.now();
+        const encoder = new TextEncoder();
+
+        // 计算 User-Agent SHA-256 哈希用于绑定
+        const ua = request.headers.get('User-Agent') || '';
+        const uaHash = await crypto.subtle.digest('SHA-256', encoder.encode(ua));
+        const uaArr = new Uint8Array(uaHash);
+        let uaBin = '';
+        for (let i = 0; i < uaArr.length; i++) uaBin += String.fromCharCode(uaArr[i]);
+        const uaB64 = btoa(uaBin);
+
+        const payload = JSON.stringify({ t, ua: uaB64 });
+        const payloadB64 = btoa(payload);
+
+        const key = await crypto.subtle.importKey(
+            'raw', encoder.encode(password),
+            { name: 'HMAC', hash: 'SHA-256' },
+            false, ['sign']
+        );
+        const sigBuf = await crypto.subtle.sign('HMAC', key, encoder.encode(payloadB64));
+        const sigArr = new Uint8Array(sigBuf);
+        let sigBin = '';
+        for (let i = 0; i < sigArr.length; i++) sigBin += String.fromCharCode(sigArr[i]);
+
+        return payloadB64 + '.' + btoa(sigBin);
+    }
+
+    // 验证登录 token：HMAC 验签 + UA 绑定校验 + 1 小时内
+    async function validateAdminToken(token, password, request) {
+        try {
+            const parts = token.split('.');
+            if (parts.length !== 2) return false;
+            const [payloadB64, sigB64] = parts;
+            const data = JSON.parse(atob(payloadB64));
+            if (Date.now() - data.t > 3600000) return false; // 1 小时
+
+            const encoder = new TextEncoder();
+
+            // 校验 User-Agent 绑定
+            const currentUA = request.headers.get('User-Agent') || '';
+            const uaHash = await crypto.subtle.digest('SHA-256', encoder.encode(currentUA));
+            const uaArr = new Uint8Array(uaHash);
+            let uaBin = '';
+            for (let i = 0; i < uaArr.length; i++) uaBin += String.fromCharCode(uaArr[i]);
+            const currentUAB64 = btoa(uaBin);
+            if (data.ua !== currentUAB64) return false;
+
+            // HMAC 验签
+            const key = await crypto.subtle.importKey(
+                'raw', encoder.encode(password),
+                { name: 'HMAC', hash: 'SHA-256' },
+                false, ['verify']
+            );
+            const sigBin = atob(sigB64);
+            const sigBytes = new Uint8Array(sigBin.length);
+            for (let i = 0; i < sigBin.length; i++) sigBytes[i] = sigBin.charCodeAt(i);
+
+            return await crypto.subtle.verify('HMAC', key, sigBytes, encoder.encode(payloadB64));
+        } catch (e) {
+            return false;
+        }
+    }
+
+    // 检查请求是否已通过管理员认证
+    async function isAdminAuthenticated(request) {
+        if (!adminPassword) return true; // 未设置密码，无需认证
+        const cookieHeader = request.headers.get('Cookie') || '';
+        if (!cookieHeader) return false;
+        const cookies = cookieHeader.split(';').map(c => c.trim());
+        for (const cookie of cookies) {
+            if (cookie.startsWith('cfnew_admin_token=')) {
+                const token = cookie.substring('cfnew_admin_token='.length);
+                return await validateAdminToken(token, adminPassword, request);
+            }
+        }
+        return false;
+    }
+
     async function handleSubscriptionPage(request, user = null) {
         if (!user) user = at;
 
@@ -3468,7 +3777,6 @@
                 customHomepageHint: '设置自定义URL作为首页伪装。访问根路径 / 时将显示该URL的内容。留空则显示默认终端页面。',
                 saveConfig: '保存配置',
                 advancedControl: '高级控制',
-                subscriptionConverter: '订阅转换地址:',
                 builtinPreferred: '内置优选类型:',
                 enablePreferredDomain: '启用优选域名',
                 enablePreferredIP: '启用优选 IP',
@@ -3497,9 +3805,10 @@
                 customECHDomain: '自定义 ECH 域名',
                 customECHDomainPlaceholder: '例如: cloudflare-ech.com',
                 customECHDomainHint: 'ECH配置中使用的域名，留空则使用默认值',
+                alpn: 'TLS ALPN',
+                alpnDefault: '默认（留空，由客户端协商）',
+                alpnHint: '仅添加到 TLS 节点链接参数；留空则不写 alpn。',
                 saveProtocol: '保存协议配置',
-                subscriptionConverterPlaceholder: '默认: https://url.v1.mk/sub',
-                subscriptionConverterHint: '订阅转换已内部实现，无需外部 API。此项仅作兼容保留，可留空。',
                 builtinPreferredHint: '控制订阅中包含哪些内置优选节点。默认全部启用。',
                 apiEnabledDefault: '默认（关闭API）',
                 apiEnabledYes: '开启API管理',
@@ -3583,6 +3892,9 @@
                 customECHDomain: 'دامنه ECH سفارشی',
                 customECHDomainPlaceholder: 'مثال: cloudflare-ech.com',
                 customECHDomainHint: 'دامنه استفاده شده در پیکربندی ECH، خالی بگذارید تا از مقدار پیش‌فرض استفاده شود',
+                alpn: 'TLS ALPN',
+                alpnDefault: 'پیش‌فرض (خالی، مذاکره توسط کلاینت)',
+                alpnHint: 'فقط به لینک‌های TLS اضافه می‌شود؛ اگر خالی باشد alpn نوشته نمی‌شود.',
                 trojanPassword: 'رمز عبور Trojan (اختیاری):',
                 customPath: 'مسیر سفارشی (d):',
                 customIP: 'ProxyIP سفارشی (p):',
@@ -3620,7 +3932,6 @@
                 customHomepageHint: 'تنظیم URL سفارشی به عنوان استتار صفحه اصلی. هنگام دسترسی به مسیر اصلی / محتوای این URL نمایش داده می‌شود. اگر خالی بگذارید صفحه ترمینال پیش‌فرض نمایش داده می‌شود.',
                 saveConfig: 'ذخیره تنظیمات',
                 advancedControl: 'کنترل پیشرفته',
-                subscriptionConverter: 'آدرس تبدیل اشتراک:',
                 builtinPreferred: 'نوع ترجیحی داخلی:',
                 enablePreferredDomain: 'فعال‌سازی دامنه ترجیحی',
                 enablePreferredIP: 'فعال‌سازی IP ترجیحی',
@@ -3642,8 +3953,6 @@
                 trojanPasswordHint: 'رمز عبور Trojan سفارشی را تنظیم کنید. اگر خالی بگذارید از UUID استفاده می‌شود. کلاینت به طور خودکار رمز عبور را با SHA224 هش می‌کند.',
                 protocolHint: 'می‌توانید چندین پروتکل را همزمان فعال کنید. اشتراک گره‌های پروتکل‌های انتخاب شده را تولید می‌کند.<br>• VLESS WS: پروتکل استاندارد مبتنی بر WebSocket<br>• Trojan: احراز هویت با رمز عبور SHA224<br>• xhttp: پروتکل استتار مبتنی بر HTTP POST (نیاز به اتصال دامنه سفارشی و فعال‌سازی gRPC دارد)',
                 saveProtocol: 'ذخیره تنظیمات پروتکل',
-                subscriptionConverterPlaceholder: 'پیش‌فرض: https://url.v1.mk/sub',
-                subscriptionConverterHint: 'تبدیل اشتراک به صورت داخلی پیاده‌سازی شده است و نیازی به API خارجی ندارد. این فیلد فقط برای سازگاری حفظ شده و می‌توان آن را خالی گذاشت.',
                 builtinPreferredHint: 'کنترل اینکه کدام گره‌های ترجیحی داخلی در اشتراک گنجانده شوند. به طور پیش‌فرض همه فعال هستند.',
                 apiEnabledDefault: 'پیش‌فرض (بستن API)',
                 apiEnabledYes: 'فعال‌سازی مدیریت API',
@@ -4626,6 +4935,31 @@
                 .cp-action-btn { width: 42px; height: 42px; }
                 .cp-action-status { right: 14px; transform: translateY(8px); }
                 .cp-action-status.cp-show { transform: translateY(0); }
+                .cp-logout-btn { top: 74px; right: 14px; font-size: 10px; padding: 5px 10px; }
+            }
+            /* 登出按钮 - admin模式下退出登录 */
+            .cp-logout-btn {
+                position: fixed; top: 82px; right: 22px; z-index: 1001;
+                background: rgba(8,4,28,0.85);
+                border: 1px solid var(--cp-pink);
+                color: var(--cp-pink);
+                padding: 6px 12px;
+                font-family: inherit;
+                font-size: 11px;
+                letter-spacing: 0.18em;
+                text-transform: uppercase;
+                cursor: pointer;
+                text-shadow: 0 0 6px var(--cp-pink);
+                box-shadow: 0 0 10px rgba(255,43,214,0.35);
+                clip-path: polygon(7px 0, 100% 0, 100% calc(100% - 7px), calc(100% - 7px) 100%, 0 100%, 0 7px);
+                transition: all 0.2s ease;
+                display: inline-flex; align-items: center; gap: 6px;
+            }
+            .cp-logout-btn:hover {
+                color: var(--cp-cyan);
+                border-color: var(--cp-cyan);
+                text-shadow: 0 0 8px var(--cp-cyan);
+                box-shadow: 0 0 16px rgba(0,240,255,0.55);
             }
         </style>
     </head>
@@ -4637,6 +4971,9 @@
                 <span class="cp-hud-line"><span class="cp-hud-label">NODE::</span> NIGHT_CITY</span>
                 <span class="cp-hud-line"><span class="cp-hud-label">LINK::</span> SECURE / ENC</span>
             </div>
+            ${adminPassword ? `
+            <button type="button" class="cp-logout-btn" onclick="handleLogout()" title="${isFarsi ? 'خروج' : '登出'}">${isFarsi ? 'خروج' : '登出'}</button>
+            ` : ''}
             <div class="cp-lang-wrapper">
                 <span class="cp-lang-tag">LANG_</span>
                 <select id="languageSelector" onchange="changeLanguage(this.value)">
@@ -4746,6 +5083,19 @@
                                         <label style="display: block; margin-bottom: 8px; color: #00f0ff; font-size: 0.95rem;">${t.customECHDomain}</label>
                                         <input type="text" id="customECHDomain" placeholder="${t.customECHDomainPlaceholder}" style="width: 100%; padding: 10px; background: rgba(0, 0, 0, 0.8); border: 1px solid #00f0ff; color: #00f0ff; font-family: 'Courier New', monospace; font-size: 13px;">
                                         <small style="color: #7aa9c4; font-size: 0.8rem; display: block; margin-top: 5px;">${t.customECHDomainHint}</small>
+                                    </div>
+                                    <div style="margin-bottom: 10px;">
+                                        <label style="display: block; margin-bottom: 8px; color: #00f0ff; font-size: 0.95rem;">${t.alpn}</label>
+                                        <select id="alpn" style="width: 100%; padding: 10px; background: rgba(0, 0, 0, 0.8); border: 1px solid #00f0ff; color: #00f0ff; font-family: 'Courier New', monospace; font-size: 13px;">
+                                            <option value="">${t.alpnDefault}</option>
+                                            <option value="h3">h3</option>
+                                            <option value="h2">h2</option>
+                                            <option value="http/1.1">http/1.1</option>
+                                            <option value="h3,h2">h3,h2</option>
+                                            <option value="h2,http/1.1">h2,http/1.1</option>
+                                            <option value="h3,h2,http/1.1">h3,h2,http/1.1</option>
+                                        </select>
+                                        <small style="color: #7aa9c4; font-size: 0.8rem; display: block; margin-top: 5px;">${t.alpnHint}</small>
                                     </div>
                                 </div>
                                 <div style="margin-bottom: 10px;">
@@ -4875,11 +5225,6 @@
 
                     <h3 style="color: #00f0ff; margin: 20px 0 15px 0; font-size: 1.2rem;">${t.advancedControl}</h3>
                     <form id="advancedConfigForm" style="margin-bottom: 20px;">
-                        <div style="margin-bottom: 15px;">
-                                <label style="display: block; margin-bottom: 8px; color: #00f0ff; font-weight: bold; text-shadow: 0 0 3px #00f0ff;">${t.subscriptionConverter}</label>
-                                <input type="text" id="scu" placeholder="${t.subscriptionConverterPlaceholder}" style="width: 100%; padding: 12px; background: rgba(0, 0, 0, 0.8); border: 2px solid #00f0ff; color: #00f0ff; font-family: 'Courier New', monospace; font-size: 14px;">
-                                <small style="color: #7aa9c4; font-size: 0.85rem;">${t.subscriptionConverterHint}</small>
-                        </div>
                         <div style="margin-bottom: 15px;">
                                 <label style="display: block; margin-bottom: 8px; color: #00f0ff; font-weight: bold; text-shadow: 0 0 3px #00f0ff;">${t.builtinPreferred}</label>
                             <div style="padding: 15px; background: rgba(15, 3, 40, 0.6); border: 1px solid #00f0ff; border-radius: 5px;">
@@ -5028,8 +5373,6 @@
             </button>
         </div>
         <script>
-            // 订阅转换地址（从服务器配置注入）
-            var SUB_CONVERTER_URL = "${ scu }";
             // 远程配置URL（硬编码）
             var REMOTE_CONFIG_URL = "${ remoteConfigUrl }";
 
@@ -5074,6 +5417,11 @@
                 document.cookie = 'preferredLanguage=' + lang + '; path=/; expires=' + expiryDate.toUTCString() + '; SameSite=Lax';
                 // 刷新页面，不使用URL参数
                  window.location.reload();
+            }
+
+            function handleLogout() {
+                fetch('/api/logout', { method: 'POST', keepalive: true }).catch(function() {});
+                window.location.href = '/';
             }
 
             // 页面加载时检查 localStorage 和 Cookie，并清理URL参数
@@ -5800,7 +6148,9 @@
                     if (document.getElementById('customECHDomain')) {
                         document.getElementById('customECHDomain').value = config.customECHDomain || '';
                     }
-                    document.getElementById('scu').value = config.scu || '';
+                    if (document.getElementById('alpn')) {
+                        document.getElementById('alpn').value = config.alpn || '';
+                    }
                     document.getElementById('ena').checked = config.ena === 'yes';
                     document.getElementById('epd').checked = config.epd !== 'no';
                     document.getElementById('epi').checked = config.epi !== 'no';
@@ -5830,8 +6180,30 @@
                     // 检查p变量，如果有值则禁用wk地区选择
                     updateWkRegionState();
 
+                    // 配置加载完成后，根据 ECH 状态同步锁定/解锁 ALPN
+                    updateECHLockState();
+
                 } catch (error) {
                     document.getElementById('currentConfig').textContent = '加载配置失败: ' + error.message;
+                }
+            }
+
+            // ECH 开启时锁定 ALPN，关闭时恢复（在 loadCurrentConfig 和 change 事件中共用）
+            function updateECHLockState() {
+                const cb = document.getElementById('ech');
+                const alpn = document.getElementById('alpn');
+                if (!cb || !alpn) return;
+                if (cb.checked) {
+                    const currentVal = alpn.value;
+                    if (currentVal) localStorage.setItem('ech_alpn_backup', currentVal);
+                    alpn.disabled = true;
+                    alpn.style.opacity = '0.5';
+                    alpn.value = '';
+                } else {
+                    const backup = localStorage.getItem('ech_alpn_backup');
+                    alpn.value = backup || alpn.value;
+                    alpn.disabled = false;
+                    alpn.style.opacity = '1';
                 }
             }
 
@@ -5925,6 +6297,10 @@
                         await loadCurrentConfig();
                         // 更新wk地区选择状态
                         updateWkRegionState();
+                        // 预取 /sub 以更新浏览器缓存中的 ECH 状态
+                        try {
+                            await fetch(window.location.href + '/sub', { cache: 'reload' });
+                        } catch (_) {}
                         // 保存成功后刷新页面以更新系统状态
                         setTimeout(function() {
                             window.location.reload();
@@ -5971,9 +6347,10 @@
                                 rm: '',
                                 qj: '',
                                 dkby: '',
-                                yxby: '', ev: '', et: '', ex: '', ech: '', randomPath: '', tp: '', scu: '', epd: '', epi: '', egi: '',
+                                yxby: '', ev: '', et: '', ex: '', ech: '', randomPath: '', tp: '', epd: '', epi: '', egi: '',
                                 ipv4: '', ipv6: '', domain: '', ispMobile: '', ispUnicom: '', ispTelecom: '',
-                                homepage: ''
+                                homepage: '',
+                                alpn: ''
                             })
                         });
 
@@ -6051,21 +6428,16 @@
                 checkKVStatus();
                 checkECHStatus();
 
-                // ECH 开启时自动联动开启仅TLS
+                // ECH 开启时自动联动开启仅TLS，并锁定ALPN设置（ECH不支持ALPN）
                 const echCheckbox = document.getElementById('ech');
                 const portControl = document.getElementById('portControl');
                 if (echCheckbox && portControl) {
                     echCheckbox.addEventListener('change', function() {
+                        updateECHLockState();
                         if (this.checked) {
-                            // ECH 开启时，自动设置仅TLS为 yes
                             portControl.value = 'yes';
                         }
                     });
-
-                    // 页面加载时，如果 ECH 已勾选，也自动设置仅TLS
-                    if (echCheckbox.checked) {
-                        portControl.value = 'yes';
-                    }
                 }
 
                 // 监听customIP输入框变化，实时更新wk地区选择状态
@@ -6102,6 +6474,7 @@
                         tp: val('tp'),
                         customDNS: val('customDNS'),
                         customECHDomain: val('customECHDomain'),
+                        alpn: val('alpn'),
                         d: val('customPath'),
                         p: val('customIP'),
                         host: val('hostInput'),
@@ -6109,7 +6482,6 @@
                         yxURL: val('yxURL'),
                         s: val('socksConfig'),
                         homepage: val('customHomepage'),
-                        scu: val('scu'),
                         ena: chk('ena', 'no'),
                         epd: chk('epd', 'yes'), epi: chk('epi', 'yes'), egi: chk('egi', 'yes'),
                         ae: val('apiEnabled'),
@@ -7558,8 +7930,8 @@
         const url = piu;
         try {
             const urls = url.includes(',') ? url.split(',').map(u => u.trim()).filter(u => u) : [url];
-            const apiResults = await fetchPreferredAPI(urls, '443', 5000);
-
+            const apiResults = await fetchPreferredAPI(urls, '443', 8000);
+            
             if (apiResults.length > 0) {
                 const results = [];
                 const regex = /^(\[[\da-fA-F:]+\]|[\d.]+|[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?)*)(?::(\d+))?(?:#(.+))?$/;
@@ -7569,17 +7941,21 @@
                     const isIPv6 = item.includes(':') && !item.includes('[') && (item.split(':').length > 2);
                     
                     if (match) {
-                        const rawIP = match[1].replace(/^\[|\]$/g, '');
+                        // 对 name 做 safe 处理，去除 ? 后方查参
+                        const rawName = match[3]?.trim() || '';
+                        const safeName = /[?@]/.test(rawName) ? rawName.split(/[?#]/)[0].trim() || match[1] : (rawName || match[1]);
                         results.push({
-                            ip: rawIP,
+                            ip: match[1],
                             port: parseInt(match[2] || '443', 10),
-                            name: match[3]?.trim() || rawIP
+                            name: safeName
                         });
                     } else if (isIPv6) {
+                        // 处理未加中括号的 raw IPv6
                         const hashIndex = item.indexOf('#');
                         let hostPart = hashIndex > -1 ? item.substring(0, hashIndex) : item;
                         const remark = hashIndex > -1 ? item.substring(hashIndex + 1) : '';
                         
+                        // 简单判断末尾是否带端口 (如 :443)
                         const lastColonIndex = hostPart.lastIndexOf(':');
                         const possiblePort = hostPart.substring(lastColonIndex + 1);
                         let port = 443;
@@ -7590,38 +7966,20 @@
                             ip = hostPart.substring(0, lastColonIndex);
                         }
                         
+                        const rawName = remark.trim();
+                        const safeName = /[?@]/.test(rawName) ? rawName.split(/[?#]/)[0].trim() || ip : (rawName || ip);
                         results.push({
                             ip: ip,
                             port: port,
-                            name: remark.trim() || ip
+                            name: safeName
                         });
                     }
                 }
                 return results;
             }
-
-            // ✅ 新增：随机路径支持 (针对纯文本/CSV URL 源)
-            const randomPathEnabled = enableRandomPath;
-            const commonPathDirs = ["#","about","account","acg","act","activity","ad","admin","ads","ajax","album","albums","anime","api","app","apps","archive","archives","article","articles","ask","auth","avatar","bbs","bd","blog","blogs","book","books","bt","buy","cart","category","categories","cb","channel","channels","chat","china","city","class","classify","clip","clips","club","cn","code","collect","collection","comic","comics","community","company","config","contact","content","course","courses","cp","data","detail","details","dh","directory","discount","discuss","dl","dload","doc","docs","document","documents","doujin","download","downloads","drama","edu","en","ep","episode","episodes","event","events","f","faq","favorite","favourites","favs","feedback","file","files","film","films","forum","forums","friend","friends","game","games","gif","go","go.html","go.php","group","groups","help","home","hot","htm","html","image","images","img","index","info","intro","item","items","ja","jp","jump","jump.html","jump.php","jumping","knowledge","lang","lesson","lessons","lib","library","link","links","list","live","lives","login","logout","m","mag","magnet","mall","manhua","map","member","members","message","messages","mobile","movie","movies","music","my","new","news","note","novel","novels","online","order","out","out.html","out.php","outbound","p","page","pages","pay","payment","pdf","photo","photos","pic","pics","picture","pictures","play","player","playlist","post","posts","product","products","program","programs","project","qa","question","rank","ranking","read","readme","redirect","redirect.html","redirect.php","reg","register","res","resource","retrieve","sale","search","season","seasons","section","seller","series","service","services","setting","settings","share","shop","show","shows","site","soft","sort","source","special","star","stars","static","stock","store","stream","streaming","streams","student","study","tag","tags","task","teacher","team","tech","temp","temporary","test","theme","themes","tip","tips","tool","tools","top","topic","tour","tutorial","tv","uk","update","upload","url","us","user","users","v","version","video","videos","wap","web","website","win","windows","world","www","x","xml","xx","y","z","zone"];
-
-            // 处理所有候选 URL，按需注入随机路径段
-            const processedUrls = urls.map(u => {
-                let fetchUrl = u;
-                if (randomPathEnabled) {
-                    try {
-                        const urlObj = new URL(u);
-                        const pathParts = urlObj.pathname.split('/');
-                        const randDirs = commonPathDirs.sort(() => 0.5 - Math.random()).slice(0, Math.floor(Math.random() * 3 + 1)).join('/');
-                        pathParts.push(randDirs);
-                        urlObj.pathname = pathParts.join('/');
-                        fetchUrl = urlObj.toString();
-                    } catch (e) { /* URL 格式异常则保持原样，避免阻断流程 */ }
-                }
-                return fetchUrl;
-            });
-
-            // 使用处理后的 URL 发起请求
-            const response = await fetch(processedUrls[0]);
+            
+            // 纯文本/CSV URL 源
+            const response = await fetch(url);
             if (!response.ok) return [];
             const text = await response.text();
             const results = [];
@@ -7633,12 +7991,14 @@
                 if (!trimmedLine) continue;
                 const match = trimmedLine.match(simpleRegex);
                 const isIPv6 = trimmedLine.includes(':') && (trimmedLine.split(':').length > 2);
-                
+
                 if (match) {
+                    const rawName = match[3].trim();
+                    const safeName = /[?@]/.test(rawName) ? rawName.split(/[?#]/)[0].trim() || match[1] : (rawName || match[1]);
                     results.push({
                         ip: match[1],
                         port: parseInt(match[2], 10),
-                        name: match[3].trim() || match[1]
+                        name: safeName
                     });
                 } else if (isIPv6) {
                     const hashIndex = trimmedLine.indexOf('#');
@@ -7655,10 +8015,12 @@
                         ip = hostPart.substring(0, lastColonIndex);
                     }
                     
+                    const rawName = remark.trim();
+                    const safeName = /[?@]/.test(rawName) ? rawName.split(/[?#]/)[0].trim() || ip : (rawName || ip);
                     results.push({
                         ip: ip,
                         port: port,
-                        name: remark.trim() || ip
+                        name: safeName
                     });
                 }
             }
@@ -7680,9 +8042,9 @@
         let yieldCounter = 0;
         for (const item of list) {
             if (++yieldCounter % 50 === 0) await new Promise(r => setTimeout(r, 0));
-            const nodeNameBase = item.name.replace(/\s/g, '_');
+            const nodeNameBase = (item.name || '').split(/[?#@]/)[0].trim().replace(/\s/g, '_') || item.ip.replace(/\s/g, '_');
             const port = item.port;
-            const safeIP = item.ip.includes(':') ? `[${item.ip}]` : item.ip;
+            const safeIP = item.ip.includes(':') && !item.ip.includes('[') ? `[${item.ip}]` : item.ip;
             const nodeHost = getRandomHost(workerDomain) || workerDomain;
             const wsPath = enableRandomPath ? randomPath('/?ed=2560') : '/?ed=2560';
 
@@ -7692,55 +8054,43 @@
                 return namer(nodeNameBase, nodeName);
             };
 
-            if (CF_HTTPS_PORTS.includes(port)) {
+            if (CF_HTTPS_PORTS.includes(port) || !CF_HTTP_PORTS.includes(port)) {
+                // TLS 端口或未知端口（默认TLS）
                 const suffix = '-WS-TLS';
                 const wsNodeName = getNodeName(suffix);
-                let link = `${proto}://${user}@${safeIP}:${port}?encryption=none&security=tls&sni=${nodeHost}&fp=${enableECH ? 'chrome' : 'randomized'}&type=ws&host=${nodeHost}&path=${wsPath}`;
-
-                // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
+                const wsParams = new URLSearchParams({
+                    encryption: 'none',
+                    security: 'tls',
+                    sni: nodeHost,
+                    fp: enableECH ? 'chrome' : 'randomized',
+                    type: 'ws',
+                    host: nodeHost,
+                    path: wsPath
+                });
+                // 如果配置了ALPN，添加alpn参数（ECH启用时禁用ALPN）
+                if (!enableECH && customALPN) wsParams.set('alpn', customALPN);
+                // 如果启用了ECH，添加ech参数
                 if (enableECH) {
                     const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
                     const echDomain = customECHDomain || getRandomHost(workerDomain) || workerDomain;
-                    link += `&ech=${encodeURIComponent(`${echDomain}+${dnsServer}`)}`;
-                    // 获取并缓存 ECH 配置列表
-                    let echConfig = globalEchCache.get(echDomain);
-                    if (!echConfig) {
-                        echConfig = await fetchECHConfig(echDomain);
-                        if (echConfig) globalEchCache.set(echDomain, echConfig);
-                    }
-                    if (echConfig) link += `&echconfiglist=${encodeURIComponent(echConfig)}`;
+                    wsParams.set('ech', `${echDomain}+${dnsServer}`);
+                    const echConfig = await fetchECHConfig(echDomain);
+                    if (echConfig) wsParams.set('echconfiglist', echConfig);
                 }
-
-                link += `#${encodeURIComponent(wsNodeName)}`;
-                links.push(link);
+                links.push(`${proto}://${user}@${safeIP}:${port}?${wsParams.toString()}#${encodeURIComponent(wsNodeName)}`);
             } else if (CF_HTTP_PORTS.includes(port)) {
                 if (!disableNonTLS) {
                     const suffix = '-WS';
                     const wsNodeName = getNodeName(suffix);
-                    const link = `${proto}://${user}@${safeIP}:${port}?encryption=none&security=none&type=ws&host=${nodeHost}&path=${wsPath}#${encodeURIComponent(wsNodeName)}`;
-                    links.push(link);
+                    const wsParams = new URLSearchParams({
+                        encryption: 'none',
+                        security: 'none',
+                        type: 'ws',
+                        host: nodeHost,
+                        path: wsPath
+                    });
+                    links.push(`${proto}://${user}@${safeIP}:${port}?${wsParams.toString()}#${encodeURIComponent(wsNodeName)}`);
                 }
-            } else {
-                const suffix = '-WS-TLS';
-                const wsNodeName = getNodeName(suffix);
-                let link = `${proto}://${user}@${safeIP}:${port}?encryption=none&security=tls&sni=${nodeHost}&fp=${enableECH ? 'chrome' : 'randomized'}&type=ws&host=${nodeHost}&path=${wsPath}`;
-
-                // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
-                if (enableECH) {
-                    const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
-                    const echDomain = customECHDomain || getRandomHost(workerDomain) || workerDomain;
-                    link += `&ech=${encodeURIComponent(`${echDomain}+${dnsServer}`)}`;
-                    // 获取并缓存 ECH 配置列表
-                    let echConfig = globalEchCache.get(echDomain);
-                    if (!echConfig) {
-                        echConfig = await fetchECHConfig(echDomain);
-                        if (echConfig) globalEchCache.set(echDomain, echConfig);
-                    }
-                    if (echConfig) link += `&echconfiglist=${encodeURIComponent(echConfig)}`;
-                }
-
-                link += `#${encodeURIComponent(wsNodeName)}`;
-                links.push(link);
             }
         }
         return links;
@@ -7755,11 +8105,10 @@
         let yieldCounter = 0;
         for (const item of list) {
             if (++yieldCounter % 50 === 0) await new Promise(r => setTimeout(r, 0));
-            let nodeNameBase = item.isp || item.name || item.ip;
+            let nodeNameBase = (item.isp || item.name || item.ip || '').split(/[?#@]/)[0].trim().replace(/\s/g, '_');
             if (!nodeNameBase) continue;
-            nodeNameBase = nodeNameBase.replace(/\s/g, '_');
             if (item.colo) nodeNameBase = `${nodeNameBase}-${item.colo}`;
-            const safeIP = item.ip.includes(':') ? `[${item.ip}]` : item.ip;
+            const safeIP = item.ip.includes(':') && !item.ip.includes('[') ? `[${item.ip}]` : item.ip;
             const port = item.port || 443;
             const nodeHost = getRandomHost(workerDomain) || workerDomain;
 
@@ -7783,16 +8132,13 @@
                 mode: 'stream-one'
             });
 
+            // 如果配置了ALPN，添加alpn参数
+            applyALPNParam(params);
             if (enableECH) {
                 const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
                 const echDomain = customECHDomain || getRandomHost(workerDomain) || workerDomain;
                 params.set('ech', `${echDomain}+${dnsServer}`);
-                // 获取并缓存 ECH 配置列表
-                let echConfig = globalEchCache.get(echDomain);
-                if (!echConfig) {
-                    echConfig = await fetchECHConfig(echDomain);
-                    if (echConfig) globalEchCache.set(echDomain, echConfig);
-                }
+                const echConfig = await fetchECHConfig(echDomain);
                 if (echConfig) params.set('echconfiglist', echConfig);
             }
 
@@ -7814,9 +8160,9 @@
         let yieldCounter = 0;
         for (const item of list) {
             if (++yieldCounter % 50 === 0) await new Promise(r => setTimeout(r, 0));
-            const nodeNameBase = item.name.replace(/\s/g, '_');
+            const nodeNameBase = (item.name || '').split(/[?#@]/)[0].trim().replace(/\s/g, '_') || item.ip.replace(/\s/g, '_');
             const port = item.port;
-            const safeIP = item.ip.includes(':') ? `[${item.ip}]` : item.ip;
+            const safeIP = item.ip.includes(':') && !item.ip.includes('[') ? `[${item.ip}]` : item.ip;
             const nodeHost = getRandomHost(workerDomain) || workerDomain;
             const wsPath = enableRandomPath ? randomPath('/?ed=2560') : '/?ed=2560';
 
@@ -7826,56 +8172,48 @@
                 return namer(nodeNameBase, nodeName);
             };
 
-            if (CF_HTTPS_PORTS.includes(port)) {
+            if (CF_HTTPS_PORTS.includes(port) || !CF_HTTP_PORTS.includes(port)) {
                 const suffix = `-${atob('VHJvamFu')}-WS-TLS`;
                 const wsNodeName = getNodeName(suffix);
-                let link = `${atob('dHJvamFuOi8v')}${password}@${safeIP}:${port}?security=tls&sni=${nodeHost}&fp=chrome&type=ws&host=${nodeHost}&path=${wsPath}`;
-
-                // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
+                const wsParams = new URLSearchParams({
+                    security: 'tls',
+                    sni: nodeHost,
+                    fp: 'chrome',
+                    type: 'ws',
+                    host: nodeHost,
+                    path: wsPath
+                });
+                // 如果配置了ALPN，添加alpn参数（ECH启用时禁用ALPN）
+                if (!enableECH && customALPN) wsParams.set('alpn', customALPN);
+                // 如果启用了ECH，添加ech参数
                 if (enableECH) {
                     const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
                     const echDomain = customECHDomain || getRandomHost(workerDomain) || workerDomain;
-                    link += `&ech=${encodeURIComponent(`${echDomain}+${dnsServer}`)}`;
-                    // 获取并缓存 ECH 配置列表
-                    let echConfig = globalEchCache.get(echDomain);
-                    if (!echConfig) {
-                        echConfig = await fetchECHConfig(echDomain);
-                        if (echConfig) globalEchCache.set(echDomain, echConfig);
-                    }
-                    if (echConfig) link += `&echconfiglist=${encodeURIComponent(echConfig)}`;
+                    wsParams.set('ech', `${echDomain}+${dnsServer}`);
+                    const echConfig = await fetchECHConfig(echDomain);
+                    if (echConfig) wsParams.set('echconfiglist', echConfig);
                 }
-
-                link += `#${encodeURIComponent(wsNodeName)}`;
-                links.push(link);
+                links.push(`${atob('dHJvamFuOi8v')}${password}@${safeIP}:${port}?${wsParams.toString()}#${encodeURIComponent(wsNodeName)}`);
             } else if (CF_HTTP_PORTS.includes(port)) {
                 if (!disableNonTLS) {
                     const suffix = `-${atob('VHJvamFu')}-WS`;
                     const wsNodeName = getNodeName(suffix);
-                    const link = `${atob('dHJvamFuOi8v')}${password}@${safeIP}:${port}?security=none&type=ws&host=${nodeHost}&path=${wsPath}#${encodeURIComponent(wsNodeName)}`;
-                    links.push(link);
+                    const wsParams = new URLSearchParams({
+                        security: 'none',
+                        type: 'ws',
+                        host: nodeHost,
+                        path: wsPath
+                    });
+                    links.push(`${atob('dHJvamFuOi8v')}${password}@${safeIP}:${port}?${wsParams.toString()}#${encodeURIComponent(wsNodeName)}`);
                 }
-            } else {
-                const suffix = `-${atob('VHJvamFu')}-WS-TLS`;
-                const wsNodeName = getNodeName(suffix);
-                let link = `${atob('dHJvamFuOi8v')}${password}@${safeIP}:${port}?security=tls&sni=${nodeHost}&fp=chrome&type=ws&host=${nodeHost}&path=${wsPath}`;
-
-                // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
-                if (enableECH) {
-                    const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
-                    const echDomain = customECHDomain || getRandomHost(workerDomain) || workerDomain;
-                    link += `&ech=${encodeURIComponent(`${echDomain}+${dnsServer}`)}`;
-                }
-                link += `#${encodeURIComponent(wsNodeName)}`;
-                links.push(link);
             }
         }
         return links;
     }
 
     function randomPath(fullNodePath = "/") {
-        const commonPathDirs = ["#","about","account","acg","act","activity","ad","admin","ads","ajax","album","albums","anime","api","app","apps","archive","archives","article","articles","ask","auth","avatar","bbs","bd","blog","blogs","book","books","bt","buy","cart","category","categories","cb","channel","channels","chat","china","city","class","classify","clip","clips","club","cn","code","collect","collection","comic","comics","community","company","config","contact","content","course","courses","cp","data","detail","details","dh","directory","discount","discuss","dl","dload","doc","docs","document","documents","doujin","download","downloads","drama","edu","en","ep","episode","episodes","event","events","f","faq","favorite","favourites","favs","feedback","file","files","film","films","forum","forums","friend","friends","game","games","gif","go","go.html","go.php","group","groups","help","home","hot","htm","html","image","images","img","index","info","intro","item","items","ja","jp","jump","jump.html","jump.php","jumping","knowledge","lang","lesson","lessons","lib","library","link","links","list","live","lives","login","logout","m","mag","magnet","mall","manhua","map","member","members","message","messages","mobile","movie","movies","music","my","new","news","note","novel","novels","online","order","out","out.html","out.php","outbound","p","page","pages","pay","payment","pdf","photo","photos","pic","pics","picture","pictures","play","player","playlist","post","posts","product","products","program","programs","project","qa","question","rank","ranking","read","readme","redirect","redirect.html","redirect.php","reg","register","res","resource","retrieve","sale","search","season","seasons","section","seller","series","service","services","setting","settings","share","shop","show","shows","site","soft","sort","source","special","star","stars","static","stock","store","stream","streaming","streams","student","study","tag","tags","task","teacher","team","tech","temp","temporary","test","theme","themes","tip","tips","tool","tools","top","topic","tour","tutorial","tv","uk","update","upload","url","us","user","users","v","version","video","videos","wap","web","website","win","windows","world","www","x","xml","xx","y","z","zone"];
         const randomCount = Math.floor(Math.random() * 3 + 1);
-        const randomPath = commonPathDirs.sort(() => 0.5 - Math.random()).slice(0, randomCount).join('/');
+        const randomPath = commonPathDirs.slice().sort(() => 0.5 - Math.random()).slice(0, randomCount).join('/');
         if (fullNodePath === "/") return `/${randomPath}`;
         else return `/${randomPath + fullNodePath.replace('/?', '?')}`;
     }
@@ -7948,6 +8286,14 @@
                     updateCustomPreferredFromYx();
                 }
 
+                // 清除订阅缓存，使 ECH 状态等立即更新
+                try {
+                    const reqUrl = new URL(request.url);
+                    const basePath = reqUrl.pathname.replace(/\/api\/config.*$/, '');
+                    const subUrl = reqUrl.origin + basePath + '/sub';
+                    await cfCache.delete(new Request(subUrl));
+                } catch (_) {}
+
                 return new Response(JSON.stringify({
                     success: true,
                     message: '配置已保存',
@@ -7969,6 +8315,69 @@
         return new Response(JSON.stringify({ error: 'Method not allowed' }), { 
             status: 405,
             headers: { 'Content-Type': 'application/json' }
+        });
+    }
+
+    // ============================================================
+    // 管理员登录页面
+    // ============================================================
+    async function handleLoginPage(request) {
+        const url = new URL(request.url);
+
+        // POST: 验证密码并设置 cookie
+        if (request.method === 'POST') {
+            try {
+                const body = await request.json();
+                const inputPassword = body.password || '';
+
+                if (inputPassword !== adminPassword) {
+                    return new Response(JSON.stringify({
+                        success: false,
+                        message: '密码错误'
+                    }), {
+                        status: 403,
+                        headers: { 'Content-Type': 'application/json' }
+                    });
+                }
+
+                const token = await createAdminToken(adminPassword, request);
+                const cookieExpiry = new Date(Date.now() + 3600000); // 1 小时
+                const redirectTo = url.pathname.replace(/\/api\/login.*$/, '') || '/';
+
+                return new Response(JSON.stringify({
+                    success: true,
+                    message: '登录成功',
+                    redirect: redirectTo
+                }), {
+                    status: 200,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Set-Cookie': `cfnew_admin_token=${token}; path=/; expires=${cookieExpiry.toUTCString()}; Secure; HttpOnly; SameSite=Lax`
+                    }
+                });
+            } catch (error) {
+                return new Response(JSON.stringify({
+                    success: false,
+                    message: '登录失败: ' + error.message
+                }), {
+                    status: 400,
+                    headers: { 'Content-Type': 'application/json' }
+                });
+            }
+        }
+
+        // GET 或其他方法: 重定向到主域名终端
+        return Response.redirect(new URL('/', request.url).toString(), 302);
+    }
+
+    // 管理员登出 API：服务端清除 cookie（兼容 HttpOnly）
+    async function handleLogoutAPI() {
+        return new Response(JSON.stringify({ success: true }), {
+            status: 200,
+            headers: {
+                'Content-Type': 'application/json',
+                'Set-Cookie': 'cfnew_admin_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; Secure; HttpOnly; SameSite=Lax'
+            }
         });
     }
 
@@ -8212,8 +8621,6 @@
             ev = true;
         }
 
-        scu = getConfigValue('scu', '') || 'https://url.v1.mk/sub';
-
         const preferredDomainsControl = getConfigValue('epd', 'no');
         if (preferredDomainsControl !== undefined && preferredDomainsControl !== '') {
             epd = preferredDomainsControl !== 'no' && preferredDomainsControl !== false && preferredDomainsControl !== 'false';
@@ -8227,6 +8634,11 @@
         const githubIPsControl = getConfigValue('egi', '');
         if (githubIPsControl !== undefined && githubIPsControl !== '') {
             egi = githubIPsControl !== 'no' && githubIPsControl !== false && githubIPsControl !== 'false';
+        }
+
+        const randomPathControl = getConfigValue('randomPath', '');
+        if (randomPathControl !== undefined && randomPathControl !== '') {
+            enableRandomPath = randomPathControl === 'yes' || randomPathControl === true || randomPathControl === 'true' || randomPathControl === '1';
         }
 
         const nativeAddressControl = getConfigValue('ena', '');
@@ -8253,6 +8665,8 @@
         } else {
             customECHDomain = '';
         }
+
+        customALPN = normalizeALPN(getConfigValue('alpn', ''));
 
         // 如果启用了ECH，自动启用仅TLS模式（避免80端口干扰）
         // ECH需要TLS才能工作，所以必须禁用非TLS节点

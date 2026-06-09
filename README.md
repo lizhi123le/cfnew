@@ -1,4 +1,4 @@
-# CFnew - 终端 v2.9.8
+# CFnew - 终端 v2.9.8b
 
 > **⚠️ 重要：部署后请将兼容日期设置为 `2026-01-20`**
 > 
@@ -32,7 +32,7 @@
 - 自动识别：根据User-Agent自动返回对应格式
 - 多语言：支持中文和波斯语，根据浏览器语言自动切换
 
-## v2.9.8 更新
+## v2.9.8b 更新
 
 - 订阅转换内部实现：Clash / Stash / Sing-box / Surge / Loon / Quantumult X 配置全部由 Worker 直接生成，不再依赖任何外部 sub-converter
   - 完整规则集：Clash 使用 Loyalsoldier `rule-providers`；Sing-box 使用 MetaCubeX SRS；Surge / Loon / QuanX 使用 ACL4SSR / blackmatrix7 远端规则
