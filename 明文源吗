@@ -853,7 +853,8 @@
                         }
                     }
 
-                    if (url.pathname === '/') {
+                    if (url.pathname === '/' || url.pathname === '/login') {
+                        const isLoginPath = url.pathname === '/login';
                         // 检查是否有自定义首页URL配置
                         const customHomepage = getConfigValue('homepage', env.homepage || env.HOMEPAGE);
                         let isHomepageMode = false;
@@ -876,7 +877,7 @@
                                 if (homepageResponse.ok) {
                                     homepageContentType = homepageResponse.headers.get('Content-Type') || 'text/html; charset=utf-8';
                                     if (homepageContentType.includes('text/html')) {
-                                        // HTML 内容：注入悬浮窗 overlay
+                                        // HTML 内容：标记为首页模式（后续根据路径决定是否注入悬浮窗）
                                         isHomepageMode = true;
                                         homepageContent = await homepageResponse.text();
                                     } else {
@@ -969,13 +970,24 @@
                         const requiresAdminAuth = adminPassword && !(await isAdminAuthenticated(request));
                         
                         // 管理员已认证 → 跳转到订阅配置页面（仅非homepage模式）
-                        if (adminPassword && !requiresAdminAuth && !isHomepageMode) {
+                        if (!isLoginPath && adminPassword && !requiresAdminAuth && !isHomepageMode) {
                             const targetPath = cp && cp.trim() ? '/' + cp.trim().replace(/^\//, '') : '/' + at;
                             return Response.redirect(new URL(targetPath, request.url).toString(), 302);
                         }
                         
-                        // 悬浮窗模式：在首页 HTML 中注入终端悬浮窗（含矩阵雨、语言切换、FX、登录表单）
-                        if (isHomepageMode) {
+                        // / 路径且为伪装页：直接返回原始内容，不注入悬浮窗
+                        if (isHomepageMode && !isLoginPath) {
+                            return new Response(homepageContent, {
+                                status: 200,
+                                headers: {
+                                    'Content-Type': homepageContentType,
+                                    'Cache-Control': 'no-cache, no-store, must-revalidate',
+                                }
+                            });
+                        }
+                        
+                        // /login 路径：构建带悬浮窗的页面（含矩阵雨、语言切换、FX、登录表单）
+                        if (isLoginPath) {
                             const overlayCss = `<style>
 #cfnew-overlay{position:fixed!important;top:0!important;left:0!important;width:100%!important;height:100%!important;z-index:2147483647!important;background:rgba(5,3,14,0.7)!important;-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);display:flex!important;align-items:center!important;justify-content:center!important;font-family:"JetBrains Mono","Fira Code","Courier New",monospace!important;box-sizing:border-box!important;margin:0!important;padding:0!important}
 #cfnew-overlay *{box-sizing:border-box!important;margin:0;padding:0}
@@ -1059,19 +1071,26 @@ function cfnewToggleFx(){var off=localStorage.getItem('cp-fx-off')==='1';localSt
 (function(){var inp=document.getElementById('cfnew-pwd-input');if(!inp)return;var err=document.getElementById('cfnew-login-error'),errTxt=document.getElementById('cfnew-login-errortext');var display=document.getElementById('cfnew-pwd-display');var rurl=window.location.origin+'${targetCpx}';function sync(){if(display)display.textContent=inp.value.replace(/./g,'•')}function doLogin(){var pwd=inp.value.trim();if(!pwd){errTxt.textContent='${errorEmpty}';err.style.display='';return}inp.disabled=true;err.style.display='none';fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pwd})}).then(function(r){return r.json()}).then(function(data){if(data.success){window.location.href=rurl}else{errTxt.textContent=data.message||'${errorFail}';err.style.display='';inp.disabled=false;inp.value='';if(display)display.textContent='';inp.focus()}}).catch(function(e){errTxt.textContent='${errorNetwork}'+e.message;err.style.display='';inp.disabled=false})}inp.addEventListener('input',sync);inp.addEventListener('keydown',function(e){if(e.key==='Enter')doLogin()});document.getElementById('cfnew-login-section').addEventListener('click',function(){inp.focus()});sync();inp.focus()})();
 </script>`;
                             const overlayAll = overlayCss + overlayHtml + overlayJs;
-                            if (homepageContent.includes('</body>')) {
-                                homepageContent = homepageContent.replace('</body>', overlayAll + '\n</body>');
+                            let finalContent;
+                            if (isHomepageMode) {
+                                finalContent = homepageContent;
+                                if (finalContent.includes('</body>')) {
+                                    finalContent = finalContent.replace('</body>', overlayAll + '\n</body>');
+                                } else {
+                                    finalContent += overlayAll;
+                                }
                             } else {
-                                homepageContent += overlayAll;
+                                finalContent = `<!DOCTYPE html><html lang="${langAttr}"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>${t.title}</title></head><body>${overlayAll}</body></html>`;
                             }
-                            return new Response(homepageContent, {
+                            return new Response(finalContent, {
                                 status: 200,
                                 headers: {
-                                    'Content-Type': homepageContentType,
+                                    'Content-Type': 'text/html; charset=utf-8',
                                     'Cache-Control': 'no-cache, no-store, must-revalidate',
                                 }
                             });
                         }
+                    }
                             
     const terminalHtml = `<!DOCTYPE html>
     <html lang="${langAttr}" dir="${isFarsi ? 'rtl' : 'ltr'}">
