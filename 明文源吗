@@ -931,7 +931,7 @@
                                 invading: '正在入侵...',
                                 success: '连接成功！返回结果...',
                                 error: '错误: 无效的UUID格式',
-                                reenter: '请重新输入有效的UUID'
+                                 reenter: '请重新输入有效的UUID'
                             },
                             fa: {
                                 title: 'ترمینال v2.9.8',
@@ -963,7 +963,104 @@
                             return Response.redirect(new URL(targetPath, request.url).toString(), 302);
                         }
                         
-                        // 悬浮窗模式已移至终端模板后处理（使用 iframe srcdoc 方案）
+                        // 悬浮窗模式：在首页 HTML 中注入终端悬浮窗（含矩阵雨、语言切换、FX、登录表单）
+                        if (isHomepageMode) {
+                            const overlayCss = `<style>
+#cfnew-overlay{position:fixed!important;top:0!important;left:0!important;width:100%!important;height:100%!important;z-index:2147483647!important;background:rgba(5,3,14,0.7)!important;-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);display:flex!important;align-items:center!important;justify-content:center!important;font-family:"JetBrains Mono","Fira Code","Courier New",monospace!important;box-sizing:border-box!important;margin:0!important;padding:0!important}
+#cfnew-overlay *{box-sizing:border-box!important;margin:0;padding:0}
+#cfnew-matrix-rain{position:fixed!important;top:0!important;left:0!important;width:100vw!important;height:100vh!important;pointer-events:none!important;z-index:0!important;overflow:hidden!important;will-change:transform!important}
+#cfnew-matrix-rain.fx-off{display:none!important}
+.cfnew-matrix-column{position:absolute!important;top:-120vh!important;left:0!important;color:#00f0ff!important;font-family:"JetBrains Mono","Courier New",monospace!important;font-size:14px!important;line-height:1.25!important;text-shadow:0 0 6px #00f0ff,0 0 12px rgba(0,240,255,0.5)!important;animation:cfnew-drop linear infinite!important}
+@keyframes cfnew-drop{0%{top:-120vh;opacity:0}10%{opacity:0.85}90%{opacity:0.4}100%{top:110vh;opacity:0}}
+.cfnew-matrix-column:nth-child(odd){animation-duration:12s!important}
+.cfnew-matrix-column:nth-child(even){animation-duration:18s!important;color:#ff2bd6!important;text-shadow:0 0 6px #ff2bd6,0 0 14px rgba(255,43,214,0.5)!important}
+.cfnew-matrix-column:nth-child(3n){animation-duration:20s!important;color:#a347ff!important;text-shadow:0 0 6px #a347ff!important}
+.cfnew-matrix-column:nth-child(5n){animation-duration:9s!important;opacity:0.6!important}
+#cfnew-dialog{position:relative!important;z-index:1!important;width:870px!important;max-width:92vw!important;min-height:810px!important;background:linear-gradient(180deg,rgba(8,4,28,0.92) 0%,rgba(15,3,40,0.92) 100%)!important;border:1px solid rgba(0,240,255,0.55)!important;border-radius:0!important;box-shadow:0 0 0 1px rgba(255,43,214,0.25),0 0 28px rgba(0,240,255,0.35),0 0 80px rgba(255,43,214,0.18),inset 0 0 30px rgba(0,240,255,0.06)!important;clip-path:polygon(0 18px,18px 0,calc(100% - 60px) 0,calc(100% - 42px) 18px,100% 18px,100% calc(100% - 14px),calc(100% - 14px) 100%,42px 100%,24px calc(100% - 14px),0 calc(100% - 14px));overflow:hidden!important}
+#cfnew-dialog::before{content:""!important;position:absolute!important;inset:0!important;background:repeating-linear-gradient(180deg,rgba(0,240,255,0.06) 0 1px,transparent 1px 4px)!important;pointer-events:none!important;z-index:0!important;animation:cfnew-scan 5s infinite!important}
+@keyframes cfnew-scan{0%,100%{opacity:0.6}50%{opacity:0.9}}
+#cfnew-dialog>*{position:relative!important;z-index:1!important}
+#cfnew-topbar{display:flex!important;justify-content:space-between!important;align-items:center!important;padding:14px 20px!important;background:linear-gradient(90deg,rgba(255,43,214,0.18) 0%,rgba(0,240,255,0.18) 100%)!important;border-bottom:1px solid rgba(0,240,255,0.5)!important;margin-bottom:0!important}
+#cfnew-lang-wrapper{display:flex!important;align-items:center!important;gap:6px!important;font-size:13px!important;color:#00f0ff!important}
+#cfnew-lang-wrapper select{background:transparent!important;border:1px solid rgba(0,240,255,0.4)!important;color:#00f0ff!important;font-family:inherit!important;font-size:13px!important;padding:2px 4px!important;cursor:pointer!important;outline:none!important}
+#cfnew-lang-wrapper select option{background:#0a0820!important;color:#00f0ff!important}
+#cfnew-fx-toggle{display:inline-flex!important;align-items:center!important;gap:6px!important;font-size:13px!important;color:#00f0ff!important;cursor:pointer!important;border:1px solid rgba(0,240,255,0.3)!important;border-radius:4px!important;background:transparent!important;font-family:inherit!important;padding:4px 8px!important}
+#cfnew-fx-toggle:hover{color:#ff2bd6!important;border-color:#ff2bd6!important;text-shadow:0 0 8px #ff2bd6!important;box-shadow:0 0 16px rgba(255,43,214,0.55)!important}
+#cfnew-fx-dot{width:6px!important;height:6px!important;border-radius:50%!important;background:#00ff9d!important;box-shadow:0 0 8px #00ff9d!important}
+#cfnew-fx-toggle.fx-off{color:#7aa9c4!important;border-color:#7aa9c4!important;text-shadow:none!important;box-shadow:none!important}
+#cfnew-fx-toggle.fx-off #cfnew-fx-dot{background:transparent!important;border:1px solid #7aa9c4!important;box-shadow:none!important}
+#cfnew-dialog-header{display:flex!important;align-items:center!important;gap:8px!important;padding:16px 20px 8px!important}
+#cfnew-dialog-buttons{display:flex!important;gap:6px!important}
+#cfnew-dialog-buttons span{width:12px!important;height:12px!important;border-radius:50%!important;display:inline-block!important}
+#cfnew-dialog-buttons span:nth-child(1){background:#ff5f56!important}
+#cfnew-dialog-buttons span:nth-child(2){background:#ffbd2e!important}
+#cfnew-dialog-buttons span:nth-child(3){background:#27c93f!important}
+#cfnew-dialog-title{color:#00f0ff!important;font-weight:700!important;letter-spacing:0.12em!important;text-shadow:0 0 8px #00f0ff,-1px 0 #ff2bd6,1px 0 #00ff9d!important}
+#cfnew-login-section{padding:8px 20px 24px!important}
+.cfnew-line{margin:12px 0!important;font-size:15px!important;line-height:1.7!important}
+.cfnew-prompt{color:#00f0ff!important;font-weight:700!important}
+.cfnew-output{color:#00f0ff!important;margin-left:8px!important}
+.cfnew-error{color:#ff3860!important;margin-left:8px!important;text-shadow:0 0 6px #ff3860!important}
+.cfnew-input{background:transparent!important;border:none!important;border-bottom:1px solid #00f0ff!important;color:#00f0ff!important;font-family:inherit!important;font-size:15px!important;outline:none!important;width:320px!important;margin-left:8px!important;caret-color:#00f0ff!important}
+.cfnew-input::placeholder{color:rgba(122,169,196,0.6)!important}
+.cfnew-cursor::after{content:"\\2588"!important;color:#00f0ff!important;animation:cfnew-blink 1s step-end infinite}
+@keyframes cfnew-blink{50%{opacity:0}}
+</style>`;
+                            const termTitle = isFarsi ? 'ترمینال v2.9.8' : '终端 v2.9.8';
+                            const loginLabel = isFarsi ? 'ورود مدیر / ADMIN LOGIN' : '管理员登录 / ADMIN LOGIN';
+                            const authRequired = 'AUTHENTICATION REQUIRED';
+                            const passwordPrompt = isFarsi ? 'لطفا رمز مدیر را وارد کنید' : '请输入管理员密码';
+                            const errorFail = isFarsi ? 'رمز اشتباه' : '密码错误';
+                            const errorEmpty = isFarsi ? 'لطفا رمز را وارد کنید' : '请输入密码';
+                            const errorNetwork = isFarsi ? 'خطا: ' : '请求失败: ';
+                            const langSelectedFa = isFarsi ? ' selected' : '';
+                            const langSelectedZh = isFarsi ? '' : ' selected';
+                            const overlayHtml = `<div id="cfnew-overlay">
+<div id="cfnew-matrix-rain"></div>
+<div id="cfnew-dialog">
+<div id="cfnew-topbar">
+<div id="cfnew-lang-wrapper"><span style="color:#7aa9c4;font-size:13px;">LANG_</span>
+<select id="cfnew-lang-select" onchange="cfnewChangeLanguage(this.value)">
+<option value="zh"${langSelectedZh}>🇨🇳 中文</option>
+<option value="fa"${langSelectedFa}>🇮🇷 فارسی</option>
+</select></div>
+<button type="button" id="cfnew-fx-toggle" onclick="cfnewToggleFx()"><span id="cfnew-fx-dot"></span><span id="cfnew-fx-label">FX: ON</span></button>
+</div>
+<div id="cfnew-dialog-header">
+<div id="cfnew-dialog-buttons"><span></span><span></span><span></span></div>
+<span id="cfnew-dialog-title">${termTitle}</span>
+</div>
+<div id="cfnew-login-section">
+<div class="cfnew-line"><span class="cfnew-prompt">root:~$</span><span class="cfnew-output">${loginLabel}</span></div>
+<div class="cfnew-line"><span class="cfnew-prompt">root:~$</span><span class="cfnew-error">${authRequired}</span></div>
+<div class="cfnew-line"><span class="cfnew-prompt">root:~$</span><span class="cfnew-output">${passwordPrompt}</span></div>
+<div class="cfnew-line"><span class="cfnew-prompt">root:~$</span><input type="password" class="cfnew-input" id="cfnew-pwd-input" placeholder="password..."><span class="cfnew-cursor"></span></div>
+<div class="cfnew-line" id="cfnew-login-error" style="display:none"><span class="cfnew-prompt">root:~$</span><span class="cfnew-error" id="cfnew-login-errortext">${errorFail}</span></div>
+</div>
+</div>
+</div>`;
+                            const targetCpx = cp && cp.trim() ? '/' + cp.trim().replace(/^\//, '') : '/' + at;
+                            const overlayJs = `<script>
+function cfnewCreateMatrixRain(){var c=document.getElementById('cfnew-matrix-rain');if(!c||c.classList.contains('fx-off'))return;if(c.children.length>0)return;var h='01\\u30a2\\u30a4\\u30a6\\u30a8\\u30aa\\u30ab\\u30ad\\u30af\\u30b1\\u30b3\\u30b5\\u30b7\\u30b9\\u30bb\\u30bd\\u30bf\\u30c1\\u30c4\\u30c6\\u30c8\\u30ca\\u30cb\\u30cc\\u30cd\\u30ce$%#@!?<>+=ABCDEF',p=['#00f0ff','#ff2bd6','#a347ff','#00ff9d'],n=Math.floor(window.innerWidth/20);for(var i=0;i<n;i++){var d=document.createElement('div');d.className='cfnew-matrix-column';d.style.left=(i*20)+'px';d.style.animationDelay=(-Math.random()*15)+'s';d.style.animationDuration=(Math.random()*14+8)+'s';d.style.fontSize=(Math.random()*4+12)+'px';d.style.opacity=(Math.random()*0.7+0.3).toFixed(2);var t='',m=Math.floor(Math.random()*30+18);for(var j=0;j<m;j++){var ch=h[Math.floor(Math.random()*h.length)];var useAccent=Math.random()>0.85;var color=useAccent?p[Math.floor(Math.random()*p.length)]:'';t+=color?'<span style="color:'+color+';text-shadow:0 0 8px '+color+';">'+ch+'</span><br>':'<span>'+ch+'</span><br>'}d.innerHTML=t;c.appendChild(d)}var T=setInterval(function(){var cols=c.querySelectorAll('.cfnew-matrix-column');cols.forEach(function(col){if(Math.random()>0.94){var spans=col.querySelectorAll('span');if(spans.length>0){var target=spans[Math.floor(Math.random()*spans.length)];var prev=target.style.color;target.style.color='#ffffff';target.style.textShadow='0 0 10px #ffffff, 0 0 18px #00f0ff';setTimeout(function(){target.style.color=prev;target.style.textShadow=''},200)}}})},110);window.addEventListener('beforeunload',function(){clearInterval(T)})}
+function cfnewChangeLanguage(l){try{localStorage.setItem('preferredLanguage',l)}catch(e){}var d=new Date();d.setFullYear(d.getFullYear()+1);document.cookie='preferredLanguage='+l+'; path=/; expires='+d.toUTCString()+'; SameSite=Lax';window.location.reload()}
+function cfnewToggleFx(){var off=localStorage.getItem('cp-fx-off')==='1';localStorage.setItem('cp-fx-off',off?'0':'1');var btn=document.getElementById('cfnew-fx-toggle'),lbl=document.getElementById('cfnew-fx-label'),rain=document.getElementById('cfnew-matrix-rain');if(off){btn.classList.remove('fx-off');lbl.textContent='FX: ON';if(rain){rain.classList.remove('fx-off');cfnewCreateMatrixRain()}}else{btn.classList.add('fx-off');lbl.textContent='FX: OFF';if(rain)rain.classList.add('fx-off')}}
+(function(){var fxOff=localStorage.getItem('cp-fx-off')==='1';if(fxOff){var btn=document.getElementById('cfnew-fx-toggle'),lbl=document.getElementById('cfnew-fx-label'),rain=document.getElementById('cfnew-matrix-rain');if(btn)btn.classList.add('fx-off');if(lbl)lbl.textContent='FX: OFF';if(rain)rain.classList.add('fx-off')}cfnewCreateMatrixRain()})();
+(function(){var inp=document.getElementById('cfnew-pwd-input');if(!inp)return;var err=document.getElementById('cfnew-login-error'),errTxt=document.getElementById('cfnew-login-errortext');var rurl=window.location.origin+'${targetCpx}';function doLogin(){var pwd=inp.value.trim();if(!pwd){errTxt.textContent='${errorEmpty}';err.style.display='';return}inp.disabled=true;err.style.display='none';fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pwd})}).then(function(r){return r.json()}).then(function(data){if(data.success){window.location.href=rurl}else{errTxt.textContent=data.message||'${errorFail}';err.style.display='';inp.disabled=false;inp.value='';inp.focus()}}).catch(function(e){errTxt.textContent='${errorNetwork}'+e.message;err.style.display='';inp.disabled=false})}inp.addEventListener('keydown',function(e){if(e.key==='Enter')doLogin()});inp.focus()})();
+</script>`;
+                            const overlayAll = overlayCss + overlayHtml + overlayJs;
+                            if (homepageContent.includes('</body>')) {
+                                homepageContent = homepageContent.replace('</body>', overlayAll + '\n</body>');
+                            } else {
+                                homepageContent += overlayAll;
+                            }
+                            return new Response(homepageContent, {
+                                status: 200,
+                                headers: {
+                                    'Content-Type': homepageContentType,
+                                    'Cache-Control': 'no-cache, no-store, must-revalidate',
+                                }
+                            });
+                        }
                             
     const terminalHtml = `<!DOCTYPE html>
     <html lang="${langAttr}" dir="${isFarsi ? 'rtl' : 'ltr'}">
@@ -1086,9 +1183,6 @@
                 );
                 position: relative; z-index: 1;
                 overflow: hidden;
-            }
-            @media (min-width: 768px) {
-                .in-iframe .terminal { height: auto; aspect-ratio: 4/3; }
             }
             .terminal::before {
                 content: ""; position: absolute; inset: 0;
@@ -1343,10 +1437,8 @@
         <script>
             // 页面特效图形化开关 (localStorage 持久化)
             var cpMatrixTimer;
-            if (window.parent && window.parent !== window) { document.documentElement.classList.add('in-iframe'); }
             window.cpApplyFx = function() {
-                var off = false;
-                try { off = localStorage.getItem('cp-fx-off') === '1'; } catch(e) {}
+                var off = localStorage.getItem('cp-fx-off') === '1';
                 document.body.classList.toggle('fx-off', off);
                 var lbl = document.getElementById('cpFxLabel');
                 if (lbl) lbl.textContent = off ? 'FX: OFF' : 'FX: ON';
@@ -1360,15 +1452,12 @@
                 }
             };
             window.cpToggleFx = function() {
-                var off = false;
-                try { off = localStorage.getItem('cp-fx-off') === '1'; } catch(e) {}
-                try { localStorage.setItem('cp-fx-off', off ? '0' : '1'); } catch(e) {}
+                var off = localStorage.getItem('cp-fx-off') === '1';
+                localStorage.setItem('cp-fx-off', off ? '0' : '1');
                 window.cpApplyFx();
             };
             (function() {
-                var fxOff = false;
-                try { fxOff = localStorage.getItem('cp-fx-off') === '1'; } catch(e) {}
-                if (fxOff) {
+                if (localStorage.getItem('cp-fx-off') === '1') {
                     document.documentElement.classList.add('fx-off-preload');
                     document.addEventListener('DOMContentLoaded', function() {
                         document.body.classList.add('fx-off');
@@ -1528,8 +1617,8 @@
                 .then(function(r) { return r.json(); })
                 .then(function(data) {
                     if (data.success) {
-                        // 登录成功，跳转到配置页面（top：iframe中导航最外层窗口）
-                        top.location.href = adminRedirectUrl;
+                        // 登录成功，跳转到配置页面
+                        window.location.href = adminRedirectUrl;
                     } else {
                         errorText.textContent = data.message || '密码错误';
                         error.style.display = '';
@@ -1546,17 +1635,11 @@
             }
 
             function changeLanguage(lang) {
-                try { localStorage.setItem('preferredLanguage', lang); } catch(e) {}
+                localStorage.setItem('preferredLanguage', lang);
                 // 设置Cookie（有效期1年）
                 const expiryDate = new Date();
                 expiryDate.setFullYear(expiryDate.getFullYear() + 1);
-                try { document.cookie = 'preferredLanguage=' + lang + '; path=/; expires=' + expiryDate.toUTCString() + '; SameSite=Lax'; } catch(e) {}
-                // iframe 环境 → postMessage 通知父页面 reload 以应用新语言
-                // targetOrigin '*' 因 srcdoc 编译期 parent origin 不可知；消息仅触发 reload + 设置 cookie，可安全使用 '*'
-                if (window.parent && window.parent !== window) {
-                    window.parent.postMessage({ type: 'cfnew-lang-change', lang: lang }, '*');
-                    return;
-                }
+                document.cookie = 'preferredLanguage=' + lang + '; path=/; expires=' + expiryDate.toUTCString() + '; SameSite=Lax';
                 // 刷新页面，不使用URL参数
                 window.location.reload();
             }
@@ -1606,13 +1689,8 @@
                     const adminInput = document.getElementById('adminPwdInput');
                     if (adminInput) {
                         adminInput.focus();
-                        // 同时绑定 keypress 和 keydown 确保各浏览器兼容
                         adminInput.addEventListener('keypress', function(e) {
                             if (e.key === 'Enter') handleAdminLogin();
-                        });
-                        adminInput.addEventListener('keydown', function(e) {
-                            // e.isComposing 跳过输入法组合中的 Enter，防止 IME 下重复触发
-                            if (e.key === 'Enter' && !e.isComposing) { handleAdminLogin(); }
                         });
                     }
                 } else {
@@ -1630,59 +1708,6 @@
         </script>
     </body>
     </html>`;
-                        // 自定义首页HTML → 用iframe悬浮窗注入终端（复用终端模板，去掉重叠UI）
-                        if (isHomepageMode && homepageContent) {
-                            const escapedTerminal = terminalHtml
-                                .replace(/&/g, '&amp;')
-                                .replace(/</g, '&lt;')
-                                .replace(/>/g, '&gt;')
-                                .replace(/"/g, '&quot;')
-                                .replace(/'/g, '&#039;');
-                            const iframeOverlay = `<div id="cfnew-overlay" style="position:fixed;top:0;left:0;width:100%;height:100%;z-index:2147483647;pointer-events:none;display:flex;align-items:center;justify-content:center;">
-<style>@media (min-width:768px){#cfnew-overlay iframe{aspect-ratio:4/3!important;height:auto!important}}</style>
-<iframe srcdoc="${escapedTerminal}" style="width:870px;max-width:92vw;height:810px;border:none;transform:scale(0.8);transform-origin:center center;pointer-events:auto;"></iframe>
-</div>
-<script>
-window.addEventListener('message', function(e) {
-    if (e.data && e.data.type === 'cfnew-lang-change') {
-        // 父页面接手设置 cookie/localStorage（iframe 内设置可能因浏览器隐私策略受限）
-        if (e.data.lang) {
-            try {
-                var d = new Date();
-                d.setFullYear(d.getFullYear() + 1);
-                document.cookie = 'preferredLanguage=' + e.data.lang + '; path=/; expires=' + d.toUTCString() + '; SameSite=Lax';
-            } catch(ex) {}
-            try { localStorage.setItem('preferredLanguage', e.data.lang); } catch(ex) {}
-        }
-        window.location.reload();
-    }
-});
-<\/script>`;
-                            if (homepageContent.includes('</body>')) {
-                                homepageContent = homepageContent.replace('</body>', iframeOverlay + '\n</body>');
-                            } else {
-                                homepageContent += iframeOverlay;
-                            }
-                            return new Response(homepageContent, {
-                                status: 200,
-                                headers: {
-                                    'Content-Type': homepageContentType,
-                                    'Cache-Control': 'no-cache, no-store, must-revalidate',
-                                }
-                            });
-                        }
-                        
-                        // 自定义首页非HTML内容 → 直接返回（降级）
-                        if (homepageContent && !isHomepageMode) {
-                            return new Response(homepageContent, {
-                                status: 200,
-                                headers: {
-                                    'Content-Type': homepageContentType,
-                                    'Cache-Control': 'no-cache, no-store, must-revalidate',
-                                }
-                            });
-                        }
-                        
             return new Response(terminalHtml, { status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8' } });
         }
             if (cp && cp.trim()) {
