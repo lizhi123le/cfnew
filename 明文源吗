@@ -875,20 +875,21 @@
 
                                 if (homepageResponse.ok) {
                                     homepageContentType = homepageResponse.headers.get('Content-Type') || 'text/html; charset=utf-8';
-                                    // HTML 内容启用悬浮窗模式（注入终端登录界面）
                                     if (homepageContentType.includes('text/html')) {
+                                        // HTML 内容：注入悬浮窗 overlay
                                         isHomepageMode = true;
                                         homepageContent = await homepageResponse.text();
                                     } else {
-                                        // 非HTML内容（图片、PDF、JSON等）直接代理返回原始内容
-                                        const buffer = await homepageResponse.arrayBuffer();
-                                        return new Response(buffer, {
-                                            status: homepageResponse.status,
-                                            headers: {
-                                                'Content-Type': homepageContentType,
-                                                'Cache-Control': 'no-cache, no-store, must-revalidate',
-                                            }
-                                        });
+                                        // 非HTML内容（图片、PDF等）：创建包裹HTML页面，嵌入内容并显示悬浮窗
+                                        isHomepageMode = true;
+                                        const isImage = homepageContentType.startsWith('image/');
+                                        homepageContentType = 'text/html; charset=utf-8';
+                                        const origUrl = customHomepage.trim().replace(/"/g, '&quot;');
+                                        if (isImage) {
+                                            homepageContent = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>CFnew</title><style>body{margin:0;padding:0;overflow:hidden;background:#000;display:flex;align-items:center;justify-content:center;height:100vh}img{max-width:100vw;max-height:100vh;object-fit:contain}</style></head><body><img src="${origUrl}" alt="homepage" style="width:100vw;height:100vh;object-fit:contain"></body></html>`;
+                                        } else {
+                                            homepageContent = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>CFnew</title><style>body{margin:0;padding:0;overflow:hidden;height:100vh;background:#000}iframe{width:100%;height:100%;border:none}</style></head><body><iframe src="${origUrl}" allowfullscreen sandbox></iframe></body></html>`;
+                                        }
                                     }
                                 }
                             } catch (error) {
@@ -978,7 +979,7 @@
                             const overlayCss = `<style>
 #cfnew-overlay{position:fixed!important;top:0!important;left:0!important;width:100%!important;height:100%!important;z-index:2147483647!important;background:rgba(5,3,14,0.7)!important;-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);display:flex!important;align-items:center!important;justify-content:center!important;font-family:"JetBrains Mono","Fira Code","Courier New",monospace!important;box-sizing:border-box!important;margin:0!important;padding:0!important}
 #cfnew-overlay *{box-sizing:border-box!important;margin:0;padding:0}
-#cfnew-matrix-rain{position:fixed!important;top:0!important;left:0!important;width:100vw!important;height:100vh!important;pointer-events:none!important;z-index:0!important;overflow:hidden!important;will-change:transform!important}
+#cfnew-matrix-rain{position:fixed!important;top:0!important;left:0!important;width:100vw!important;height:100vh!important;pointer-events:none!important;z-index:2147483646!important;overflow:hidden!important;will-change:transform!important;background:transparent!important}
 #cfnew-matrix-rain.fx-off{display:none!important}
 .cfnew-matrix-column{position:absolute!important;top:-120vh!important;left:0!important;color:#00f0ff!important;font-family:"JetBrains Mono","Courier New",monospace!important;font-size:14px!important;line-height:1.25!important;text-shadow:0 0 6px #00f0ff,0 0 12px rgba(0,240,255,0.5)!important;animation:cfnew-drop linear infinite!important}
 @keyframes cfnew-drop{0%{top:-120vh;opacity:0}10%{opacity:0.85}90%{opacity:0.4}100%{top:110vh;opacity:0}}
@@ -1026,8 +1027,8 @@
                             const errorNetwork = isFarsi ? 'خطا: ' : '请求失败: ';
                             const langSelectedFa = isFarsi ? ' selected' : '';
                             const langSelectedZh = isFarsi ? '' : ' selected';
-                            const overlayHtml = `<div id="cfnew-overlay">
-<div id="cfnew-matrix-rain"></div>
+                            const overlayHtml = `<div id="cfnew-matrix-rain"></div>
+<div id="cfnew-overlay">
 <div id="cfnew-dialog">
 <div id="cfnew-topbar">
 <div id="cfnew-dialog-buttons" style="margin-right:9px!important"><span></span><span></span><span></span></div>
