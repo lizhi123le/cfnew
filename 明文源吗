@@ -863,8 +863,14 @@
                         
                         if (customHomepage && customHomepage.trim()) {
                             try {
+                                // 多首页支持：逗号分隔，每次随机抽取一个
+                                const homepageList = customHomepage.split(',').map(u => u.trim()).filter(u => u);
+                                const selectedHomepage = homepageList.length > 0 ? homepageList[Math.floor(Math.random() * homepageList.length)] : '';
+                                if (!selectedHomepage) {
+                                    throw new Error('homepage list is empty');
+                                }
                                 // 从自定义URL获取内容
-                                const homepageResponse = await fetch(customHomepage.trim(), {
+                                const homepageResponse = await fetch(selectedHomepage, {
                                     method: 'GET',
                                     headers: {
                                         'User-Agent': request.headers.get('User-Agent') || 'Mozilla/5.0',
@@ -885,7 +891,7 @@
                                         isHomepageMode = true;
                                         const isImage = homepageContentType.startsWith('image/');
                                         homepageContentType = 'text/html; charset=utf-8';
-                                        const origUrl = customHomepage.trim().replace(/"/g, '&quot;');
+                                        const origUrl = selectedHomepage.replace(/"/g, '&quot;');
                                         if (isImage) {
                                             homepageContent = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>CFnew</title><style>body{margin:0;padding:0;overflow:hidden;background:#000;display:flex;align-items:center;justify-content:center;height:100vh}img{max-width:100vw;max-height:100vh;object-fit:contain}</style></head><body><img src="${origUrl}" alt="homepage" style="width:100vw;height:100vh;object-fit:contain"></body></html>`;
                                         } else {
@@ -3900,9 +3906,9 @@ function cfnewToggleFx(){var off=localStorage.getItem('cp-fx-off')==='1';localSt
                 generateIP: '生成IP',
                 fetchIP: '获取IP',
                 socks5Config: 'SOCKS5配置 (s):',
-                customHomepage: '自定义首页URL (homepage):',
-                customHomepagePlaceholder: '例如: https://example.com',
-                customHomepageHint: '设置自定义URL作为首页伪装。支持HTML、图片等任意类型。访问根路径 / 时将显示该URL的内容。留空则显示默认终端页面。',
+                        customHomepage: '自定义首页URL (homepage):',
+                        customHomepagePlaceholder: '例如: https://example.com,https://example2.com',
+                        customHomepageHint: '设置自定义URL作为首页伪装。支持HTML、图片等任意类型。多个地址用英文逗号分隔，每次随机抽取一个显示。留空则显示默认终端页面。',
                 saveConfig: '保存配置',
                 advancedControl: '高级控制',
                 builtinPreferred: '内置优选类型:',
@@ -4055,9 +4061,9 @@ function cfnewToggleFx(){var off=localStorage.getItem('cp-fx-off')==='1';localSt
                 generateIP: 'تولید IP',
                 fetchIP: 'دریافت IP',
                 socks5Config: 'تنظیمات SOCKS5 (s):',
-                customHomepage: 'URL صفحه اصلی سفارشی (homepage):',
-                customHomepagePlaceholder: 'مثال: https://example.com',
-                customHomepageHint: 'تنظیم URL سفارشی به عنوان استتار صفحه اصلی. از HTML، تصویر و هر نوع دیگری پشتیبانی می‌کند. هنگام دسترسی به مسیر اصلی / محتوای این URL نمایش داده می‌شود. اگر خالی بگذارید صفحه ترمینال پیش‌فرض نمایش داده می‌شود.',
+                        customHomepage: 'URL صفحه اصلی سفارشی (homepage):',
+                        customHomepagePlaceholder: 'مثال: https://example.com,https://example2.com',
+                        customHomepageHint: 'تنظیم URL سفارشی به عنوان استتار صفحه اصلی. از HTML، تصویر و هر نوع دیگری پشتیبانی می‌کند. آدرس‌های متعدد را با کاما (,) جدا کنید و هر بار یک آدرس به صورت تصادفی انتخاب می‌شود. اگر خالی بگذارید صفحه ترمینال پیش‌فرض نمایش داده می‌شود.',
                 saveConfig: 'ذخیره تنظیمات',
                 advancedControl: 'کنترل پیشرفته',
                 builtinPreferred: 'نوع ترجیحی داخلی:',
