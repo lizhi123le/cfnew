@@ -856,6 +856,10 @@
                     if (url.pathname === '/') {
                         // 检查是否有自定义首页URL配置
                         const customHomepage = getConfigValue('homepage', env.homepage || env.HOMEPAGE);
+                        let isHomepageMode = false;
+                        let homepageContent = null;
+                        let homepageContentType = null;
+                        
                         if (customHomepage && customHomepage.trim()) {
                             try {
                                 // 从自定义URL获取内容
@@ -870,18 +874,12 @@
                                 });
 
                                 if (homepageResponse.ok) {
-                                    // 获取响应内容
-                                    const contentType = homepageResponse.headers.get('Content-Type') || 'text/html; charset=utf-8';
-                                    const content = await homepageResponse.text();
-                                    
-                                    // 返回自定义首页内容
-                                    return new Response(content, {
-                                        status: homepageResponse.status,
-                                        headers: {
-                                            'Content-Type': contentType,
-                                            'Cache-Control': 'no-cache, no-store, must-revalidate',
-                                        }
-                                    });
+                                    homepageContentType = homepageResponse.headers.get('Content-Type') || 'text/html; charset=utf-8';
+                                    homepageContent = await homepageResponse.text();
+                                    // 仅对 HTML 内容启用悬浮窗模式
+                                    if (homepageContentType.includes('text/html')) {
+                                        isHomepageMode = true;
+                                    }
                                 }
                             } catch (error) {
                                 // 如果获取失败，继续使用默认终端页面
@@ -959,10 +957,105 @@
                         // 检查管理员认证状态（用于终端显示密码提示）
                         const requiresAdminAuth = adminPassword && !(await isAdminAuthenticated(request));
                         
-                        // 管理员已认证 → 直接跳转到订阅配置页面，不显示终端
-                        if (adminPassword && !requiresAdminAuth) {
+                        // 管理员已认证 → 跳转到订阅配置页面（仅非homepage模式）
+                        if (adminPassword && !requiresAdminAuth && !isHomepageMode) {
                             const targetPath = cp && cp.trim() ? '/' + cp.trim().replace(/^\//, '') : '/' + at;
                             return Response.redirect(new URL(targetPath, request.url).toString(), 302);
+                        }
+                        
+                        // 悬浮窗模式：在首页 HTML 中注入终端悬浮窗（含矩阵雨、语言切换、FX、登录表单）
+                        if (isHomepageMode && homepageContent) {
+                            const overlayCss = `<style>
+#cfnew-overlay{position:fixed!important;top:0!important;left:0!important;width:100%!important;height:100%!important;z-index:2147483647!important;background:rgba(5,3,14,0.7)!important;backdrop-filter:blur(4px);display:flex!important;align-items:center!important;justify-content:center!important;font-family:"JetBrains Mono","Fira Code","Courier New",monospace!important;box-sizing:border-box!important;margin:0!important;padding:0!important}
+#cfnew-overlay *{box-sizing:border-box!important;margin:0;padding:0}
+#cfnew-matrix-rain{position:fixed!important;inset:0!important;pointer-events:none!important;z-index:0!important;overflow:hidden!important}
+#cfnew-matrix-rain.fx-off{display:none!important}
+.cfnew-matrix-column{position:absolute!important;top:-120%!important;left:0!important;color:#00f0ff!important;font-family:"JetBrains Mono","Courier New",monospace!important;font-size:14px!important;line-height:1.25!important;text-shadow:0 0 6px #00f0ff,0 0 12px rgba(0,240,255,0.5)!important;animation:cfnew-drop linear infinite!important}
+@keyframes cfnew-drop{0%{top:-120%;opacity:0}10%{opacity:0.85}90%{opacity:0.4}100%{top:110vh;opacity:0}}
+.cfnew-matrix-column:nth-child(odd){animation-duration:12s!important}
+.cfnew-matrix-column:nth-child(even){animation-duration:18s!important;color:#ff2bd6!important;text-shadow:0 0 6px #ff2bd6,0 0 14px rgba(255,43,214,0.5)!important}
+.cfnew-matrix-column:nth-child(3n){animation-duration:20s!important;color:#a347ff!important;text-shadow:0 0 6px #a347ff!important}
+.cfnew-matrix-column:nth-child(5n){animation-duration:9s!important;opacity:0.6!important}
+#cfnew-dialog{position:relative!important;z-index:1!important;background:rgba(10,8,32,0.92)!important;border:2px solid rgba(0,240,255,0.55)!important;border-radius:10px!important;padding:24px 28px!important;width:580px!important;max-width:92vw!important;box-shadow:0 0 50px rgba(0,240,255,0.2)!important}
+#cfnew-topbar{display:flex!important;justify-content:space-between!important;align-items:center!important;margin-bottom:16px!important}
+#cfnew-lang-wrapper{display:flex!important;align-items:center!important;gap:6px!important;font-size:13px!important;color:#00f0ff!important}
+#cfnew-lang-wrapper select{background:transparent!important;border:1px solid rgba(0,240,255,0.4)!important;color:#00f0ff!important;font-family:inherit!important;font-size:13px!important;padding:2px 4px!important;cursor:pointer!important;outline:none!important}
+#cfnew-lang-wrapper select option{background:#0a0820!important;color:#00f0ff!important}
+#cfnew-fx-toggle{display:inline-flex!important;align-items:center!important;gap:6px!important;font-size:13px!important;color:#00f0ff!important;cursor:pointer!important;border:1px solid rgba(0,240,255,0.3)!important;border-radius:4px!important;background:transparent!important;font-family:inherit!important;padding:4px 8px!important}
+#cfnew-fx-toggle:hover{color:#ff2bd6!important;border-color:#ff2bd6!important;text-shadow:0 0 8px #ff2bd6!important;box-shadow:0 0 16px rgba(255,43,214,0.55)!important}
+#cfnew-fx-dot{width:6px!important;height:6px!important;border-radius:50%!important;background:#00ff9d!important;box-shadow:0 0 8px #00ff9d!important}
+#cfnew-fx-toggle.fx-off{color:#7aa9c4!important;border-color:#7aa9c4!important;text-shadow:none!important;box-shadow:none!important}
+#cfnew-fx-toggle.fx-off #cfnew-fx-dot{background:transparent!important;border:1px solid #7aa9c4!important;box-shadow:none!important}
+#cfnew-dialog-header{display:flex!important;align-items:center!important;gap:8px!important;margin-bottom:14px!important}
+#cfnew-dialog-buttons{display:flex!important;gap:6px!important}
+#cfnew-dialog-buttons span{width:12px!important;height:12px!important;border-radius:50%!important;display:inline-block!important}
+#cfnew-dialog-buttons span:nth-child(1){background:#ff5f56!important}
+#cfnew-dialog-buttons span:nth-child(2){background:#ffbd2e!important}
+#cfnew-dialog-buttons span:nth-child(3){background:#27c93f!important}
+#cfnew-dialog-title{color:#00f0ff!important;font-weight:700!important;letter-spacing:0.12em!important;text-shadow:0 0 8px #00f0ff,-1px 0 #ff2bd6,1px 0 #00ff9d!important}
+.cfnew-line{margin:10px 0!important;font-size:14px!important;line-height:1.6!important}
+.cfnew-prompt{color:#00f0ff!important;font-weight:700!important}
+.cfnew-output{color:#00f0ff!important;margin-left:8px!important}
+.cfnew-error{color:#ff3860!important;margin-left:8px!important;text-shadow:0 0 6px #ff3860!important}
+.cfnew-input{background:transparent!important;border:none!important;border-bottom:1px solid #00f0ff!important;color:#00f0ff!important;font-family:inherit!important;font-size:14px!important;outline:none!important;width:210px!important;margin-left:8px!important;caret-color:#00f0ff!important}
+.cfnew-input::placeholder{color:rgba(122,169,196,0.6)!important}
+.cfnew-cursor::after{content:"\\2588"!important;color:#00f0ff!important;animation:cfnew-blink 1s step-end infinite}
+@keyframes cfnew-blink{50%{opacity:0}}
+</style>`;
+                            const termTitle = isFarsi ? 'ترمینال v2.9.8' : '终端 v2.9.8';
+                            const loginLabel = isFarsi ? 'ورود مدیر / ADMIN LOGIN' : '管理员登录 / ADMIN LOGIN';
+                            const authRequired = 'AUTHENTICATION REQUIRED';
+                            const passwordPrompt = isFarsi ? 'لطفا رمز مدیر را وارد کنید' : '请输入管理员密码';
+                            const errorFail = isFarsi ? 'رمز اشتباه' : '密码错误';
+                            const errorEmpty = isFarsi ? 'لطفا رمز را وارد کنید' : '请输入密码';
+                            const errorNetwork = isFarsi ? 'خطا: ' : '请求失败: ';
+                            const langSelectedFa = isFarsi ? ' selected' : '';
+                            const langSelectedZh = isFarsi ? '' : ' selected';
+                            const overlayHtml = `<div id="cfnew-overlay">
+<div id="cfnew-matrix-rain"></div>
+<div id="cfnew-dialog">
+<div id="cfnew-topbar">
+<div id="cfnew-lang-wrapper"><span style="color:#7aa9c4;font-size:13px;">LANG_</span>
+<select id="cfnew-lang-select" onchange="cfnewChangeLanguage(this.value)">
+<option value="zh"${langSelectedZh}>🇨🇳 中文</option>
+<option value="fa"${langSelectedFa}>🇮🇷 فارسی</option>
+</select></div>
+<button type="button" id="cfnew-fx-toggle" onclick="cfnewToggleFx()"><span id="cfnew-fx-dot"></span><span id="cfnew-fx-label">FX: ON</span></button>
+</div>
+<div id="cfnew-dialog-header">
+<div id="cfnew-dialog-buttons"><span></span><span></span><span></span></div>
+<span id="cfnew-dialog-title">${termTitle}</span>
+</div>
+<div id="cfnew-login-section">
+<div class="cfnew-line"><span class="cfnew-prompt">root:~$</span><span class="cfnew-output">${loginLabel}</span></div>
+<div class="cfnew-line"><span class="cfnew-prompt">root:~$</span><span class="cfnew-error">${authRequired}</span></div>
+<div class="cfnew-line"><span class="cfnew-prompt">root:~$</span><span class="cfnew-output">${passwordPrompt}</span></div>
+<div class="cfnew-line"><span class="cfnew-prompt">root:~$</span><input type="password" class="cfnew-input" id="cfnew-pwd-input" placeholder="password..."><span class="cfnew-cursor"></span></div>
+<div class="cfnew-line" id="cfnew-login-error" style="display:none"><span class="cfnew-prompt">root:~$</span><span class="cfnew-error" id="cfnew-login-errortext">${errorFail}</span></div>
+</div>
+</div>
+</div>`;
+                            const targetCpx = cp && cp.trim() ? '/' + cp.trim().replace(/^\//, '') : '/' + at;
+                            const overlayJs = `<script>
+function cfnewCreateMatrixRain(){var c=document.getElementById('cfnew-matrix-rain');if(!c||c.classList.contains('fx-off'))return;var h='01\\u30a2\\u30a4\\u30a6\\u30a8\\u30aa\\u30ab\\u30ad\\u30af\\u30b1\\u30b3\\u30b5\\u30b7\\u30b9\\u30bb\\u30bd\\u30bf\\u30c1\\u30c4\\u30c6\\u30c8\\u30ca\\u30cb\\u30cc\\u30cd\\u30ce$%#@!?<>+=ABCDEF',p=['#00f0ff','#ff2bd6','#a347ff','#00ff9d'],n=Math.floor(window.innerWidth/20);for(var i=0;i<n;i++){var d=document.createElement('div');d.className='cfnew-matrix-column';d.style.left=(i*20)+'px';d.style.animationDelay=(-Math.random()*15)+'s';d.style.animationDuration=(Math.random()*14+8)+'s';d.style.fontSize=(Math.random()*4+12)+'px';d.style.opacity=(Math.random()*0.7+0.3).toFixed(2);var t='',m=Math.floor(Math.random()*30+18);for(var j=0;j<m;j++){var ch=h[Math.floor(Math.random()*h.length)];var useAccent=Math.random()>0.85;var color=useAccent?p[Math.floor(Math.random()*p.length)]:'';t+=color?'<span style="color:'+color+';text-shadow:0 0 8px '+color+';">'+ch+'</span><br>':'<span>'+ch+'</span><br>'}d.innerHTML=t;c.appendChild(d)}setInterval(function(){var cols=c.querySelectorAll('.cfnew-matrix-column');cols.forEach(function(col){if(Math.random()>0.94){var spans=col.querySelectorAll('span');if(spans.length>0){var target=spans[Math.floor(Math.random()*spans.length)];var prev=target.style.color;target.style.color='#ffffff';target.style.textShadow='0 0 10px #ffffff, 0 0 18px #00f0ff';setTimeout(function(){target.style.color=prev;target.style.textShadow=''},200)}}})},110)}
+function cfnewChangeLanguage(l){try{localStorage.setItem('preferredLanguage',l)}catch(e){}var d=new Date();d.setFullYear(d.getFullYear()+1);document.cookie='preferredLanguage='+l+'; path=/; expires='+d.toUTCString()+'; SameSite=Lax';window.location.reload()}
+function cfnewToggleFx(){var off=localStorage.getItem('cp-fx-off')==='1';localStorage.setItem('cp-fx-off',off?'0':'1');var btn=document.getElementById('cfnew-fx-toggle'),lbl=document.getElementById('cfnew-fx-label'),rain=document.getElementById('cfnew-matrix-rain');if(off){btn.classList.remove('fx-off');lbl.textContent='FX: ON';if(rain){rain.classList.remove('fx-off');cfnewCreateMatrixRain()}}else{btn.classList.add('fx-off');lbl.textContent='FX: OFF';if(rain)rain.classList.add('fx-off')}}
+(function(){var fxOff=localStorage.getItem('cp-fx-off')==='1';if(fxOff){var btn=document.getElementById('cfnew-fx-toggle'),lbl=document.getElementById('cfnew-fx-label'),rain=document.getElementById('cfnew-matrix-rain');if(btn)btn.classList.add('fx-off');if(lbl)lbl.textContent='FX: OFF';if(rain)rain.classList.add('fx-off')}cfnewCreateMatrixRain()})();
+(function(){var inp=document.getElementById('cfnew-pwd-input');if(!inp)return;var err=document.getElementById('cfnew-login-error'),errTxt=document.getElementById('cfnew-login-errortext');var rurl=window.location.origin+'${targetCpx}';function doLogin(){var pwd=inp.value.trim();if(!pwd){errTxt.textContent='${errorEmpty}';err.style.display='';return}inp.disabled=true;err.style.display='none';fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pwd})}).then(function(r){return r.json()}).then(function(data){if(data.success){window.location.href=rurl}else{errTxt.textContent=data.message||'${errorFail}';err.style.display='';inp.disabled=false;inp.value='';inp.focus()}}).catch(function(e){errTxt.textContent='${errorNetwork}'+e.message;err.style.display='';inp.disabled=false})}inp.addEventListener('keydown',function(e){if(e.key==='Enter')doLogin()});inp.focus()})();
+</script>`;
+                            const overlayAll = overlayCss + overlayHtml + overlayJs;
+                            if (homepageContent.includes('</body>')) {
+                                homepageContent = homepageContent.replace('</body>', overlayAll + '\n</body>');
+                            } else {
+                                homepageContent += overlayAll;
+                            }
+                            return new Response(homepageContent, {
+                                status: 200,
+                                headers: {
+                                    'Content-Type': homepageContentType,
+                                    'Cache-Control': 'no-cache, no-store, must-revalidate',
+                                }
+                            });
                         }
                             
     const terminalHtml = `<!DOCTYPE html>
