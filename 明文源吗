@@ -875,10 +875,20 @@
 
                                 if (homepageResponse.ok) {
                                     homepageContentType = homepageResponse.headers.get('Content-Type') || 'text/html; charset=utf-8';
-                                    homepageContent = await homepageResponse.text();
-                                    // 仅对 HTML 内容启用悬浮窗模式
+                                    // HTML 内容启用悬浮窗模式（注入终端登录界面）
                                     if (homepageContentType.includes('text/html')) {
                                         isHomepageMode = true;
+                                        homepageContent = await homepageResponse.text();
+                                    } else {
+                                        // 非HTML内容（图片、PDF、JSON等）直接代理返回原始内容
+                                        const buffer = await homepageResponse.arrayBuffer();
+                                        return new Response(buffer, {
+                                            status: homepageResponse.status,
+                                            headers: {
+                                                'Content-Type': homepageContentType,
+                                                'Cache-Control': 'no-cache, no-store, must-revalidate',
+                                            }
+                                        });
                                     }
                                 }
                             } catch (error) {
@@ -3873,7 +3883,7 @@ function cfnewToggleFx(){var off=localStorage.getItem('cp-fx-off')==='1';localSt
                 socks5Config: 'SOCKS5配置 (s):',
                 customHomepage: '自定义首页URL (homepage):',
                 customHomepagePlaceholder: '例如: https://example.com',
-                customHomepageHint: '设置自定义URL作为首页伪装。访问根路径 / 时将显示该URL的内容。留空则显示默认终端页面。',
+                customHomepageHint: '设置自定义URL作为首页伪装。支持HTML、图片等任意类型。访问根路径 / 时将显示该URL的内容。留空则显示默认终端页面。',
                 saveConfig: '保存配置',
                 advancedControl: '高级控制',
                 builtinPreferred: '内置优选类型:',
@@ -4028,7 +4038,7 @@ function cfnewToggleFx(){var off=localStorage.getItem('cp-fx-off')==='1';localSt
                 socks5Config: 'تنظیمات SOCKS5 (s):',
                 customHomepage: 'URL صفحه اصلی سفارشی (homepage):',
                 customHomepagePlaceholder: 'مثال: https://example.com',
-                customHomepageHint: 'تنظیم URL سفارشی به عنوان استتار صفحه اصلی. هنگام دسترسی به مسیر اصلی / محتوای این URL نمایش داده می‌شود. اگر خالی بگذارید صفحه ترمینال پیش‌فرض نمایش داده می‌شود.',
+                customHomepageHint: 'تنظیم URL سفارشی به عنوان استتار صفحه اصلی. از HTML، تصویر و هر نوع دیگری پشتیبانی می‌کند. هنگام دسترسی به مسیر اصلی / محتوای این URL نمایش داده می‌شود. اگر خالی بگذارید صفحه ترمینال پیش‌فرض نمایش داده می‌شود.',
                 saveConfig: 'ذخیره تنظیمات',
                 advancedControl: 'کنترل پیشرفته',
                 builtinPreferred: 'نوع ترجیحی داخلی:',
