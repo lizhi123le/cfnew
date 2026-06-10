@@ -1090,7 +1090,6 @@ function cfnewToggleFx(){var off=localStorage.getItem('cp-fx-off')==='1';localSt
                                 }
                             });
                         }
-                    }
                             
     const terminalHtml = `<!DOCTYPE html>
     <html lang="${langAttr}" dir="${isFarsi ? 'rtl' : 'ltr'}">
