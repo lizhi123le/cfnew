@@ -3908,7 +3908,7 @@ function cfnewToggleFx(){var off=localStorage.getItem('cp-fx-off')==='1';localSt
                 socks5Config: 'SOCKS5配置 (s):',
                 customHomepage: '自定义首页URL (homepage):',
                 customHomepagePlaceholder: '例如: https://example.com|https://example2.com',
-                customHomepageHint: '设置自定义URL作为首页伪装。支持HTML、图片等任意类型。多个地址用竖线分隔，每次随机抽取一个显示。留空则显示默认终端页面。',
+                customHomepageHint: '设置自定义URL作为首页伪装。支持HTML、图片等任意类型。多个地址用竖线(|)分隔，每次随机抽取一个显示。留空则显示默认终端页面。',
                 saveConfig: '保存配置',
                 advancedControl: '高级控制',
                 builtinPreferred: '内置优选类型:',
