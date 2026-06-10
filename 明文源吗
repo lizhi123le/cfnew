@@ -1034,7 +1034,7 @@
 <div class="cfnew-line"><span class="cfnew-prompt">root:~$</span><span class="cfnew-output">${loginLabel}</span></div>
 <div class="cfnew-line"><span class="cfnew-prompt">root:~$</span><span class="cfnew-error">${authRequired}</span></div>
 <div class="cfnew-line"><span class="cfnew-prompt">root:~$</span><span class="cfnew-output">${passwordPrompt}</span></div>
-<div class="cfnew-line"><span class="cfnew-prompt">root:~$</span><span id="cfnew-pwd-display"></span><span class="cfnew-cursor"></span><input type="password" id="cfnew-pwd-input" style="position:fixed!important;left:-9999px!important;top:-9999px!important;opacity:0!important;width:1px!important;height:1px!important;padding:0!important;border:none!important;outline:none!important" aria-hidden="true" autocomplete="off"></div>
+<div class="cfnew-line"><span class="cfnew-prompt">root:~$</span> <span id="cfnew-pwd-display"></span><span class="cfnew-cursor"></span><input type="password" id="cfnew-pwd-input" style="position:fixed!important;left:-9999px!important;top:-9999px!important;opacity:0!important;width:1px!important;height:1px!important;padding:0!important;border:none!important;outline:none!important" aria-hidden="true" autocomplete="off"></div>
 <div class="cfnew-line" id="cfnew-login-error" style="display:none"><span class="cfnew-prompt">root:~$</span><span class="cfnew-error" id="cfnew-login-errortext">${errorFail}</span></div>
 </div>
 </div>
