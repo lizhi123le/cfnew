@@ -1632,14 +1632,17 @@
     </html>`;
                         // 自定义首页HTML → 用iframe悬浮窗注入终端（复用终端模板，去掉重叠UI）
                         if (isHomepageMode && homepageContent) {
-                            const terminalSafe = JSON.stringify(terminalHtml).replace(/<\//g, '<\\/');
+                            const escapedTerminal = terminalHtml
+                                .replace(/&/g, '&amp;')
+                                .replace(/</g, '&lt;')
+                                .replace(/>/g, '&gt;')
+                                .replace(/"/g, '&quot;')
+                                .replace(/'/g, '&#039;');
                             const iframeOverlay = `<div id="cfnew-overlay" style="position:fixed;top:0;left:0;width:100%;height:100%;z-index:2147483647;pointer-events:none;display:flex;align-items:center;justify-content:center;">
 <style>@media (min-width:768px){#cfnew-overlay iframe{aspect-ratio:4/3!important;height:auto!important}}</style>
-<iframe id="termFrame" style="width:870px;max-width:92vw;height:810px;border:none;transform:scale(0.8);transform-origin:center center;pointer-events:auto;"></iframe>
+<iframe srcdoc="${escapedTerminal}" style="width:870px;max-width:92vw;height:810px;border:none;transform:scale(0.8);transform-origin:center center;pointer-events:auto;"></iframe>
 </div>
 <script>
-var termFrame = document.getElementById('termFrame');
-termFrame.srcdoc = ${terminalSafe};
 window.addEventListener('message', function(e) {
     if (e.data && e.data.type === 'cfnew-lang-change') {
         // 父页面接手设置 cookie/localStorage（iframe 内设置可能因浏览器隐私策略受限）
@@ -1654,7 +1657,7 @@ window.addEventListener('message', function(e) {
         window.location.reload();
     }
 });
-</script>`;
+<\/script>`;
                             if (homepageContent.includes('</body>')) {
                                 homepageContent = homepageContent.replace('</body>', iframeOverlay + '\n</body>');
                             } else {
