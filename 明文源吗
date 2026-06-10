@@ -1019,10 +1019,10 @@
 <div id="cfnew-matrix-rain"></div>
 <div id="cfnew-dialog">
 <div id="cfnew-topbar">
-<div id="cfnew-dialog-buttons" style="margin-right:5px!important"><span></span><span></span><span></span></div>
+<div id="cfnew-dialog-buttons" style="margin-right:8px!important"><span></span><span></span><span></span></div>
 <span id="cfnew-dialog-title">${termTitle}</span>
 <div style="flex:1!important"></div>
-<div id="cfnew-lang-wrapper" style="margin-right:5px!important"><span style="color:#7aa9c4;font-size:13px;">LANG_</span>
+<div id="cfnew-lang-wrapper" style="margin-right:8px!important"><span style="color:#7aa9c4;font-size:13px;">LANG_</span>
 <select id="cfnew-lang-select" onchange="cfnewChangeLanguage(this.value)">
 <option value="zh"${langSelectedZh}>🇨🇳 中文</option>
 <option value="fa"${langSelectedFa}>🇮🇷 فارسی</option>
