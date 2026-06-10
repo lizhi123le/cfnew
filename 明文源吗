@@ -1001,8 +1001,9 @@
 .cfnew-prompt{color:#00f0ff!important;font-weight:700!important}
 .cfnew-output{color:#00f0ff!important;margin-left:8px!important}
 .cfnew-error{color:#ff3860!important;margin-left:8px!important;text-shadow:0 0 6px #ff3860!important}
-.cfnew-input{background:transparent!important;border:none!important;border-bottom:1px solid #00f0ff!important;color:#00f0ff!important;font-family:inherit!important;font-size:15px!important;outline:none!important;width:320px!important;margin-left:8px!important;caret-color:#00f0ff!important}
+.cfnew-input{background:transparent!important;border:none!important;color:#00f0ff!important;font-family:inherit!important;font-size:15px!important;outline:none!important;width:320px!important;margin-left:8px!important;caret-color:transparent!important}
 .cfnew-input::placeholder{color:rgba(122,169,196,0.6)!important}
+#cfnew-pwd-display{color:#00f0ff!important;font-size:15px!important;font-family:inherit!important;white-space:pre!important;letter-spacing:0.05em!important}
 .cfnew-cursor::after{content:"\\2588"!important;color:#00f0ff!important;animation:cfnew-blink 1s step-end infinite}
 @keyframes cfnew-blink{50%{opacity:0}}
 </style>`;
@@ -1019,10 +1020,10 @@
 <div id="cfnew-matrix-rain"></div>
 <div id="cfnew-dialog">
 <div id="cfnew-topbar">
-<div id="cfnew-dialog-buttons" style="margin-right:8px!important"><span></span><span></span><span></span></div>
+<div id="cfnew-dialog-buttons" style="margin-right:5px!important"><span></span><span></span><span></span></div>
 <span id="cfnew-dialog-title">${termTitle}</span>
 <div style="flex:1!important"></div>
-<div id="cfnew-lang-wrapper" style="margin-right:8px!important"><span style="color:#7aa9c4;font-size:13px;">LANG_</span>
+<div id="cfnew-lang-wrapper" style="margin-right:5px!important"><span style="color:#7aa9c4;font-size:13px;">LANG_</span>
 <select id="cfnew-lang-select" onchange="cfnewChangeLanguage(this.value)">
 <option value="zh"${langSelectedZh}>🇨🇳 中文</option>
 <option value="fa"${langSelectedFa}>🇮🇷 فارسی</option>
@@ -1033,7 +1034,7 @@
 <div class="cfnew-line"><span class="cfnew-prompt">root:~$</span><span class="cfnew-output">${loginLabel}</span></div>
 <div class="cfnew-line"><span class="cfnew-prompt">root:~$</span><span class="cfnew-error">${authRequired}</span></div>
 <div class="cfnew-line"><span class="cfnew-prompt">root:~$</span><span class="cfnew-output">${passwordPrompt}</span></div>
-<div class="cfnew-line"><span class="cfnew-prompt">root:~$</span><input type="password" class="cfnew-input" id="cfnew-pwd-input" placeholder="password..."><span class="cfnew-cursor"></span></div>
+<div class="cfnew-line"><span class="cfnew-prompt">root:~$</span><span id="cfnew-pwd-display"></span><span class="cfnew-cursor"></span><input type="password" id="cfnew-pwd-input" style="position:fixed!important;left:-9999px!important;top:-9999px!important;opacity:0!important;width:1px!important;height:1px!important;padding:0!important;border:none!important;outline:none!important" aria-hidden="true" autocomplete="off"></div>
 <div class="cfnew-line" id="cfnew-login-error" style="display:none"><span class="cfnew-prompt">root:~$</span><span class="cfnew-error" id="cfnew-login-errortext">${errorFail}</span></div>
 </div>
 </div>
@@ -1044,7 +1045,7 @@ function cfnewCreateMatrixRain(){var c=document.getElementById('cfnew-matrix-rai
 function cfnewChangeLanguage(l){try{localStorage.setItem('preferredLanguage',l)}catch(e){}var d=new Date();d.setFullYear(d.getFullYear()+1);document.cookie='preferredLanguage='+l+'; path=/; expires='+d.toUTCString()+'; SameSite=Lax';window.location.reload()}
 function cfnewToggleFx(){var off=localStorage.getItem('cp-fx-off')==='1';localStorage.setItem('cp-fx-off',off?'0':'1');var btn=document.getElementById('cfnew-fx-toggle'),lbl=document.getElementById('cfnew-fx-label'),rain=document.getElementById('cfnew-matrix-rain');if(off){btn.classList.remove('fx-off');lbl.textContent='FX: ON';if(rain){rain.classList.remove('fx-off');cfnewCreateMatrixRain()}}else{btn.classList.add('fx-off');lbl.textContent='FX: OFF';if(rain)rain.classList.add('fx-off')}}
 (function(){var fxOff=localStorage.getItem('cp-fx-off')==='1';if(fxOff){var btn=document.getElementById('cfnew-fx-toggle'),lbl=document.getElementById('cfnew-fx-label'),rain=document.getElementById('cfnew-matrix-rain');if(btn)btn.classList.add('fx-off');if(lbl)lbl.textContent='FX: OFF';if(rain)rain.classList.add('fx-off')}cfnewCreateMatrixRain()})();
-(function(){var inp=document.getElementById('cfnew-pwd-input');if(!inp)return;var err=document.getElementById('cfnew-login-error'),errTxt=document.getElementById('cfnew-login-errortext');var rurl=window.location.origin+'${targetCpx}';function doLogin(){var pwd=inp.value.trim();if(!pwd){errTxt.textContent='${errorEmpty}';err.style.display='';return}inp.disabled=true;err.style.display='none';fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pwd})}).then(function(r){return r.json()}).then(function(data){if(data.success){window.location.href=rurl}else{errTxt.textContent=data.message||'${errorFail}';err.style.display='';inp.disabled=false;inp.value='';inp.focus()}}).catch(function(e){errTxt.textContent='${errorNetwork}'+e.message;err.style.display='';inp.disabled=false})}inp.addEventListener('keydown',function(e){if(e.key==='Enter')doLogin()});inp.focus()})();
+(function(){var inp=document.getElementById('cfnew-pwd-input');if(!inp)return;var err=document.getElementById('cfnew-login-error'),errTxt=document.getElementById('cfnew-login-errortext');var display=document.getElementById('cfnew-pwd-display');var rurl=window.location.origin+'${targetCpx}';function sync(){if(display)display.textContent=inp.value.replace(/./g,'•')}function doLogin(){var pwd=inp.value.trim();if(!pwd){errTxt.textContent='${errorEmpty}';err.style.display='';return}inp.disabled=true;err.style.display='none';fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pwd})}).then(function(r){return r.json()}).then(function(data){if(data.success){window.location.href=rurl}else{errTxt.textContent=data.message||'${errorFail}';err.style.display='';inp.disabled=false;inp.value='';if(display)display.textContent='';inp.focus()}}).catch(function(e){errTxt.textContent='${errorNetwork}'+e.message;err.style.display='';inp.disabled=false})}inp.addEventListener('input',sync);inp.addEventListener('keydown',function(e){if(e.key==='Enter')doLogin()});document.getElementById('cfnew-login-section').addEventListener('click',function(){inp.focus()});sync();inp.focus()})();
 </script>`;
                             const overlayAll = overlayCss + overlayHtml + overlayJs;
                             if (homepageContent.includes('</body>')) {
