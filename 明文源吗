@@ -976,7 +976,8 @@
 .cfnew-matrix-column:nth-child(even){animation-duration:18s!important;color:#ff2bd6!important;text-shadow:0 0 6px #ff2bd6,0 0 14px rgba(255,43,214,0.5)!important}
 .cfnew-matrix-column:nth-child(3n){animation-duration:20s!important;color:#a347ff!important;text-shadow:0 0 6px #a347ff!important}
 .cfnew-matrix-column:nth-child(5n){animation-duration:9s!important;opacity:0.6!important}
-#cfnew-dialog{position:relative!important;z-index:1!important;width:870px!important;max-width:92vw!important;min-height:810px!important;background:linear-gradient(180deg,rgba(8,4,28,0.92) 0%,rgba(15,3,40,0.92) 100%)!important;border:1px solid rgba(0,240,255,0.55)!important;border-radius:0!important;box-shadow:0 0 0 1px rgba(255,43,214,0.25),0 0 28px rgba(0,240,255,0.35),0 0 80px rgba(255,43,214,0.18),inset 0 0 30px rgba(0,240,255,0.06)!important;clip-path:polygon(0 18px,18px 0,calc(100% - 60px) 0,calc(100% - 42px) 18px,100% 18px,100% calc(100% - 14px),calc(100% - 14px) 100%,42px 100%,24px calc(100% - 14px),0 calc(100% - 14px));overflow:hidden!important}
+#cfnew-dialog{position:relative!important;z-index:1!important;width:739px!important;max-width:92vw!important;min-height:616px!important;background:linear-gradient(180deg,rgba(8,4,28,0.92) 0%,rgba(15,3,40,0.92) 100%)!important;border:1px solid rgba(0,240,255,0.55)!important;border-radius:0!important;box-shadow:0 0 0 1px rgba(255,43,214,0.25),0 0 28px rgba(0,240,255,0.35),0 0 80px rgba(255,43,214,0.18),inset 0 0 30px rgba(0,240,255,0.06)!important;clip-path:polygon(0 18px,18px 0,calc(100% - 60px) 0,calc(100% - 42px) 18px,100% 18px,100% calc(100% - 14px),calc(100% - 14px) 100%,42px 100%,24px calc(100% - 14px),0 calc(100% - 14px));overflow:hidden!important}
+@media(min-width:1024px){#cfnew-dialog{aspect-ratio:6/5!important}}
 #cfnew-dialog::before{content:""!important;position:absolute!important;inset:0!important;background:repeating-linear-gradient(180deg,rgba(0,240,255,0.06) 0 1px,transparent 1px 4px)!important;pointer-events:none!important;z-index:0!important;animation:cfnew-scan 5s infinite!important}
 @keyframes cfnew-scan{0%,100%{opacity:0.6}50%{opacity:0.9}}
 #cfnew-dialog>*{position:relative!important;z-index:1!important}
@@ -989,7 +990,6 @@
 #cfnew-fx-dot{width:6px!important;height:6px!important;border-radius:50%!important;background:#00ff9d!important;box-shadow:0 0 8px #00ff9d!important}
 #cfnew-fx-toggle.fx-off{color:#7aa9c4!important;border-color:#7aa9c4!important;text-shadow:none!important;box-shadow:none!important}
 #cfnew-fx-toggle.fx-off #cfnew-fx-dot{background:transparent!important;border:1px solid #7aa9c4!important;box-shadow:none!important}
-#cfnew-dialog-header{display:flex!important;align-items:center!important;gap:8px!important;padding:16px 20px 8px!important}
 #cfnew-dialog-buttons{display:flex!important;gap:6px!important}
 #cfnew-dialog-buttons span{width:12px!important;height:12px!important;border-radius:50%!important;display:inline-block!important}
 #cfnew-dialog-buttons span:nth-child(1){background:#ff5f56!important}
@@ -1019,16 +1019,15 @@
 <div id="cfnew-matrix-rain"></div>
 <div id="cfnew-dialog">
 <div id="cfnew-topbar">
+<div id="cfnew-dialog-buttons"><span></span><span></span><span></span></div>
+<span id="cfnew-dialog-title">${termTitle}</span>
+<div style="flex:1!important"></div>
 <div id="cfnew-lang-wrapper"><span style="color:#7aa9c4;font-size:13px;">LANG_</span>
 <select id="cfnew-lang-select" onchange="cfnewChangeLanguage(this.value)">
 <option value="zh"${langSelectedZh}>🇨🇳 中文</option>
 <option value="fa"${langSelectedFa}>🇮🇷 فارسی</option>
 </select></div>
 <button type="button" id="cfnew-fx-toggle" onclick="cfnewToggleFx()"><span id="cfnew-fx-dot"></span><span id="cfnew-fx-label">FX: ON</span></button>
-</div>
-<div id="cfnew-dialog-header">
-<div id="cfnew-dialog-buttons"><span></span><span></span><span></span></div>
-<span id="cfnew-dialog-title">${termTitle}</span>
 </div>
 <div id="cfnew-login-section">
 <div class="cfnew-line"><span class="cfnew-prompt">root:~$</span><span class="cfnew-output">${loginLabel}</span></div>
