@@ -1341,7 +1341,8 @@
             // 页面特效图形化开关 (localStorage 持久化)
             var cpMatrixTimer;
             window.cpApplyFx = function() {
-                var off = localStorage.getItem('cp-fx-off') === '1';
+                var off = false;
+                try { off = localStorage.getItem('cp-fx-off') === '1'; } catch(e) {}
                 document.body.classList.toggle('fx-off', off);
                 var lbl = document.getElementById('cpFxLabel');
                 if (lbl) lbl.textContent = off ? 'FX: OFF' : 'FX: ON';
@@ -1355,12 +1356,15 @@
                 }
             };
             window.cpToggleFx = function() {
-                var off = localStorage.getItem('cp-fx-off') === '1';
-                localStorage.setItem('cp-fx-off', off ? '0' : '1');
+                var off = false;
+                try { off = localStorage.getItem('cp-fx-off') === '1'; } catch(e) {}
+                try { localStorage.setItem('cp-fx-off', off ? '0' : '1'); } catch(e) {}
                 window.cpApplyFx();
             };
             (function() {
-                if (localStorage.getItem('cp-fx-off') === '1') {
+                var fxOff = false;
+                try { fxOff = localStorage.getItem('cp-fx-off') === '1'; } catch(e) {}
+                if (fxOff) {
                     document.documentElement.classList.add('fx-off-preload');
                     document.addEventListener('DOMContentLoaded', function() {
                         document.body.classList.add('fx-off');
@@ -1538,12 +1542,13 @@
             }
 
             function changeLanguage(lang) {
-                localStorage.setItem('preferredLanguage', lang);
+                try { localStorage.setItem('preferredLanguage', lang); } catch(e) {}
                 // 设置Cookie（有效期1年）
                 const expiryDate = new Date();
                 expiryDate.setFullYear(expiryDate.getFullYear() + 1);
-                document.cookie = 'preferredLanguage=' + lang + '; path=/; expires=' + expiryDate.toUTCString() + '; SameSite=Lax';
+                try { document.cookie = 'preferredLanguage=' + lang + '; path=/; expires=' + expiryDate.toUTCString() + '; SameSite=Lax'; } catch(e) {}
                 // iframe 环境 → postMessage 通知父页面 reload 以应用新语言
+                // targetOrigin '*' 因 srcdoc 编译期 parent origin 不可知；消息仅触发 reload + 设置 cookie，可安全使用 '*'
                 if (window.parent && window.parent !== window) {
                     window.parent.postMessage({ type: 'cfnew-lang-change', lang: lang }, '*');
                     return;
@@ -1597,8 +1602,13 @@
                     const adminInput = document.getElementById('adminPwdInput');
                     if (adminInput) {
                         adminInput.focus();
+                        // 同时绑定 keypress 和 keydown 确保各浏览器兼容
                         adminInput.addEventListener('keypress', function(e) {
                             if (e.key === 'Enter') handleAdminLogin();
+                        });
+                        adminInput.addEventListener('keydown', function(e) {
+                            // e.isComposing 跳过输入法组合中的 Enter，防止 IME 下重复触发
+                            if (e.key === 'Enter' && !e.isComposing) { handleAdminLogin(); }
                         });
                     }
                 } else {
@@ -1625,11 +1635,20 @@
                                 .replace(/"/g, '&quot;')
                                 .replace(/'/g, '&#039;');
                             const iframeOverlay = `<div id="cfnew-overlay" style="position:fixed;top:0;left:0;width:100%;height:100%;z-index:2147483647;pointer-events:none;display:flex;align-items:center;justify-content:center;">
-<iframe srcdoc="${escapedTerminal}" style="width:870px;max-width:92vw;height:810px;border:none;transform:scale(0.6);transform-origin:center center;pointer-events:auto;"></iframe>
+<iframe srcdoc="${escapedTerminal}" style="width:870px;max-width:92vw;height:810px;border:none;transform:scale(0.8);transform-origin:center center;pointer-events:auto;"></iframe>
 </div>
 <script>
 window.addEventListener('message', function(e) {
     if (e.data && e.data.type === 'cfnew-lang-change') {
+        // 父页面接手设置 cookie/localStorage（iframe 内设置可能因浏览器隐私策略受限）
+        if (e.data.lang) {
+            try {
+                var d = new Date();
+                d.setFullYear(d.getFullYear() + 1);
+                document.cookie = 'preferredLanguage=' + e.data.lang + '; path=/; expires=' + d.toUTCString() + '; SameSite=Lax';
+            } catch(ex) {}
+            try { localStorage.setItem('preferredLanguage', e.data.lang); } catch(ex) {}
+        }
         window.location.reload();
     }
 });
