@@ -418,8 +418,9 @@
                                 // 标记后继续，等KV初始化后使用完整配置处理
                                 urlPathMatched = false;
                             } else {
-                                // 常见路径池中的路径 → 伪装为自定义首页
-                                if (firstSeg && commonPathDirs.includes(firstSeg)) {
+                                // 常见路径池中的路径 → 伪装为自定义首页（所有段必须在池中）
+                                const allSegInPool = pathSegments.length > 0 && pathSegments.every(s => commonPathDirs.includes(s));
+                                if (allSegInPool) {
                                     const tmpHomepage = env.homepage || env.HOMEPAGE || '';
                                     if (tmpHomepage.trim()) {
                                         try {
@@ -685,9 +686,9 @@
                     if (skipRandomPath) {
                         // 跳过，让请求继续到对应的处理器（登录悬浮窗、订阅配置页等）
                     } else {
-                        // 常见路径池中的路径 → 伪装为自定义首页
-                        const firstSeg = pathSegments[0] || '';
-                        if (firstSeg && commonPathDirs.includes(firstSeg)) {
+                        // 常见路径池中的路径 → 伪装为自定义首页（所有段必须在池中）
+                        const allSegInPool = pathSegments.length > 0 && pathSegments.every(s => commonPathDirs.includes(s));
+                        if (allSegInPool) {
                             const customHomepage = getConfigValue('homepage', env.homepage || env.HOMEPAGE);
                             if (customHomepage && customHomepage.trim()) {
                                 try {
