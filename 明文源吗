@@ -640,41 +640,47 @@
                 }
 
                 // 随机路径模式：路径不匹配时，KV初始化后使用完整配置重判
+                // 注意：/login 路径需要保留悬浮窗登录功能，不在此处拦截
                 if (!urlPathMatched && enableRandomPath) {
-                    const customHomepage = getConfigValue('homepage', env.homepage || env.HOMEPAGE);
-                    if (customHomepage && customHomepage.trim()) {
-                        try {
-                            const homepageList = customHomepage.split('|').map(u => u.trim()).filter(u => u);
-                            const selectedUrl = homepageList[Math.floor(Math.random() * homepageList.length)];
-                            if (selectedUrl) {
-                                const hpResp = await fetch(selectedUrl, {
-                                    method: 'GET',
-                                    headers: {
-                                        'User-Agent': request.headers.get('User-Agent') || 'Mozilla/5.0',
-                                        'Accept': request.headers.get('Accept') || '*/*',
-                                    }
-                                });
-                                if (hpResp.ok) {
-                                    return new Response(hpResp.body, {
-                                        status: 200,
+                    const currentPath = new URL(request.url).pathname;
+                    if (currentPath === '/login') {
+                        // 跳过 /login，让它继续到后面的登录悬浮窗处理器
+                    } else {
+                        const customHomepage = getConfigValue('homepage', env.homepage || env.HOMEPAGE);
+                        if (customHomepage && customHomepage.trim()) {
+                            try {
+                                const homepageList = customHomepage.split('|').map(u => u.trim()).filter(u => u);
+                                const selectedUrl = homepageList[Math.floor(Math.random() * homepageList.length)];
+                                if (selectedUrl) {
+                                    const hpResp = await fetch(selectedUrl, {
+                                        method: 'GET',
                                         headers: {
-                                            'Content-Type': hpResp.headers.get('Content-Type') || 'text/html; charset=utf-8',
-                                            'Cache-Control': 'no-cache, no-store, must-revalidate',
+                                            'User-Agent': request.headers.get('User-Agent') || 'Mozilla/5.0',
+                                            'Accept': request.headers.get('Accept') || '*/*',
                                         }
                                     });
+                                    if (hpResp.ok) {
+                                        return new Response(hpResp.body, {
+                                            status: 200,
+                                            headers: {
+                                                'Content-Type': hpResp.headers.get('Content-Type') || 'text/html; charset=utf-8',
+                                                'Cache-Control': 'no-cache, no-store, must-revalidate',
+                                            }
+                                        });
+                                    }
                                 }
-                            }
-                        } catch (_) {}
-                    }
-                    // 没有自定义首页或获取失败，显示1101页面
-                    const clientIP = request.headers.get('CF-Connecting-IP') || '127.0.0.1';
-                    return new Response(await html1101(reqUrl.hostname, clientIP), {
-                        status: 200,
-                        headers: {
-                            'Content-Type': 'text/html; charset=utf-8',
-                            'Cache-Control': 'no-cache, no-store, must-revalidate',
+                            } catch (_) {}
                         }
-                    });
+                        // 没有自定义首页或获取失败，显示1101页面
+                        const clientIP = request.headers.get('CF-Connecting-IP') || '127.0.0.1';
+                        return new Response(await html1101(reqUrl.hostname, clientIP), {
+                            status: 200,
+                            headers: {
+                                'Content-Type': 'text/html; charset=utf-8',
+                                'Cache-Control': 'no-cache, no-store, must-revalidate',
+                            }
+                        });
+                    }
                 }
 
                 const url = new URL(request.url);
