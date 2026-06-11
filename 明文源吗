@@ -412,40 +412,53 @@
                         // 快速路径：环境变量已启用随机路径 → 直接处理
                         const tmpRandomPath = (env.randomPath || env.RANDOMPATH || '').toLowerCase();
                         if (tmpRandomPath === 'yes' || tmpRandomPath === 'true' || tmpRandomPath === '1') {
-                            const tmpHomepage = env.homepage || env.HOMEPAGE || '';
-                            if (tmpHomepage.trim()) {
-                                try {
-                                    const homepageList = tmpHomepage.split('|').map(u => u.trim()).filter(u => u);
-                                    const selectedUrl = homepageList[Math.floor(Math.random() * homepageList.length)];
-                                    if (selectedUrl) {
-                                        const hpResp = await fetch(selectedUrl, {
-                                            method: 'GET',
-                                            headers: {
-                                                'User-Agent': request.headers.get('User-Agent') || 'Mozilla/5.0',
-                                                'Accept': request.headers.get('Accept') || '*/*',
-                                            }
-                                        });
-                                        if (hpResp.ok) {
-                                            return new Response(hpResp.body, {
-                                                status: 200,
-                                                headers: {
-                                                    'Content-Type': hpResp.headers.get('Content-Type') || 'text/html; charset=utf-8',
-                                                    'Cache-Control': 'no-cache, no-store, must-revalidate',
+                            // /login 和 /api/* 是系统路径，不被随机路径拦截
+                            const pn = reqUrl.pathname;
+                            if (pn === '/login' || pn.startsWith('/api/')) {
+                                // 标记后继续，等KV初始化后使用完整配置处理
+                                urlPathMatched = false;
+                            } else {
+                                // 常见路径池中的路径 → 伪装为自定义首页
+                                const firstSeg = pathSegments[0] || '';
+                                if (firstSeg && commonPathDirs.includes(firstSeg)) {
+                                    const tmpHomepage = env.homepage || env.HOMEPAGE || '';
+                                    if (tmpHomepage.trim()) {
+                                        try {
+                                            const homepageList = tmpHomepage.split('|').map(u => u.trim()).filter(u => u);
+                                            const selectedUrl = homepageList[Math.floor(Math.random() * homepageList.length)];
+                                            if (selectedUrl) {
+                                                const hpResp = await fetch(selectedUrl, {
+                                                    method: 'GET',
+                                                    headers: {
+                                                        'User-Agent': request.headers.get('User-Agent') || 'Mozilla/5.0',
+                                                        'Accept': request.headers.get('Accept') || '*/*',
+                                                    }
+                                                });
+                                                if (hpResp.ok) {
+                                                    return new Response(hpResp.body, {
+                                                        status: 200,
+                                                        headers: {
+                                                            'Content-Type': hpResp.headers.get('Content-Type') || 'text/html; charset=utf-8',
+                                                            'Cache-Control': 'no-cache, no-store, must-revalidate',
+                                                        }
+                                                    });
                                                 }
-                                            });
-                                        }
+                                            }
+                                        } catch (_) {}
                                     }
-                                } catch (_) {}
-                            }
-                            // 没有自定义首页或获取失败，显示1101页面
-                            const clientIP = request.headers.get('CF-Connecting-IP') || '127.0.0.1';
-                            return new Response(await html1101(reqUrl.hostname, clientIP), {
-                                status: 200,
-                                headers: {
-                                    'Content-Type': 'text/html; charset=utf-8',
-                                    'Cache-Control': 'no-cache, no-store, must-revalidate',
+                                    // 白名单路径：自定义首页获取失败 → 1101兜底伪装
+                                    const clientIP = request.headers.get('CF-Connecting-IP') || '127.0.0.1';
+                                    return new Response(await html1101(reqUrl.hostname, clientIP), {
+                                        status: 200,
+                                        headers: {
+                                            'Content-Type': 'text/html; charset=utf-8',
+                                            'Cache-Control': 'no-cache, no-store, must-revalidate',
+                                        }
+                                    });
                                 }
-                            });
+                                // 不在白名单的随机路径 → 404
+                                return new Response('Not Found', { status: 404 });
+                            }
                         }
                         // 环境变量未设 randomPath → 标记后继续，等KV初始化后使用完整配置判断
                         urlPathMatched = false;
@@ -644,7 +657,7 @@
                 if (!urlPathMatched && enableRandomPath) {
                     const currentPath = new URL(request.url).pathname;
                     // 检查当前路径是否为已知管理路径（跳过随机路径处理）
-                    let skipRandomPath = (currentPath === '/login');
+                    let skipRandomPath = (currentPath === '/login') || currentPath.startsWith('/api/');
                     if (!skipRandomPath) {
                         if (cp && cp.trim()) {
                             // 检查是否为自定义管理路径或子路径（/custom-path, /custom-path/sub, /custom-path/api/config 等）
@@ -661,40 +674,46 @@
                     if (skipRandomPath) {
                         // 跳过，让请求继续到对应的处理器（登录悬浮窗、订阅配置页等）
                     } else {
-                        const customHomepage = getConfigValue('homepage', env.homepage || env.HOMEPAGE);
-                        if (customHomepage && customHomepage.trim()) {
-                            try {
-                                const homepageList = customHomepage.split('|').map(u => u.trim()).filter(u => u);
-                                const selectedUrl = homepageList[Math.floor(Math.random() * homepageList.length)];
-                                if (selectedUrl) {
-                                    const hpResp = await fetch(selectedUrl, {
-                                        method: 'GET',
-                                        headers: {
-                                            'User-Agent': request.headers.get('User-Agent') || 'Mozilla/5.0',
-                                            'Accept': request.headers.get('Accept') || '*/*',
-                                        }
-                                    });
-                                    if (hpResp.ok) {
-                                        return new Response(hpResp.body, {
-                                            status: 200,
+                        // 常见路径池中的路径 → 伪装为自定义首页
+                        const firstSeg = pathSegments[0] || '';
+                        if (firstSeg && commonPathDirs.includes(firstSeg)) {
+                            const customHomepage = getConfigValue('homepage', env.homepage || env.HOMEPAGE);
+                            if (customHomepage && customHomepage.trim()) {
+                                try {
+                                    const homepageList = customHomepage.split('|').map(u => u.trim()).filter(u => u);
+                                    const selectedUrl = homepageList[Math.floor(Math.random() * homepageList.length)];
+                                    if (selectedUrl) {
+                                        const hpResp = await fetch(selectedUrl, {
+                                            method: 'GET',
                                             headers: {
-                                                'Content-Type': hpResp.headers.get('Content-Type') || 'text/html; charset=utf-8',
-                                                'Cache-Control': 'no-cache, no-store, must-revalidate',
+                                                'User-Agent': request.headers.get('User-Agent') || 'Mozilla/5.0',
+                                                'Accept': request.headers.get('Accept') || '*/*',
                                             }
                                         });
+                                        if (hpResp.ok) {
+                                            return new Response(hpResp.body, {
+                                                status: 200,
+                                                headers: {
+                                                    'Content-Type': hpResp.headers.get('Content-Type') || 'text/html; charset=utf-8',
+                                                    'Cache-Control': 'no-cache, no-store, must-revalidate',
+                                                }
+                                            });
+                                        }
                                     }
-                                }
-                            } catch (_) {}
-                        }
-                        // 没有自定义首页或获取失败，显示1101页面
-                        const clientIP = request.headers.get('CF-Connecting-IP') || '127.0.0.1';
-                        return new Response(await html1101(reqUrl.hostname, clientIP), {
-                            status: 200,
-                            headers: {
-                                'Content-Type': 'text/html; charset=utf-8',
-                                'Cache-Control': 'no-cache, no-store, must-revalidate',
+                                } catch (_) {}
                             }
-                        });
+                            // 白名单路径：自定义首页获取失败 → 1101兜底伪装
+                            const clientIP = request.headers.get('CF-Connecting-IP') || '127.0.0.1';
+                            return new Response(await html1101(reqUrl.hostname, clientIP), {
+                                status: 200,
+                                headers: {
+                                    'Content-Type': 'text/html; charset=utf-8',
+                                    'Cache-Control': 'no-cache, no-store, must-revalidate',
+                                }
+                            });
+                        }
+                        // 不在白名单的随机路径 → 404
+                        return new Response('Not Found', { status: 404 });
                     }
                 }
 
