@@ -434,10 +434,22 @@
                                                     }
                                                 });
                                                 if (hpResp.ok) {
+                                                    const contentType = hpResp.headers.get('Content-Type') || 'text/html; charset=utf-8';
+                                                    if (contentType.startsWith('image/')) {
+                                                        const origUrl = selectedUrl.replace(/"/g, '&quot;');
+                                                        const imgHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>CFnew</title><style>body{margin:0;padding:0;overflow:hidden;background:#000;display:flex;align-items:center;justify-content:center;height:100vh}img{width:100vw;height:100vh;object-fit:fill}</style></head><body><img src="${origUrl}" alt="homepage" style="width:100vw;height:100vh;object-fit:fill"></body></html>`;
+                                                        return new Response(imgHtml, {
+                                                            status: 200,
+                                                            headers: {
+                                                                'Content-Type': 'text/html; charset=utf-8',
+                                                                'Cache-Control': 'no-cache, no-store, must-revalidate',
+                                                            }
+                                                        });
+                                                    }
                                                     return new Response(hpResp.body, {
                                                         status: 200,
                                                         headers: {
-                                                            'Content-Type': hpResp.headers.get('Content-Type') || 'text/html; charset=utf-8',
+                                                            'Content-Type': contentType,
                                                             'Cache-Control': 'no-cache, no-store, must-revalidate',
                                                         }
                                                     });
@@ -690,10 +702,22 @@
                                             }
                                         });
                                         if (hpResp.ok) {
+                                            const contentType = hpResp.headers.get('Content-Type') || 'text/html; charset=utf-8';
+                                            if (contentType.startsWith('image/')) {
+                                                const origUrl = selectedUrl.replace(/"/g, '&quot;');
+                                                const imgHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>CFnew</title><style>body{margin:0;padding:0;overflow:hidden;background:#000;display:flex;align-items:center;justify-content:center;height:100vh}img{width:100vw;height:100vh;object-fit:fill}</style></head><body><img src="${origUrl}" alt="homepage" style="width:100vw;height:100vh;object-fit:fill"></body></html>`;
+                                                return new Response(imgHtml, {
+                                                    status: 200,
+                                                    headers: {
+                                                        'Content-Type': 'text/html; charset=utf-8',
+                                                        'Cache-Control': 'no-cache, no-store, must-revalidate',
+                                                    }
+                                                });
+                                            }
                                             return new Response(hpResp.body, {
                                                 status: 200,
                                                 headers: {
-                                                    'Content-Type': hpResp.headers.get('Content-Type') || 'text/html; charset=utf-8',
+                                                    'Content-Type': contentType,
                                                     'Cache-Control': 'no-cache, no-store, must-revalidate',
                                                 }
                                             });
