@@ -419,7 +419,6 @@
                                 urlPathMatched = false;
                             } else {
                                 // 常见路径池中的路径 → 伪装为自定义首页
-                                const firstSeg = pathSegments[0] || '';
                                 if (firstSeg && commonPathDirs.includes(firstSeg)) {
                                     const tmpHomepage = env.homepage || env.HOMEPAGE || '';
                                     if (tmpHomepage.trim()) {
