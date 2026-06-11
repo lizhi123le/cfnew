@@ -640,11 +640,26 @@
                 }
 
                 // 随机路径模式：路径不匹配时，KV初始化后使用完整配置重判
-                // 注意：/login 路径需要保留悬浮窗登录功能，不在此处拦截
+                // 注意：以下路径需要跳过随机路径处理，让请求继续到对应的处理器
                 if (!urlPathMatched && enableRandomPath) {
                     const currentPath = new URL(request.url).pathname;
-                    if (currentPath === '/login') {
-                        // 跳过 /login，让它继续到后面的登录悬浮窗处理器
+                    // 检查当前路径是否为已知管理路径（跳过随机路径处理）
+                    let skipRandomPath = (currentPath === '/login');
+                    if (!skipRandomPath) {
+                        if (cp && cp.trim()) {
+                            // 检查是否为自定义管理路径
+                            const cleanCp = cp.trim().startsWith('/') ? cp.trim() : '/' + cp.trim();
+                            const normalizedCp = cleanCp.endsWith('/') && cleanCp.length > 1 ? cleanCp.slice(0, -1) : cleanCp;
+                            const normalizedPath = currentPath.endsWith('/') && currentPath.length > 1 ? currentPath.slice(0, -1) : currentPath;
+                            skipRandomPath = (normalizedPath === normalizedCp);
+                        } else {
+                            // 无自定义路径，检查是否为UUID路径
+                            const cleanPath = currentPath.replace(/^\/+|\/+$/g, '');
+                            skipRandomPath = (cleanPath === at);
+                        }
+                    }
+                    if (skipRandomPath) {
+                        // 跳过，让请求继续到对应的处理器（登录悬浮窗、订阅配置页等）
                     } else {
                         const customHomepage = getConfigValue('homepage', env.homepage || env.HOMEPAGE);
                         if (customHomepage && customHomepage.trim()) {
@@ -1076,16 +1091,20 @@
                             });
                         }
                         
-                        // / 路径且无自定义首页：显示1101兜底页面
+                        // / 路径且无自定义首页
                         if (!isHomepageMode && !isLoginPath) {
-                            const clientIP = request.headers.get('CF-Connecting-IP') || '127.0.0.1';
-                            return new Response(await html1101(reqUrl.hostname, clientIP), {
-                                status: 200,
-                                headers: {
-                                    'Content-Type': 'text/html; charset=utf-8',
-                                    'Cache-Control': 'no-cache, no-store, must-revalidate',
-                                }
-                            });
+                            if (enableRandomPath) {
+                                // 随机路径模式：显示1101兜底页面作为伪装
+                                const clientIP = request.headers.get('CF-Connecting-IP') || '127.0.0.1';
+                                return new Response(await html1101(reqUrl.hostname, clientIP), {
+                                    status: 200,
+                                    headers: {
+                                        'Content-Type': 'text/html; charset=utf-8',
+                                        'Cache-Control': 'no-cache, no-store, must-revalidate',
+                                    }
+                                });
+                            }
+                            // 非随机路径模式：继续渲染终端页面
                         }
                         
                         // /login 路径：构建带悬浮窗的页面（含矩阵雨、语言切换、FX、登录表单）
