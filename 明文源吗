@@ -647,15 +647,15 @@
                     let skipRandomPath = (currentPath === '/login');
                     if (!skipRandomPath) {
                         if (cp && cp.trim()) {
-                            // 检查是否为自定义管理路径
+                            // 检查是否为自定义管理路径或子路径（/custom-path, /custom-path/sub, /custom-path/api/config 等）
                             const cleanCp = cp.trim().startsWith('/') ? cp.trim() : '/' + cp.trim();
                             const normalizedCp = cleanCp.endsWith('/') && cleanCp.length > 1 ? cleanCp.slice(0, -1) : cleanCp;
                             const normalizedPath = currentPath.endsWith('/') && currentPath.length > 1 ? currentPath.slice(0, -1) : currentPath;
-                            skipRandomPath = (normalizedPath === normalizedCp);
+                            skipRandomPath = (normalizedPath === normalizedCp) || normalizedPath.startsWith(normalizedCp + '/');
                         } else {
-                            // 无自定义路径，检查是否为UUID路径
-                            const cleanPath = currentPath.replace(/^\/+|\/+$/g, '');
-                            skipRandomPath = (cleanPath === at);
+                            // 无自定义路径，检查是否为UUID路径或子路径（/UUID, /UUID/sub 等）
+                            const prefix = '/' + at;
+                            skipRandomPath = currentPath === prefix || currentPath.startsWith(prefix + '/');
                         }
                     }
                     if (skipRandomPath) {
