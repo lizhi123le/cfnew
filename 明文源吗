@@ -1014,9 +1014,11 @@ export default {
             }
           }
         }
-        if (网址698.pathname === '/' || 网址698.pathname === '/login') {
-          // /login 路径直接显示终端页面（跳过首页伪装），其他路径正常处理首页
-          if (网址698.pathname !== '/login') {
+        if (网址698.pathname === '/login') {
+          // /login 重定向到首页（终端页面内置了管理员登录模块）
+          return Response.redirect(new URL('/', 请求735.url).toString(), 302);
+        }
+        if (网址698.pathname === '/') {
           // 多首页支持：竖线分隔，每次请求随机选取一个
           const 首页配置值 = 获取配置值('homepage', 本地值734.homepage || 本地值734.HOMEPAGE);
           if (首页配置值) {
@@ -1053,7 +1055,6 @@ export default {
                 console.error('获取自定义首页失败:', 错误670);
               }
             }
-          }
           }
           // 管理员密码认证：终端页面显示登录提示（非独立页面）
           const 需要管理员认证 = 管理员密码 && !(await 是否管理员已验证(请求735));
