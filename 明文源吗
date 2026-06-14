@@ -1018,7 +1018,7 @@ export default {
         // /login 路径：取决于管理员密码设置
         const 是登录路径 = 网址698.pathname === '/login';
         const 需要管理员认证 = 管理员密码 && !(await 是否管理员已验证(请求735));
-        const 跳过首页伪装 = 是登录路径 && 需要管理员认证; // 仅当设置了密码且未认证时跳过首页
+        const 跳过首页伪装 = 是登录路径; // /login 始终显示登录页面，不显示伪装首页
         if (网址698.pathname === '/' || 是登录路径) {
           if (!跳过首页伪装) {
           // 多首页支持：竖线分隔，每次请求随机选取一个
@@ -1414,30 +1414,6 @@ export default {
                     -2px 0 var(--cp-pink),
                     2px 0 var(--cp-mint);
             }
-            /* 登出按钮 - admin模式下退出登录 */
-            .cp-logout-btn {
-                position: fixed; top: 82px; right: 22px; z-index: 1001;
-                background: rgba(8,4,28,0.85);
-                border: 1px solid var(--cp-pink);
-                color: var(--cp-pink);
-                padding: 6px 12px;
-                font-family: inherit;
-                font-size: 11px;
-                letter-spacing: 0.18em;
-                text-transform: uppercase;
-                cursor: pointer;
-                text-shadow: 0 0 6px var(--cp-pink);
-                box-shadow: 0 0 10px rgba(255,43,214,0.35);
-                clip-path: polygon(7px 0, 100% 0, 100% calc(100% - 7px), calc(100% - 7px) 100%, 0 100%, 0 7px);
-                transition: all 0.2s ease;
-                display: inline-flex; align-items: center; gap: 6px;
-            }
-            .cp-logout-btn:hover {
-                color: var(--cp-cyan);
-                border-color: var(--cp-cyan);
-                text-shadow: 0 0 8px var(--cp-cyan);
-                box-shadow: 0 0 16px rgba(0,240,255,0.55);
-            }
         </style>
     </head>
     <body>
@@ -1448,9 +1424,6 @@ export default {
                 <span class="cp-hud-line"><span class="cp-hud-label">NODE::</span> NIGHT_CITY</span>
                 <span class="cp-hud-line"><span class="cp-hud-label">LINK::</span> SECURE / ENC</span>
             </div>
-            ${管理员密码 ? `
-            <button type="button" class="cp-logout-btn" onclick="handleLogout()" title="${是否值664 ? 'خروج' : '登出'}">${是否值664 ? 'خروج' : '登出'}</button>
-            ` : ''}
             <div class="cp-lang-wrapper">
                 <span class="cp-lang-tag">LANG_</span>
                 <select id="languageSelector" onchange="切换语言(this.value)">
@@ -1708,11 +1681,6 @@ function 切换语言(语言) {
   document.cookie = 'preferredLanguage=' + 语言 + '; path=/; expires=' + 过期日期10002.toUTCString() + '; SameSite=Lax';
   // 刷新页面，不使用URL参数
   window.location.reload();
-}
-
-function handleLogout() {
-  fetch('/api/logout', { method: 'POST', keepalive: true }).catch(function() {});
-  window.location.href = '/';
 }
 
 // 页面加载时检查 localStorage 和 Cookie，并清理URL参数
@@ -5262,12 +5230,37 @@ async function 处理订阅值(请求241, 用户240 = null) {
                 animation: cp-pulse-pink 1.6s ease-in-out infinite;
             }
 
+            /* 登出按钮 - admin模式下退出登录 */
+            .cp-logout-btn {
+                position: fixed; top: 82px; right: 22px; z-index: 1001;
+                background: rgba(8,4,28,0.85);
+                border: 1px solid var(--cp-pink);
+                color: var(--cp-pink);
+                padding: 6px 12px;
+                font-family: inherit;
+                font-size: 11px;
+                letter-spacing: 0.18em;
+                text-transform: uppercase;
+                cursor: pointer;
+                text-shadow: 0 0 6px var(--cp-pink);
+                box-shadow: 0 0 10px rgba(255,43,214,0.35);
+                clip-path: polygon(7px 0, 100% 0, 100% calc(100% - 7px), calc(100% - 7px) 100%, 0 100%, 0 7px);
+                transition: all 0.2s ease;
+                display: inline-flex; align-items: center; gap: 6px;
+            }
+            .cp-logout-btn:hover {
+                color: var(--cp-cyan);
+                border-color: var(--cp-cyan);
+                text-shadow: 0 0 8px var(--cp-cyan);
+                box-shadow: 0 0 16px rgba(0,240,255,0.55);
+            }
             @media (max-width: 720px) {
                 .container { padding: 100px 14px 140px; }
                 .card { padding: 22px 18px; }
                 .header { padding: 22px 18px; }
                 .title { font-size: 2rem; }
                 .cp-hud { font-size: 9px; }
+                .cp-logout-btn { top: 74px; right: 14px; font-size: 10px; padding: 5px 10px; }
                 .cp-action-bar {
                     right: 50%;
                     bottom: 14px;
@@ -5294,6 +5287,9 @@ async function 处理订阅值(请求241, 用户240 = null) {
                 <span class="cp-hud-line"><span class="cp-hud-label">NODE::</span> NIGHT_CITY</span>
                 <span class="cp-hud-line"><span class="cp-hud-label">LINK::</span> SECURE / ENC</span>
             </div>
+            ${管理员密码 ? `
+            <button type="button" class="cp-logout-btn" onclick="handleLogout()" title="${是否值236 ? 'خروج' : '登出'}">${是否值236 ? 'خروج' : '登出'}</button>
+            ` : ''}
             <div class="cp-lang-wrapper">
                 <span class="cp-lang-tag">LANG_</span>
                 <select id="languageSelector" onchange="切换语言(this.value)">
@@ -5736,6 +5732,11 @@ function 切换语言(语言) {
   document.cookie = 'preferredLanguage=' + 语言 + '; path=/; expires=' + 过期日期20206.toUTCString() + '; SameSite=Lax';
   // 刷新页面，不使用URL参数
   window.location.reload();
+}
+
+function handleLogout() {
+  fetch('/api/logout', { method: 'POST', keepalive: true }).catch(function() {});
+  window.location.href = '/';
 }
 
 // 页面加载时检查 localStorage 和 Cookie，并清理URL参数
