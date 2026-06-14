@@ -16,7 +16,7 @@
     let cp = '';  
     let enableRandomPath = false; // 随机路径开关
     let adminPassword = '';       // 管理员密码 (env.ADMIN)
-    const commonPathDirs = ["#","about","account","acg","act","activity","ad","admin","ads","ajax","album","albums","anime","api","app","apps","archive","archives","article","articles","ask","auth","avatar","bbs","bd","blog","blogs","book","books","bt","buy","cart","category","categories","cb","channel","channels","chat","china","city","class","classify","clip","clips","club","cn","code","collect","collection","comic","comics","community","company","config","contact","content","course","courses","cp","data","detail","details","dh","directory","discount","discuss","dl","dload","doc","docs","document","documents","doujin","download","downloads","drama","edu","en","ep","episode","episodes","event","events","f","faq","favorite","favourites","favs","feedback","file","files","film","films","forum","forums","friend","friends","game","games","gif","go","go.html","go.php","group","groups","help","home","hot","htm","html","image","images","img","index","info","intro","item","items","ja","jp","jump","jump.html","jump.php","jumping","knowledge","lang","lesson","lessons","lib","library","link","links","list","live","lives","login","logout","m","mag","magnet","mall","manhua","map","member","members","message","messages","mobile","movie","movies","music","my","new","news","note","novel","novels","online","order","out","out.html","out.php","outbound","p","page","pages","pay","payment","pdf","photo","photos","pic","pics","picture","pictures","play","player","playlist","post","posts","product","products","program","programs","project","qa","question","rank","ranking","read","readme","redirect","redirect.html","redirect.php","reg","register","res","resource","retrieve","sale","search","season","seasons","section","seller","series","service","services","setting","settings","share","shop","show","shows","site","soft","sort","source","special","star","stars","static","stock","store","stream","streaming","streams","student","study","tag","tags","task","teacher","team","tech","temp","test","thread","tool","tools","topic","topics","torrent","trade","travel","tv","txt","type","u","upload","uploads","url","urls","user","users","v","version","video","videos","view","vip","vod","watch","web","wenku","wiki","work","www","zh","zh-cn","zh-tw","zip","about-us","access","accounting","activation","address","advertising","affiliate","agreement","alert","alerts","analytics-dashboard","announcement","api-docs","apply","archive-news","article-detail","attendance","author","auto","backup","banner","billing","board","brand","browse-all","business","calendar","campaign","career","cart-checkout","catalog","certificate","checkout-success","client","cloud","comment","company-info","competition","complaint","conference","connect","console","contact-form","contest","contract","contribute","control","cookie","copyright","coupon","create","crm","currency","custom","customer","dashboard-admin","data-center","deal","default","demo","department","design","developer","development","device","directory-list","discounts","display","donate","editor","email","employee","employment","enterprise","entry","environment","error-log","estimate","exam","example","exchange","experience","expert","export","faq-page","feature","feedback-form","finance","financial","fleet","flow","form","gallery","gateway","general","global","guide","hardware","health","history-page","holiday","host","hosting","identity","image-gallery","import","index-page","industry","info-center","information","inquiry","install","instruction","insurance","integration","interface","internal","invoice","issue","job","join","journal","key","knowledge-base","lab","landing","language","launch","legal","license","limited","location","log","logging","logs","machine","mail","manage","management","manual","map-view","market","marketing","master","media-center","member-area","menu","merchant","message-board","meta","method","metrics","misc","moderator","module","monitor","monthly","navigation","network","newsletter","notification","office","official","open","operation","opinion","option","order-detail","organization","overview","owner","package","partner","password","payment-info","people","performance","personal","phone","photo-gallery","plan","platform","policy","portal","portfolio","position","preferences","press-release","preview","pricing","print","privacy-policy","problem","process","profile-edit","project-detail","promotion","property","proposal","public","publication","purchase","quality","queue","quote","ranking-list","rate","rating","record","register-form","release","report","reporting","request","requirement","research","resource-center","response","result","resume","review","role","rule","sales","sample","schedule","school","score","screen","script","search-results","section-list","security","server","session","setting-page","setup","shop-cart","shopping","signin","signup-form","site-map","solution","staff","statistics","status-page","storage","store-front","studio","submission","subscribe-form","subscription","success","summary","support-center","survey","system","table","task-list","team-member","template","terms-of-service","test-case","ticket","timeline","toolbox","topic-list","tour","tracking-info","training","transaction","transfer","translation","tutorial","update","upgrade","upload-file","usage","user-guide","utility","validation","value","vendor","verification","version-info","visitor","voice","webmail","workflow"];
+    const commonPathDirs = ["#","about","account","acg","act","activity","ad","admin","ads","ajax","album","albums","anime","api","app","apps","archive","archives","article","articles","ask","auth","avatar","bbs","bd","blog","blogs","book","books","bt","buy","cart","category","categories","cb","channel","channels","chat","china","city","class","classify","clip","clips","club","cn","code","collect","collection","comic","comics","community","company","config","contact","content","course","courses","cp","data","detail","details","dh","directory","discount","discuss","dl","dload","doc","docs","document","documents","doujin","download","downloads","drama","edu","en","ep","episode","episodes","event","events","f","faq","favorite","favourites","favs","feedback","file","files","film","films","forum","forums","friend","friends","game","games","gif","go","go.html","go.php","group","groups","help","home","hot","htm","html","image","images","img","index","info","intro","item","items","ja","jp","jump","jump.html","jump.php","jumping","knowledge","lang","lesson","lessons","lib","library","link","links","list","live","lives","logout","m","mag","magnet","mall","manhua","map","member","members","message","messages","mobile","movie","movies","music","my","new","news","note","novel","novels","online","order","out","out.html","out.php","outbound","p","page","pages","pay","payment","pdf","photo","photos","pic","pics","picture","pictures","play","player","playlist","post","posts","product","products","program","programs","project","qa","question","rank","ranking","read","readme","redirect","redirect.html","redirect.php","reg","register","res","resource","retrieve","sale","search","season","seasons","section","seller","series","service","services","setting","settings","share","shop","show","shows","site","soft","sort","source","special","star","stars","static","stock","store","stream","streaming","streams","student","study","tag","tags","task","teacher","team","tech","temp","test","thread","tool","tools","topic","topics","torrent","trade","travel","tv","txt","type","u","upload","uploads","url","urls","user","users","v","version","video","videos","view","vip","vod","watch","web","wenku","wiki","work","www","zh","zh-cn","zh-tw","zip","about-us","access","accounting","activation","address","advertising","affiliate","agreement","alert","alerts","analytics-dashboard","announcement","api-docs","apply","archive-news","article-detail","attendance","author","auto","backup","banner","billing","board","brand","browse-all","business","calendar","campaign","career","cart-checkout","catalog","certificate","checkout-success","client","cloud","comment","company-info","competition","complaint","conference","connect","console","contact-form","contest","contract","contribute","control","cookie","copyright","coupon","create","crm","currency","custom","customer","dashboard-admin","data-center","deal","default","demo","department","design","developer","development","device","directory-list","discounts","display","donate","editor","email","employee","employment","enterprise","entry","environment","error-log","estimate","exam","example","exchange","experience","expert","export","faq-page","feature","feedback-form","finance","financial","fleet","flow","form","gallery","gateway","general","global","guide","hardware","health","history-page","holiday","host","hosting","identity","image-gallery","import","index-page","industry","info-center","information","inquiry","install","instruction","insurance","integration","interface","internal","invoice","issue","job","join","journal","key","knowledge-base","lab","landing","language","launch","legal","license","limited","location","log","logging","logs","machine","mail","manage","management","manual","map-view","market","marketing","master","media-center","member-area","menu","merchant","message-board","meta","method","metrics","misc","moderator","module","monitor","monthly","navigation","network","newsletter","notification","office","official","open","operation","opinion","option","order-detail","organization","overview","owner","package","partner","password","payment-info","people","performance","personal","phone","photo-gallery","plan","platform","policy","portal","portfolio","position","preferences","press-release","preview","pricing","print","privacy-policy","problem","process","profile-edit","project-detail","promotion","property","proposal","public","publication","purchase","quality","queue","quote","ranking-list","rate","rating","record","register-form","release","report","reporting","request","requirement","research","resource-center","response","result","resume","review","role","rule","sales","sample","schedule","school","score","screen","script","search-results","section-list","security","server","session","setting-page","setup","shop-cart","shopping","signin","signup-form","site-map","solution","staff","statistics","status-page","storage","store-front","studio","submission","subscribe-form","subscription","success","summary","support-center","survey","system","table","task-list","team-member","template","terms-of-service","test-case","ticket","timeline","toolbox","topic-list","tour","tracking-info","training","transaction","transfer","translation","tutorial","update","upgrade","upload-file","usage","user-guide","utility","validation","value","vendor","verification","version-info","visitor","voice","webmail","workflow"];
     let hostList = []; let host = ''; // 由 getConfigValue 填充
 
     let ev = true;   
@@ -402,13 +402,78 @@
                 const reqUrl = new URL(request.url);
                 const pathSegments = reqUrl.pathname.split('/').filter(p => p);
 
-                if (!isWebSocket && !isPost && reqUrl.pathname !== '/') {
+                let urlPathMatched = true;
+                if (!isWebSocket && !isPost) {
                     const tmpAt = (env.u || env.U || '').toLowerCase();
                     const tmpCp = (env.d || env.D || '').toLowerCase();
                     const firstSeg = pathSegments[0] || '';
                     const cleanCp = tmpCp.startsWith('/') ? tmpCp.substring(1) : tmpCp;
-                    if (firstSeg !== tmpAt && (cleanCp ? firstSeg !== cleanCp : false)) {
-                        return new Response('Not Found', { status: 404 });
+                    if (firstSeg !== tmpAt && (cleanCp ? firstSeg !== cleanCp : firstSeg !== '')) {
+                        // 快速路径：环境变量已启用随机路径 → 直接处理
+                        const tmpRandomPath = (env.randomPath || env.RANDOMPATH || '').toLowerCase();
+                        if (tmpRandomPath === 'yes' || tmpRandomPath === 'true' || tmpRandomPath === '1') {
+                            // /login 和 /api/* 是系统路径，不被随机路径拦截
+                            const pn = reqUrl.pathname;
+                            if (pn === '/login' || pn.startsWith('/api/')) {
+                                // 标记后继续，等KV初始化后使用完整配置处理
+                                urlPathMatched = false;
+                            } else {
+                                // 常见路径池中的路径 → 伪装为自定义首页（所有段必须在池中）
+                                const allSegInPool = pathSegments.length > 0 && pathSegments.every(s => commonPathDirs.includes(s));
+                                if (allSegInPool) {
+                                    const tmpHomepage = env.homepage || env.HOMEPAGE || '';
+                                    if (tmpHomepage.trim()) {
+                                        try {
+                                            const homepageList = tmpHomepage.split('|').map(u => u.trim()).filter(u => u);
+                                            const selectedUrl = homepageList[Math.floor(Math.random() * homepageList.length)];
+                                            if (selectedUrl) {
+                                                const hpResp = await fetch(selectedUrl, {
+                                                    method: 'GET',
+                                                    headers: {
+                                                        'User-Agent': request.headers.get('User-Agent') || 'Mozilla/5.0',
+                                                        'Accept': request.headers.get('Accept') || '*/*',
+                                                    }
+                                                });
+                                                if (hpResp.ok) {
+                                                    const contentType = hpResp.headers.get('Content-Type') || 'text/html; charset=utf-8';
+                                                    if (contentType.startsWith('image/')) {
+                                                        const origUrl = selectedUrl.replace(/"/g, '&quot;');
+                                                        const imgHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>CFnew</title><style>body{margin:0;padding:0;overflow:hidden;background:#000;display:flex;align-items:center;justify-content:center;height:100vh}img{width:100vw;height:100vh;object-fit:fill}</style></head><body><img src="${origUrl}" alt="homepage" style="width:100vw;height:100vh;object-fit:fill"></body></html>`;
+                                                        return new Response(imgHtml, {
+                                                            status: 200,
+                                                            headers: {
+                                                                'Content-Type': 'text/html; charset=utf-8',
+                                                                'Cache-Control': 'no-cache, no-store, must-revalidate',
+                                                            }
+                                                        });
+                                                    }
+                                                    return new Response(hpResp.body, {
+                                                        status: 200,
+                                                        headers: {
+                                                            'Content-Type': contentType,
+                                                            'Cache-Control': 'no-cache, no-store, must-revalidate',
+                                                        }
+                                                    });
+                                                }
+                                            }
+                                        } catch (_) {}
+                                    }
+                                    // 白名单路径：自定义首页获取失败 → 1101兜底伪装
+                                    const clientIP = request.headers.get('CF-Connecting-IP') || '127.0.0.1';
+                                    return new Response(await html1101(reqUrl.hostname, clientIP), {
+                                        status: 200,
+                                        headers: {
+                                            'Content-Type': 'text/html; charset=utf-8',
+                                            'Cache-Control': 'no-cache, no-store, must-revalidate',
+                                        }
+                                    });
+                                }
+                                // 不在白名单的随机路径 → 404
+                                return new Response('Not Found', { status: 404 });
+                            }
+                        }
+                        // 环境变量未设 randomPath → 标记后继续，等KV初始化后使用完整配置判断
+                        urlPathMatched = false;
                     }
                 }
 
@@ -597,6 +662,83 @@
                 const randomPathControl = getConfigValue('randomPath', env.randomPath || env.RANDOMPATH);
                 if (randomPathControl !== undefined && randomPathControl !== '') {
                     enableRandomPath = randomPathControl === 'yes' || randomPathControl === true || randomPathControl === 'true' || randomPathControl === '1';
+                }
+
+                // 随机路径模式：路径不匹配时，KV初始化后使用完整配置重判
+                // 注意：以下路径需要跳过随机路径处理，让请求继续到对应的处理器
+                if (!urlPathMatched && enableRandomPath) {
+                    const currentPath = new URL(request.url).pathname;
+                    // 检查当前路径是否为已知管理路径（跳过随机路径处理）
+                    let skipRandomPath = (currentPath === '/login') || currentPath.startsWith('/api/');
+                    if (!skipRandomPath) {
+                        if (cp && cp.trim()) {
+                            // 检查是否为自定义管理路径或子路径（/custom-path, /custom-path/sub, /custom-path/api/config 等）
+                            const cleanCp = cp.trim().startsWith('/') ? cp.trim() : '/' + cp.trim();
+                            const normalizedCp = cleanCp.endsWith('/') && cleanCp.length > 1 ? cleanCp.slice(0, -1) : cleanCp;
+                            const normalizedPath = currentPath.endsWith('/') && currentPath.length > 1 ? currentPath.slice(0, -1) : currentPath;
+                            skipRandomPath = (normalizedPath === normalizedCp) || normalizedPath.startsWith(normalizedCp + '/');
+                        } else {
+                            // 无自定义路径，检查是否为UUID路径或子路径（/UUID, /UUID/sub 等）
+                            const prefix = '/' + at;
+                            skipRandomPath = currentPath === prefix || currentPath.startsWith(prefix + '/');
+                        }
+                    }
+                    if (skipRandomPath) {
+                        // 跳过，让请求继续到对应的处理器（登录悬浮窗、订阅配置页等）
+                    } else {
+                        // 常见路径池中的路径 → 伪装为自定义首页（所有段必须在池中）
+                        const allSegInPool = pathSegments.length > 0 && pathSegments.every(s => commonPathDirs.includes(s));
+                        if (allSegInPool) {
+                            const customHomepage = getConfigValue('homepage', env.homepage || env.HOMEPAGE);
+                            if (customHomepage && customHomepage.trim()) {
+                                try {
+                                    const homepageList = customHomepage.split('|').map(u => u.trim()).filter(u => u);
+                                    const selectedUrl = homepageList[Math.floor(Math.random() * homepageList.length)];
+                                    if (selectedUrl) {
+                                        const hpResp = await fetch(selectedUrl, {
+                                            method: 'GET',
+                                            headers: {
+                                                'User-Agent': request.headers.get('User-Agent') || 'Mozilla/5.0',
+                                                'Accept': request.headers.get('Accept') || '*/*',
+                                            }
+                                        });
+                                        if (hpResp.ok) {
+                                            const contentType = hpResp.headers.get('Content-Type') || 'text/html; charset=utf-8';
+                                            if (contentType.startsWith('image/')) {
+                                                const origUrl = selectedUrl.replace(/"/g, '&quot;');
+                                                const imgHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>CFnew</title><style>body{margin:0;padding:0;overflow:hidden;background:#000;display:flex;align-items:center;justify-content:center;height:100vh}img{width:100vw;height:100vh;object-fit:fill}</style></head><body><img src="${origUrl}" alt="homepage" style="width:100vw;height:100vh;object-fit:fill"></body></html>`;
+                                                return new Response(imgHtml, {
+                                                    status: 200,
+                                                    headers: {
+                                                        'Content-Type': 'text/html; charset=utf-8',
+                                                        'Cache-Control': 'no-cache, no-store, must-revalidate',
+                                                    }
+                                                });
+                                            }
+                                            return new Response(hpResp.body, {
+                                                status: 200,
+                                                headers: {
+                                                    'Content-Type': contentType,
+                                                    'Cache-Control': 'no-cache, no-store, must-revalidate',
+                                                }
+                                            });
+                                        }
+                                    }
+                                } catch (_) {}
+                            }
+                            // 白名单路径：自定义首页获取失败 → 1101兜底伪装
+                            const clientIP = request.headers.get('CF-Connecting-IP') || '127.0.0.1';
+                            return new Response(await html1101(reqUrl.hostname, clientIP), {
+                                status: 200,
+                                headers: {
+                                    'Content-Type': 'text/html; charset=utf-8',
+                                    'Cache-Control': 'no-cache, no-store, must-revalidate',
+                                }
+                            });
+                        }
+                        // 不在白名单的随机路径 → 404
+                        return new Response('Not Found', { status: 404 });
+                    }
                 }
 
                 const url = new URL(request.url);
@@ -853,13 +995,24 @@
                         }
                     }
 
-                    if (url.pathname === '/') {
+                    if (url.pathname === '/' || url.pathname === '/login') {
+                        const isLoginPath = url.pathname === '/login';
                         // 检查是否有自定义首页URL配置
                         const customHomepage = getConfigValue('homepage', env.homepage || env.HOMEPAGE);
+                        let isHomepageMode = false;
+                        let homepageContent = null;
+                        let homepageContentType = null;
+                        
                         if (customHomepage && customHomepage.trim()) {
                             try {
+                                // 多首页支持：竖线分隔，每次随机抽取一个
+                                const homepageList = customHomepage.split('|').map(u => u.trim()).filter(u => u);
+                                const selectedHomepage = homepageList.length > 0 ? homepageList[Math.floor(Math.random() * homepageList.length)] : '';
+                                if (!selectedHomepage) {
+                                    throw new Error('homepage list is empty');
+                                }
                                 // 从自定义URL获取内容
-                                const homepageResponse = await fetch(customHomepage.trim(), {
+                                const homepageResponse = await fetch(selectedHomepage, {
                                     method: 'GET',
                                     headers: {
                                         'User-Agent': request.headers.get('User-Agent') || 'Mozilla/5.0',
@@ -870,18 +1023,23 @@
                                 });
 
                                 if (homepageResponse.ok) {
-                                    // 获取响应内容
-                                    const contentType = homepageResponse.headers.get('Content-Type') || 'text/html; charset=utf-8';
-                                    const content = await homepageResponse.text();
-                                    
-                                    // 返回自定义首页内容
-                                    return new Response(content, {
-                                        status: homepageResponse.status,
-                                        headers: {
-                                            'Content-Type': contentType,
-                                            'Cache-Control': 'no-cache, no-store, must-revalidate',
+                                    homepageContentType = homepageResponse.headers.get('Content-Type') || 'text/html; charset=utf-8';
+                                    if (homepageContentType.includes('text/html')) {
+                                        // HTML 内容：标记为首页模式（后续根据路径决定是否注入悬浮窗）
+                                        isHomepageMode = true;
+                                        homepageContent = await homepageResponse.text();
+                                    } else {
+                                        // 非HTML内容（图片、PDF等）：创建包裹HTML页面，嵌入内容并显示悬浮窗
+                                        isHomepageMode = true;
+                                        const isImage = homepageContentType.startsWith('image/');
+                                        homepageContentType = 'text/html; charset=utf-8';
+                                        const origUrl = selectedHomepage.replace(/"/g, '&quot;');
+                                        if (isImage) {
+                                            homepageContent = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>CFnew</title><style>body{margin:0;padding:0;overflow:hidden;background:#000;display:flex;align-items:center;justify-content:center;height:100vh}img{width:100vw;height:100vh;object-fit:fill}</style></head><body><img src="${origUrl}" alt="homepage" style="width:100vw;height:100vh;object-fit:fill"></body></html>`;
+                                        } else {
+                                            homepageContent = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>CFnew</title><style>body{margin:0;padding:0;overflow:hidden;height:100vh;background:#000}iframe{width:100%;height:100%;border:none}</style></head><body><iframe src="${origUrl}" allowfullscreen sandbox></iframe></body></html>`;
                                         }
-                                    });
+                                    }
                                 }
                             } catch (error) {
                                 // 如果获取失败，继续使用默认终端页面
@@ -959,10 +1117,148 @@
                         // 检查管理员认证状态（用于终端显示密码提示）
                         const requiresAdminAuth = adminPassword && !(await isAdminAuthenticated(request));
                         
-                        // 管理员已认证 → 直接跳转到订阅配置页面，不显示终端
-                        if (adminPassword && !requiresAdminAuth) {
+                        // 管理员已认证 → 跳转到订阅配置页面（仅非homepage模式）
+                        if (!isLoginPath && adminPassword && !requiresAdminAuth && !isHomepageMode) {
                             const targetPath = cp && cp.trim() ? '/' + cp.trim().replace(/^\//, '') : '/' + at;
                             return Response.redirect(new URL(targetPath, request.url).toString(), 302);
+                        }
+                        
+                        // / 路径且为伪装页：直接返回原始内容，不注入悬浮窗
+                        if (isHomepageMode && !isLoginPath) {
+                            return new Response(homepageContent, {
+                                status: 200,
+                                headers: {
+                                    'Content-Type': homepageContentType,
+                                    'Cache-Control': 'no-cache, no-store, must-revalidate',
+                                }
+                            });
+                        }
+                        
+                        // / 路径且无自定义首页
+                        if (!isHomepageMode && !isLoginPath) {
+                            if (enableRandomPath) {
+                                // 随机路径模式：显示1101兜底页面作为伪装
+                                const clientIP = request.headers.get('CF-Connecting-IP') || '127.0.0.1';
+                                return new Response(await html1101(reqUrl.hostname, clientIP), {
+                                    status: 200,
+                                    headers: {
+                                        'Content-Type': 'text/html; charset=utf-8',
+                                        'Cache-Control': 'no-cache, no-store, must-revalidate',
+                                    }
+                                });
+                            }
+                            // 非随机路径模式：继续渲染终端页面
+                        }
+                        
+                        // /login 路径：构建带悬浮窗的页面（含矩阵雨、语言切换、FX、登录表单）
+                        if (isLoginPath) {
+                            const overlayCss = `<style>
+#cfnew-overlay{position:fixed!important;top:0!important;left:0!important;width:100%!important;height:100%!important;z-index:2147483647!important;background:rgba(5,3,14,0.35)!important;-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);display:flex!important;align-items:center!important;justify-content:center!important;font-family:"JetBrains Mono","Fira Code","Courier New",monospace!important;box-sizing:border-box!important;margin:0!important;padding:0!important}
+#cfnew-overlay *{box-sizing:border-box!important;margin:0;padding:0}
+#cfnew-matrix-rain{position:fixed!important;top:0!important;left:0!important;width:100vw!important;height:100vh!important;pointer-events:none!important;z-index:2147483646!important;overflow:hidden!important;will-change:transform!important;background:transparent!important}
+#cfnew-matrix-rain.fx-off{display:none!important}
+.cfnew-matrix-column{position:absolute!important;top:-120vh!important;left:0!important;color:#00f0ff!important;font-family:"JetBrains Mono","Courier New",monospace!important;font-size:14px!important;line-height:1.25!important;text-shadow:0 0 6px #00f0ff,0 0 12px rgba(0,240,255,0.5)!important;animation:cfnew-drop linear infinite!important}
+@keyframes cfnew-drop{0%{top:-120vh;opacity:0}10%{opacity:0.85}90%{opacity:0.4}100%{top:110vh;opacity:0}}
+.cfnew-matrix-column:nth-child(odd){animation-duration:12s!important}
+.cfnew-matrix-column:nth-child(even){animation-duration:18s!important;color:#ff2bd6!important;text-shadow:0 0 6px #ff2bd6,0 0 14px rgba(255,43,214,0.5)!important}
+.cfnew-matrix-column:nth-child(3n){animation-duration:20s!important;color:#a347ff!important;text-shadow:0 0 6px #a347ff!important}
+.cfnew-matrix-column:nth-child(5n){animation-duration:9s!important;opacity:0.6!important}
+#cfnew-dialog{position:relative!important;z-index:1!important;width:665px!important;max-width:92vw!important;min-height:475px!important;background:linear-gradient(180deg,rgba(8,4,28,0.92) 0%,rgba(15,3,40,0.92) 100%)!important;border:1px solid rgba(0,240,255,0.55)!important;border-radius:0!important;box-shadow:0 0 0 1px rgba(255,43,214,0.25),0 0 28px rgba(0,240,255,0.35),0 0 80px rgba(255,43,214,0.18),inset 0 0 30px rgba(0,240,255,0.06)!important;clip-path:polygon(0 18px,18px 0,calc(100% - 60px) 0,calc(100% - 42px) 18px,100% 18px,100% calc(100% - 14px),calc(100% - 14px) 100%,42px 100%,24px calc(100% - 14px),0 calc(100% - 14px));overflow:hidden!important}
+@media(min-width:1024px){#cfnew-dialog{aspect-ratio:7/5!important}}
+#cfnew-dialog::before{content:""!important;position:absolute!important;inset:0!important;background:repeating-linear-gradient(180deg,rgba(0,240,255,0.06) 0 1px,transparent 1px 4px)!important;pointer-events:none!important;z-index:0!important;animation:cfnew-scan 5s infinite!important}
+@keyframes cfnew-scan{0%,100%{opacity:0.6}50%{opacity:0.9}}
+#cfnew-dialog>*{position:relative!important;z-index:1!important}
+#cfnew-topbar{display:flex!important;justify-content:space-between!important;align-items:center!important;padding:14px 20px!important;background:linear-gradient(90deg,rgba(255,43,214,0.18) 0%,rgba(0,240,255,0.18) 100%)!important;border-bottom:1px solid rgba(0,240,255,0.5)!important;margin-bottom:0!important}
+#cfnew-lang-wrapper{display:flex!important;align-items:center!important;gap:6px!important;font-size:13px!important;color:#00f0ff!important}
+#cfnew-lang-wrapper select{background:transparent!important;border:1px solid rgba(0,240,255,0.4)!important;color:#00f0ff!important;font-family:inherit!important;font-size:13px!important;padding:2px 4px!important;cursor:pointer!important;outline:none!important}
+#cfnew-lang-wrapper select option{background:#0a0820!important;color:#00f0ff!important}
+#cfnew-fx-toggle{display:inline-flex!important;align-items:center!important;gap:6px!important;font-size:13px!important;color:#00f0ff!important;cursor:pointer!important;border:1px solid rgba(0,240,255,0.3)!important;border-radius:4px!important;background:transparent!important;font-family:inherit!important;padding:4px 8px!important}
+#cfnew-fx-toggle:hover{color:#ff2bd6!important;border-color:#ff2bd6!important;text-shadow:0 0 8px #ff2bd6!important;box-shadow:0 0 16px rgba(255,43,214,0.55)!important}
+#cfnew-fx-dot{width:6px!important;height:6px!important;border-radius:50%!important;background:#00ff9d!important;box-shadow:0 0 8px #00ff9d!important}
+#cfnew-fx-toggle.fx-off{color:#7aa9c4!important;border-color:#7aa9c4!important;text-shadow:none!important;box-shadow:none!important}
+#cfnew-fx-toggle.fx-off #cfnew-fx-dot{background:transparent!important;border:1px solid #7aa9c4!important;box-shadow:none!important}
+#cfnew-dialog-buttons{display:flex!important;gap:6px!important}
+#cfnew-dialog-buttons span{width:12px!important;height:12px!important;border-radius:50%!important;display:inline-block!important}
+#cfnew-dialog-buttons span:nth-child(1){background:#ff5f56!important}
+#cfnew-dialog-buttons span:nth-child(2){background:#ffbd2e!important}
+#cfnew-dialog-buttons span:nth-child(3){background:#27c93f!important}
+#cfnew-dialog-title{color:#00f0ff!important;font-weight:700!important;letter-spacing:0.12em!important;text-shadow:0 0 8px #00f0ff,-1px 0 #ff2bd6,1px 0 #00ff9d!important}
+#cfnew-login-section{padding:8px 20px 24px!important}
+.cfnew-line{margin:12px 0!important;font-size:15px!important;line-height:1.7!important}
+.cfnew-prompt{color:#00f0ff!important;font-weight:700!important}
+.cfnew-output{color:#00f0ff!important;margin-left:8px!important}
+.cfnew-error{color:#ff3860!important;margin-left:8px!important;text-shadow:0 0 6px #ff3860!important}
+.cfnew-input{background:transparent!important;border:none!important;color:#00f0ff!important;font-family:inherit!important;font-size:15px!important;outline:none!important;width:320px!important;margin-left:8px!important;caret-color:transparent!important}
+.cfnew-input::placeholder{color:rgba(122,169,196,0.6)!important}
+#cfnew-pwd-display{color:#00f0ff!important;font-size:15px!important;font-family:inherit!important;white-space:pre!important;letter-spacing:0.05em!important}
+.cfnew-cursor::after{content:"\\2588"!important;color:#00f0ff!important;animation:cfnew-blink 1s step-end infinite}
+@keyframes cfnew-blink{50%{opacity:0}}
+</style>`;
+                            const termTitle = isFarsi ? 'ترمینال v2.9.8' : '终端 v2.9.8';
+                            const loginLabel = isFarsi ? 'ورود مدیر / ADMIN LOGIN' : '管理员登录 / ADMIN LOGIN';
+                            const authRequired = 'AUTHENTICATION REQUIRED';
+                            const passwordPrompt = isFarsi ? 'لطفا رمز مدیر را وارد کنید' : '请输入管理员密码';
+                            const errorFail = isFarsi ? 'رمز اشتباه' : '密码错误';
+                            const errorEmpty = isFarsi ? 'لطفا رمز را وارد کنید' : '请输入密码';
+                            const errorNetwork = isFarsi ? 'خطا: ' : '请求失败: ';
+                            const langSelectedFa = isFarsi ? ' selected' : '';
+                            const langSelectedZh = isFarsi ? '' : ' selected';
+                            const overlayHtml = `<div id="cfnew-matrix-rain"></div>
+<div id="cfnew-overlay">
+<div id="cfnew-dialog">
+<div id="cfnew-topbar">
+<div id="cfnew-dialog-buttons" style="margin-right:9px!important"><span></span><span></span><span></span></div>
+<span id="cfnew-dialog-title">${termTitle}</span>
+<div style="flex:1!important"></div>
+<div id="cfnew-lang-wrapper" style="margin-right:7px!important"><span style="color:#7aa9c4;font-size:13px;">LANG_</span>
+<select id="cfnew-lang-select" onchange="cfnewChangeLanguage(this.value)">
+<option value="zh"${langSelectedZh}>🇨🇳 中文</option>
+<option value="fa"${langSelectedFa}>🇮🇷 فارسی</option>
+</select></div>
+<button type="button" id="cfnew-fx-toggle" onclick="cfnewToggleFx()"><span id="cfnew-fx-dot"></span><span id="cfnew-fx-label">FX: ON</span></button>
+</div>
+<div id="cfnew-login-section">
+<div class="cfnew-line"><span class="cfnew-prompt">root:~$</span><span class="cfnew-output">${loginLabel}</span></div>
+<div class="cfnew-line"><span class="cfnew-prompt">root:~$</span><span class="cfnew-error">${authRequired}</span></div>
+<div class="cfnew-line"><span class="cfnew-prompt">root:~$</span><span class="cfnew-output">${passwordPrompt}</span></div>
+<div class="cfnew-line"><span class="cfnew-prompt">root:~$</span> <span id="cfnew-pwd-display"></span><span class="cfnew-cursor"></span><input type="password" id="cfnew-pwd-input" style="position:fixed!important;left:-9999px!important;top:-9999px!important;opacity:0!important;width:1px!important;height:1px!important;padding:0!important;border:none!important;outline:none!important" aria-hidden="true" autocomplete="off"></div>
+<div class="cfnew-line" id="cfnew-login-error" style="display:none"><span class="cfnew-prompt">root:~$</span><span class="cfnew-error" id="cfnew-login-errortext">${errorFail}</span></div>
+</div>
+</div>
+</div>`;
+                            const targetCpx = cp && cp.trim() ? '/' + cp.trim().replace(/^\//, '') : '/' + at;
+                            const overlayJs = `<script>
+function cfnewCreateMatrixRain(){var c=document.getElementById('cfnew-matrix-rain');if(!c||c.classList.contains('fx-off'))return;if(c.children.length>0)return;var h='01\\u30a2\\u30a4\\u30a6\\u30a8\\u30aa\\u30ab\\u30ad\\u30af\\u30b1\\u30b3\\u30b5\\u30b7\\u30b9\\u30bb\\u30bd\\u30bf\\u30c1\\u30c4\\u30c6\\u30c8\\u30ca\\u30cb\\u30cc\\u30cd\\u30ce$%#@!?<>+=ABCDEF',p=['#00f0ff','#ff2bd6','#a347ff','#00ff9d'],n=Math.floor(window.innerWidth/20);for(var i=0;i<n;i++){var d=document.createElement('div');d.className='cfnew-matrix-column';d.style.left=(i*20)+'px';d.style.animationDelay=(-Math.random()*15)+'s';d.style.animationDuration=(Math.random()*14+8)+'s';d.style.fontSize=(Math.random()*4+12)+'px';d.style.opacity=(Math.random()*0.7+0.3).toFixed(2);var t='',m=Math.floor(Math.random()*30+18);for(var j=0;j<m;j++){var ch=h[Math.floor(Math.random()*h.length)];var useAccent=Math.random()>0.85;var color=useAccent?p[Math.floor(Math.random()*p.length)]:'';t+=color?'<span style="color:'+color+';text-shadow:0 0 8px '+color+';">'+ch+'</span><br>':'<span>'+ch+'</span><br>'}d.innerHTML=t;c.appendChild(d)}var T=setInterval(function(){var cols=c.querySelectorAll('.cfnew-matrix-column');cols.forEach(function(col){if(Math.random()>0.94){var spans=col.querySelectorAll('span');if(spans.length>0){var target=spans[Math.floor(Math.random()*spans.length)];var prev=target.style.color;target.style.color='#ffffff';target.style.textShadow='0 0 10px #ffffff, 0 0 18px #00f0ff';setTimeout(function(){target.style.color=prev;target.style.textShadow=''},200)}}})},110);window.addEventListener('beforeunload',function(){clearInterval(T)})}
+function cfnewChangeLanguage(l){try{localStorage.setItem('preferredLanguage',l)}catch(e){}var d=new Date();d.setFullYear(d.getFullYear()+1);document.cookie='preferredLanguage='+l+'; path=/; expires='+d.toUTCString()+'; SameSite=Lax';window.location.reload()}
+function cfnewToggleFx(){var off=localStorage.getItem('cp-fx-off')==='1';localStorage.setItem('cp-fx-off',off?'0':'1');var btn=document.getElementById('cfnew-fx-toggle'),lbl=document.getElementById('cfnew-fx-label'),rain=document.getElementById('cfnew-matrix-rain');if(off){btn.classList.remove('fx-off');lbl.textContent='FX: ON';if(rain){rain.classList.remove('fx-off');cfnewCreateMatrixRain()}}else{btn.classList.add('fx-off');lbl.textContent='FX: OFF';if(rain)rain.classList.add('fx-off')}}
+(function(){var fxOff=localStorage.getItem('cp-fx-off')==='1';if(fxOff){var btn=document.getElementById('cfnew-fx-toggle'),lbl=document.getElementById('cfnew-fx-label'),rain=document.getElementById('cfnew-matrix-rain');if(btn)btn.classList.add('fx-off');if(lbl)lbl.textContent='FX: OFF';if(rain)rain.classList.add('fx-off')}cfnewCreateMatrixRain()})();
+(function(){var inp=document.getElementById('cfnew-pwd-input');if(!inp)return;var err=document.getElementById('cfnew-login-error'),errTxt=document.getElementById('cfnew-login-errortext');var display=document.getElementById('cfnew-pwd-display');var rurl=window.location.origin+'${targetCpx}';function sync(){if(display)display.textContent=inp.value.replace(/./g,'•')}function doLogin(){var pwd=inp.value.trim();if(!pwd){errTxt.textContent='${errorEmpty}';err.style.display='';return}inp.disabled=true;err.style.display='none';fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pwd})}).then(function(r){return r.json()}).then(function(data){if(data.success){window.location.href=rurl}else{errTxt.textContent=data.message||'${errorFail}';err.style.display='';inp.disabled=false;inp.value='';if(display)display.textContent='';inp.focus()}}).catch(function(e){errTxt.textContent='${errorNetwork}'+e.message;err.style.display='';inp.disabled=false})}inp.addEventListener('input',sync);inp.addEventListener('keydown',function(e){if(e.key==='Enter')doLogin()});document.getElementById('cfnew-login-section').addEventListener('click',function(){inp.focus()});sync();inp.focus()})();
+</script>`;
+                            const overlayAll = overlayCss + overlayHtml + overlayJs;
+                            let finalContent;
+                            if (isHomepageMode) {
+                                finalContent = homepageContent;
+                                if (finalContent.includes('</body>')) {
+                                    finalContent = finalContent.replace('</body>', overlayAll + '\n</body>');
+                                } else {
+                                    finalContent += overlayAll;
+                                }
+                            } else {
+                                const clientIP = request.headers.get('CF-Connecting-IP') || '127.0.0.1';
+                                const baseContent = await html1101(reqUrl.hostname, clientIP);
+                                if (baseContent.includes('</body>')) {
+                                    finalContent = baseContent.replace('</body>', overlayAll + '\n</body>');
+                                } else {
+                                    finalContent = baseContent + overlayAll;
+                                }
+                            }
+                            return new Response(finalContent, {
+                                status: 200,
+                                headers: {
+                                    'Content-Type': 'text/html; charset=utf-8',
+                                    'Cache-Control': 'no-cache, no-store, must-revalidate',
+                                }
+                            });
                         }
                             
     const terminalHtml = `<!DOCTYPE html>
@@ -1339,6 +1635,7 @@
         </div>
         <script>
             // 页面特效图形化开关 (localStorage 持久化)
+            var cpMatrixTimer;
             window.cpApplyFx = function() {
                 var off = localStorage.getItem('cp-fx-off') === '1';
                 document.body.classList.toggle('fx-off', off);
@@ -1347,6 +1644,7 @@
                 if (off) {
                     var rain = document.getElementById('matrixCodeRain');
                     if (rain) rain.innerHTML = '';
+                    clearInterval(cpMatrixTimer);
                 } else if (typeof createMatrixRain === 'function') {
                     var r = document.getElementById('matrixCodeRain');
                     if (r && !r.firstChild) createMatrixRain();
@@ -1397,7 +1695,7 @@
                     matrixContainer.appendChild(column);
                 }
 
-                setInterval(function() {
+                cpMatrixTimer = setInterval(function() {
                     const cols = matrixContainer.querySelectorAll('.matrix-column');
                     cols.forEach(function(column) {
                         if (Math.random() > 0.94) {
@@ -3773,8 +4071,8 @@
                 fetchIP: '获取IP',
                 socks5Config: 'SOCKS5配置 (s):',
                 customHomepage: '自定义首页URL (homepage):',
-                customHomepagePlaceholder: '例如: https://example.com',
-                customHomepageHint: '设置自定义URL作为首页伪装。访问根路径 / 时将显示该URL的内容。留空则显示默认终端页面。',
+                customHomepagePlaceholder: '例如: https://example.com|https://example2.com',
+                customHomepageHint: '设置自定义URL作为首页伪装。支持HTML、图片等任意类型。多个地址用竖线(|)分隔，每次随机抽取一个显示。留空则显示默认终端页面。',
                 saveConfig: '保存配置',
                 advancedControl: '高级控制',
                 builtinPreferred: '内置优选类型:',
@@ -3928,8 +4226,8 @@
                 fetchIP: 'دریافت IP',
                 socks5Config: 'تنظیمات SOCKS5 (s):',
                 customHomepage: 'URL صفحه اصلی سفارشی (homepage):',
-                customHomepagePlaceholder: 'مثال: https://example.com',
-                customHomepageHint: 'تنظیم URL سفارشی به عنوان استتار صفحه اصلی. هنگام دسترسی به مسیر اصلی / محتوای این URL نمایش داده می‌شود. اگر خالی بگذارید صفحه ترمینال پیش‌فرض نمایش داده می‌شود.',
+                customHomepagePlaceholder: 'مثال: https://example.com|https://example2.com',
+                customHomepageHint: 'تنظیم URL سفارشی به عنوان استتار صفحه اصلی. از HTML، تصویر و هر نوع دیگری پشتیبانی می‌کند. آدرس‌های متعدد را با خط عمودی (|) جدا کنید و هر بار یک آدرس به صورت تصادفی انتخاب می‌شود. اگر خالی بگذارید صفحه ترمینال پیش‌فرض نمایش داده می‌شود.',
                 saveConfig: 'ذخیره تنظیمات',
                 advancedControl: 'کنترل پیشرفته',
                 builtinPreferred: 'نوع ترجیحی داخلی:',
@@ -5262,16 +5560,16 @@
                                     <label style="display: block; margin-bottom: 8px; color: #00f0ff; font-weight: bold; text-shadow: 0 0 3px #00f0ff;">IP版本选择</label>
                                     <div style="display: flex; gap: 20px; flex-wrap: wrap;">
                                         <label style="display: inline-flex; align-items: center; cursor: pointer; color: #00f0ff;">
+                                            <input type="checkbox" id="domainEnabled" checked style="margin-right: 8px; width: 18px; height: 18px; cursor: pointer;">
+                                            <span style="font-size: 1rem;">域名</span>
+                                        </label>
+                                        <label style="display: inline-flex; align-items: center; cursor: pointer; color: #00f0ff;">
                                             <input type="checkbox" id="ipv4Enabled" checked style="margin-right: 8px; width: 18px; height: 18px; cursor: pointer;">
                                             <span style="font-size: 1rem;">IPv4</span>
                                         </label>
                                         <label style="display: inline-flex; align-items: center; cursor: pointer; color: #00f0ff;">
                                             <input type="checkbox" id="ipv6Enabled" checked style="margin-right: 8px; width: 18px; height: 18px; cursor: pointer;">
                                             <span style="font-size: 1rem;">IPv6</span>
-                                        </label>
-                                        <label style="display: inline-flex; align-items: center; cursor: pointer; color: #00f0ff;">
-                                            <input type="checkbox" id="domainEnabled" checked style="margin-right: 8px; width: 18px; height: 18px; cursor: pointer;">
-                                            <span style="font-size: 1rem;">域名</span>
                                         </label>
                                     </div>
                                 </div>
@@ -5642,6 +5940,7 @@
             }
 
             // 页面特效图形化开关 (localStorage 持久化)
+            var cpMatrixTimer;
             window.cpApplyFx = function() {
                 var off = localStorage.getItem('cp-fx-off') === '1';
                 document.body.classList.toggle('fx-off', off);
@@ -5650,6 +5949,7 @@
                 if (off) {
                     var rain = document.getElementById('matrixCodeRain');
                     if (rain) rain.innerHTML = '';
+                    clearInterval(cpMatrixTimer);
                 } else if (typeof createMatrixRain === 'function') {
                     var r = document.getElementById('matrixCodeRain');
                     if (r && !r.firstChild) createMatrixRain();
@@ -5701,7 +6001,7 @@
                     matrixContainer.appendChild(column);
                 }
 
-                setInterval(function() {
+                cpMatrixTimer = setInterval(function() {
                     const cols = matrixContainer.querySelectorAll('.matrix-column');
                     cols.forEach(function(column) {
                         if (Math.random() > 0.94) {
@@ -7498,6 +7798,7 @@
     const IDLE_TIMEOUT_MS = 45000;
     const MAX_RETRIES = 2;
     const MAX_CONCURRENT = 32;
+    const XHTTP_FIRST_BYTE_TIMEOUT = 3500;            // 首字节超时
 
     function xhttp_sleep(ms) {
         return new Promise((r) => setTimeout(r, ms));
@@ -7543,13 +7844,20 @@
         return r;
     }
 
+    const uuidByteCache = new Map(); // UUID byte cache (ported from upstream v2.9.8b)
+
     function parse_uuid_xhttp(uuid) {
-        uuid = uuid.replaceAll('-', '');
+        if (uuidByteCache.has(uuid)) return uuidByteCache.get(uuid);
+        const hex = String(uuid || '').replace(/-/g, '');
+        if (hex.length !== 32) return [];
         const r = [];
         for (let index = 0; index < 16; index++) {
-            const v = parseInt(uuid.substr(index * 2, 2), 16);
+            const v = parseInt(hex.slice(index * 2, index * 2 + 2), 16);
+            if (isNaN(v)) return [];
             r.push(v);
         }
+        if (uuidByteCache.size > 16) uuidByteCache.clear();
+        uuidByteCache.set(uuid, r);
         return r;
     }
 
@@ -7743,47 +8051,86 @@
                 new ByteLengthQueuingStrategy({ highWaterMark: XHTTP_BUFFER_SIZE }),
             );
 
-            let lastActivity = Date.now();
-            const idleTimer = setInterval(() => {
-                if (Date.now() - lastActivity > IDLE_TIMEOUT_MS) {
-                    try {
-                        stream.writable.abort?.('idle timeout');
-                    } catch (_) {}
-                    clearInterval(idleTimer);
-                    reject('idle timeout');
-                }
-            }, 5000);
+            let hasFirstByte = false;
+            let firstByteTimer = null;
+            let dataTimer = null;
 
-            const reader = remote_readable.getReader();
+            function clearTimeouts() {
+                if (firstByteTimer) { clearTimeout(firstByteTimer); firstByteTimer = null; }
+                if (dataTimer) { clearTimeout(dataTimer); dataTimer = null; }
+            }
+
+            function onTimeout(reason) {
+                try { reader.cancel(); } catch (_) {}
+                try { stream.writable.abort?.(reason); } catch (_) {}
+                clearTimeouts();
+                reject(reason);
+            }
+
+            firstByteTimer = setTimeout(() => {
+                if (!hasFirstByte) onTimeout('first byte timeout');
+            }, XHTTP_FIRST_BYTE_TIMEOUT);
+
+            const bufferSize = XHTTP_BUFFER_SIZE;
+            let byobMode = false;
+            let readBuffer = new ArrayBuffer(bufferSize);
+            let reader;
+            try {
+                reader = remote_readable.getReader({ mode: 'byob' });
+                byobMode = true;
+            } catch (_) {
+                reader = remote_readable.getReader();
+            }
             const writer = stream.writable.getWriter();
 
             ;(async () => {
                 try {
                     let chunkCount = 0;
                     while (true) {
-                        const r = await reader.read();
-                        if (r.done) {
-                            break;
+                        let chunk;
+                        if (byobMode) {
+                            const r = await reader.read(new Uint8Array(readBuffer, 0, bufferSize));
+                            if (r.done) break;
+                            chunk = r.value;
+                            if (chunk.buffer instanceof ArrayBuffer && chunk.buffer.byteLength >= bufferSize) {
+                                readBuffer = chunk.buffer;
+                            } else {
+                                readBuffer = new ArrayBuffer(bufferSize);
+                            }
+                        } else {
+                            const r = await reader.read();
+                            if (r.done) break;
+                            chunk = r.value;
                         }
-                        lastActivity = Date.now();
-                        await writer.write(r.value);
+
+                        if (!hasFirstByte) {
+                            hasFirstByte = true;
+                            clearTimeout(firstByteTimer);
+                            firstByteTimer = null;
+                        }
+                        if (dataTimer) clearTimeout(dataTimer);
+                        dataTimer = setTimeout(() => onTimeout('data timeout'), IDLE_TIMEOUT_MS);
+
+                        await writer.write(byobMode ? chunk.slice() : chunk);
                         chunkCount++;
                         if (chunkCount % 5 === 0) {
                             await xhttp_sleep(0);
                         }
                     }
                     await writer.close();
+                    clearTimeouts();
                     resolve();
                 } catch (err) {
+                    clearTimeouts();
                     reject(err);
                 } finally {
+                    clearTimeouts();
                     try { 
                         reader.releaseLock(); 
                     } catch (_) {}
                     try { 
                         writer.releaseLock(); 
                     } catch (_) {}
-                    clearInterval(idleTimer);
                 }
             })();
         });
@@ -8905,4 +9252,95 @@
             } catch (e) { }
         }));
         return Array.from(results);
+    }
+
+    async function html1101(host, 访问IP) {
+        const now = new Date();
+        const 格式化时间戳 = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0') + ' ' + String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0') + ':' + String(now.getSeconds()).padStart(2, '0');
+        const 随机字符串 = Array.from(crypto.getRandomValues(new Uint8Array(8))).map(b => b.toString(16).padStart(2, '0')).join('');
+
+        return `<!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-js ie8 oldie" lang="en-US"> <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en-US"> <!--<![endif]-->
+<head>
+<title>Worker threw exception | ${host} | Cloudflare</title>
+<meta charset="UTF-8" />
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+<meta name="robots" content="noindex, nofollow" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<link rel="stylesheet" id="cf_styles-css" href="/cdn-cgi/styles/cf.errors.css" />
+<!--[if lt IE 9]><link rel="stylesheet" id='cf_styles-ie-css' href="/cdn-cgi/styles/cf.errors.ie.css" /><![endif]-->
+<style>body{margin:0;padding:0}</style>
+
+
+<!--[if gte IE 10]><!-->
+<script>
+  if (!navigator.cookieEnabled) {
+    window.addEventListener('DOMContentLoaded', function () {
+      var cookieEl = document.getElementById('cookie-alert');
+      cookieEl.style.display = 'block';
+    })
+  }
+</script>
+<!--<![endif]-->
+
+</head>
+<body>
+    <div id="cf-wrapper">
+        <div class="cf-alert cf-alert-error cf-cookie-error" id="cookie-alert" data-translate="enable_cookies">Please enable cookies.</div>
+        <div id="cf-error-details" class="cf-error-details-wrapper">
+            <div class="cf-wrapper cf-header cf-error-overview">
+                <h1>
+                    <span class="cf-error-type" data-translate="error">Error</span>
+                    <span class="cf-error-code">1101</span>
+                    <small class="heading-ray-id">Ray ID: ${随机字符串} &bull; ${格式化时间戳} UTC</small>
+                </h1>
+                <h2 class="cf-subheadline" data-translate="error_desc">Worker threw exception</h2>
+            </div><!-- /.header -->
+
+            <section></section><!-- spacer -->
+
+            <div class="cf-section cf-wrapper">
+                <div class="cf-columns two">
+                    <div class="cf-column">
+                        <h2 data-translate="what_happened">What happened?</h2>
+                            <p>You've requested a page on a website (${host}) that is on the <a href="https://www.cloudflare.com/5xx-error-landing?utm_source=error_100x" target="_blank">Cloudflare</a> network. An unknown error occurred while rendering the page.</p>
+                    </div>
+
+                    <div class="cf-column">
+                        <h2 data-translate="what_can_i_do">What can I do?</h2>
+                            <p><strong>If you are the owner of this website:</strong><br />refer to <a href="https://developers.cloudflare.com/workers/observability/errors/" target="_blank">Workers - Errors and Exceptions</a> and check Workers Logs for ${host}.</p>
+                    </div>
+
+                </div>
+            </div><!-- /.section -->
+
+            <div class="cf-error-footer cf-wrapper w-240 lg:w-full py-10 sm:py-4 sm:px-8 mx-auto text-center sm:text-left border-solid border-0 border-t border-gray-300">
+    <p class="text-13">
+      <span class="cf-footer-item sm:block sm:mb-1">Cloudflare Ray ID: <strong class="font-semibold"> ${随机字符串}</strong></span>
+      <span class="cf-footer-separator sm:hidden">&bull;</span>
+      <span id="cf-footer-item-ip" class="cf-footer-item hidden sm:block sm:mb-1">
+        Your IP:
+        <button type="button" id="cf-footer-ip-reveal" class="cf-footer-ip-reveal-btn">Click to reveal</button>
+        <span class="hidden" id="cf-footer-ip">${访问IP}</span>
+        <span class="cf-footer-separator sm:hidden">&bull;</span>
+      </span>
+      <span class="cf-footer-item sm:block sm:mb-1"><span>Performance &amp; security by</span> <a rel="noopener noreferrer" href="https://www.cloudflare.com/5xx-error-landing" id="brand_link" target="_blank">Cloudflare</a></span>
+
+    </p>
+    <script>(function(){function d(){var b=a.getElementById("cf-footer-item-ip"),c=a.getElementById("cf-footer-ip-reveal");b&&"classList"in b&&(b.classList.remove("hidden"),c.addEventListener("click",function(){c.classList.add("hidden");a.getElementById("cf-footer-ip").classList.remove("hidden")}))}var a=document;document.addEventListener&&a.addEventListener("DOMContentLoaded",d)})();</script>
+  </div><!-- /.error-footer -->
+
+        </div><!-- /#cf-error-details -->
+    </div><!-- /#cf-wrapper -->
+
+     <script>
+    window._cf_translation = {};
+
+  </script>
+</body>
+</html>`;
     }
