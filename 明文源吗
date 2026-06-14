@@ -849,11 +849,12 @@ export default {
         const 表单 = await 请求735.json();
         const 密码输入 = 表单.password || '';
         if (密码输入 === 管理员密码) {
-          const 令牌 = 创建管理员令牌(管理员密码, 请求735);
+          const 令牌 = await 创建管理员令牌(管理员密码, 请求735);
+          const cookie过期 = new Date(Date.now() + 900000); // 15分钟
           return new Response(JSON.stringify({ success: true }), {
             headers: {
               'Content-Type': 'application/json',
-              'Set-Cookie': `admin_token=${令牌}; Path=/; HttpOnly; SameSite=Lax; Max-Age=86400`
+              'Set-Cookie': `cfnew_admin_token=${令牌}; path=/; expires=${cookie过期.toUTCString()}; Secure; HttpOnly; SameSite=Lax`
             }
           });
         }
@@ -867,7 +868,7 @@ export default {
         return new Response(JSON.stringify({ success: true }), {
           headers: {
             'Content-Type': 'application/json',
-            'Set-Cookie': 'admin_token=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0'
+            'Set-Cookie': 'cfnew_admin_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; Secure; HttpOnly; SameSite=Lax'
           }
         });
       }
@@ -1014,9 +1015,11 @@ export default {
             }
           }
         }
-        // /login 路径：跳过首页伪装，直接渲染终端页面（内置管理员登录模块）
-        const 跳过首页伪装 = 网址698.pathname === '/login';
-        if (网址698.pathname === '/' || 跳过首页伪装) {
+        // /login 路径：取决于管理员密码设置
+        const 是登录路径 = 网址698.pathname === '/login';
+        const 需要管理员认证 = 管理员密码 && !(await 是否管理员已验证(请求735));
+        const 跳过首页伪装 = 是登录路径 && 需要管理员认证; // 仅当设置了密码且未认证时跳过首页
+        if (网址698.pathname === '/' || 是登录路径) {
           if (!跳过首页伪装) {
           // 多首页支持：竖线分隔，每次请求随机选取一个
           const 首页配置值 = 获取配置值('homepage', 本地值734.homepage || 本地值734.HOMEPAGE);
@@ -1057,7 +1060,6 @@ export default {
           }
           }
           // 管理员密码认证：终端页面显示登录提示（非独立页面）
-          const 需要管理员认证 = 管理员密码 && !(await 是否管理员已验证(请求735));
           const 管理员重定向路径 = (自定义路径 && 自定义路径.trim()) ? '/' + 自定义路径.trim().replace(/^\//, '') : '/' + 认证令牌;
           // 优先检查Cookie中的语言设置
           const 凭据头部669 = 请求735.headers.get('Cookie') || '';
@@ -1412,6 +1414,30 @@ export default {
                     -2px 0 var(--cp-pink),
                     2px 0 var(--cp-mint);
             }
+            /* 登出按钮 - admin模式下退出登录 */
+            .cp-logout-btn {
+                position: fixed; top: 82px; right: 22px; z-index: 1001;
+                background: rgba(8,4,28,0.85);
+                border: 1px solid var(--cp-pink);
+                color: var(--cp-pink);
+                padding: 6px 12px;
+                font-family: inherit;
+                font-size: 11px;
+                letter-spacing: 0.18em;
+                text-transform: uppercase;
+                cursor: pointer;
+                text-shadow: 0 0 6px var(--cp-pink);
+                box-shadow: 0 0 10px rgba(255,43,214,0.35);
+                clip-path: polygon(7px 0, 100% 0, 100% calc(100% - 7px), calc(100% - 7px) 100%, 0 100%, 0 7px);
+                transition: all 0.2s ease;
+                display: inline-flex; align-items: center; gap: 6px;
+            }
+            .cp-logout-btn:hover {
+                color: var(--cp-cyan);
+                border-color: var(--cp-cyan);
+                text-shadow: 0 0 8px var(--cp-cyan);
+                box-shadow: 0 0 16px rgba(0,240,255,0.55);
+            }
         </style>
     </head>
     <body>
@@ -1422,6 +1448,9 @@ export default {
                 <span class="cp-hud-line"><span class="cp-hud-label">NODE::</span> NIGHT_CITY</span>
                 <span class="cp-hud-line"><span class="cp-hud-label">LINK::</span> SECURE / ENC</span>
             </div>
+            ${管理员密码 ? `
+            <button type="button" class="cp-logout-btn" onclick="handleLogout()" title="${是否值664 ? 'خروج' : '登出'}">${是否值664 ? 'خروج' : '登出'}</button>
+            ` : ''}
             <div class="cp-lang-wrapper">
                 <span class="cp-lang-tag">LANG_</span>
                 <select id="languageSelector" onchange="切换语言(this.value)">
@@ -1679,6 +1708,11 @@ function 切换语言(语言) {
   document.cookie = 'preferredLanguage=' + 语言 + '; path=/; expires=' + 过期日期10002.toUTCString() + '; SameSite=Lax';
   // 刷新页面，不使用URL参数
   window.location.reload();
+}
+
+function handleLogout() {
+  fetch('/api/logout', { method: 'POST', keepalive: true }).catch(function() {});
+  window.location.href = '/';
 }
 
 // 页面加载时检查 localStorage 和 Cookie，并清理URL参数
@@ -9013,24 +9047,55 @@ function 获取随机主机(回退地址) {
   return 替换通配符(回退地址);
 }
 
-// === 管理员密码认证辅助 ===
+// === 管理员密码认证辅助（HMAC-SHA256 签名 + UA 绑定） ===
+async function 创建管理员令牌(密码, 请求) {
+  const t = Date.now();
+  const 编码 = new TextEncoder();
+  const ua = 请求.headers.get('User-Agent') || '';
+  const ua哈希 = await crypto.subtle.digest('SHA-256', 编码.encode(ua));
+  const ua数组 = new Uint8Array(ua哈希);
+  let ua二进制 = '';
+  for (let i = 0; i < ua数组.length; i++) ua二进制 += String.fromCharCode(ua数组[i]);
+  const ua编码 = btoa(ua二进制);
+  const 负载 = JSON.stringify({ t, ua: ua编码 });
+  const 负载编码 = btoa(负载);
+  const 密钥 = await crypto.subtle.importKey('raw', 编码.encode(密码), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  const 签名缓存 = await crypto.subtle.sign('HMAC', 密钥, 编码.encode(负载编码));
+  const 签名数组 = new Uint8Array(签名缓存);
+  let 签名二进制 = '';
+  for (let i = 0; i < 签名数组.length; i++) 签名二进制 += String.fromCharCode(签名数组[i]);
+  return 负载编码 + '.' + btoa(签名二进制);
+}
+
 async function 验证管理员令牌(令牌, 密码, 请求) {
   try {
-    const 数据 = JSON.parse(atob(令牌));
-    if (数据.p !== 密码) return false;
-    // 令牌有效期检查（24小时）
-    if (Date.now() - 数据.t > 86400000) return false;
-    // IP绑定检查
-    const 客户端IP = 请求.headers.get('CF-Connecting-IP') || '';
-    if (数据.ip && 数据.ip !== 客户端IP) return false;
-    return true;
+    const 片段 = 令牌.split('.');
+    if (片段.length !== 2) return false;
+    const [负载编码, 签名编码] = 片段;
+    const 数据 = JSON.parse(atob(负载编码));
+    // 有效期检查（15分钟）
+    if (Date.now() - 数据.t > 900000) return false;
+    // UA 绑定校验
+    const 编码 = new TextEncoder();
+    const 当前UA = 请求.headers.get('User-Agent') || '';
+    const ua哈希 = await crypto.subtle.digest('SHA-256', 编码.encode(当前UA));
+    const ua数组 = new Uint8Array(ua哈希);
+    let ua二进制 = '';
+    for (let i = 0; i < ua数组.length; i++) ua二进制 += String.fromCharCode(ua数组[i]);
+    if (数据.ua !== btoa(ua二进制)) return false;
+    // HMAC 验签
+    const 密钥 = await crypto.subtle.importKey('raw', 编码.encode(密码), { name: 'HMAC', hash: 'SHA-256' }, false, ['verify']);
+    const 签名原始 = atob(签名编码);
+    const 签名字节 = new Uint8Array(签名原始.length);
+    for (let i = 0; i < 签名原始.length; i++) 签名字节[i] = 签名原始.charCodeAt(i);
+    return await crypto.subtle.verify('HMAC', 密钥, 签名字节, 编码.encode(负载编码));
   } catch { return false; }
 }
 
 async function 是否管理员已验证(请求) {
   if (!管理员密码) return true; // 未设置密码，无需认证
   const Cookie头 = 请求.headers.get('Cookie') || '';
-  const 令牌匹配 = Cookie头.match(/admin_token=([^;]+)/);
+  const 令牌匹配 = Cookie头.match(/cfnew_admin_token=([^;]+)/);
   if (!令牌匹配) {
     const 授权头 = 请求.headers.get('Authorization') || '';
     const 授权令牌匹配 = 授权头.match(/Bearer\s+(.+)/);
@@ -9038,9 +9103,4 @@ async function 是否管理员已验证(请求) {
     return await 验证管理员令牌(授权令牌匹配[1], 管理员密码, 请求);
   }
   return await 验证管理员令牌(令牌匹配[1], 管理员密码, 请求);
-}
-
-function 创建管理员令牌(密码, 请求) {
-  const 客户端IP = 请求.headers.get('CF-Connecting-IP') || '';
-  return btoa(JSON.stringify({ p: 密码, t: Date.now(), ip: 客户端IP }));
 }
