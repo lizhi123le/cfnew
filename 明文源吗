@@ -846,8 +846,8 @@ export default {
       }
       // 管理员登录（不需要 UUID 验证，因为尚未登录）
       if (网址698.pathname.endsWith('/api/login') && 请求735.method === 'POST') {
-        const 表单 = await 请求735.formData();
-        const 密码输入 = 表单.get('password') || '';
+        const 表单 = await 请求735.json();
+        const 密码输入 = 表单.password || '';
         if (密码输入 === 管理员密码) {
           const 令牌 = 创建管理员令牌(管理员密码, 请求735);
           return new Response(JSON.stringify({ success: true }), {
@@ -1052,12 +1052,9 @@ export default {
               }
             }
           }
-          // 管理员密码认证：保护终端页面
-          if (管理员密码 && !(await 是否管理员已验证(请求735))) {
-            return new Response(生成登录页面(管理员密码), {
-              headers: { 'Content-Type': 'text/html; charset=utf-8' }
-            });
-          }
+          // 管理员密码认证：终端页面显示登录提示（非独立页面）
+          const 需要管理员认证 = 管理员密码 && !(await 是否管理员已验证(请求735));
+          const 管理员重定向路径 = (自定义路径 && 自定义路径.trim()) ? '/' + 自定义路径.trim().replace(/^\//, '') : '/' + 认证令牌;
           // 优先检查Cookie中的语言设置
           const 凭据头部669 = 请求735.headers.get('Cookie') || '';
           let 语言来源凭据668 = null;
@@ -1442,6 +1439,32 @@ export default {
                     <div class="terminal-title cp-glitch">${翻译值659.terminal}</div>
             </div>
             <div class="terminal-body" id="terminalBody">
+                <!-- 管理员登录（当管理员密码已设置且未认证时显示） -->
+                <div id="adminLoginSection" style="display:${需要管理员认证 ? 'block' : 'none'}">
+                    <div class="terminal-line">
+                        <span class="terminal-prompt">root:~$</span>
+                            <span class="terminal-output">管理员登录 / ADMIN LOGIN</span>
+                    </div>
+                    <div class="terminal-line">
+                        <span class="terminal-prompt">root:~$</span>
+                            <span class="terminal-error">AUTHENTICATION REQUIRED</span>
+                    </div>
+                    <div class="terminal-line">
+                        <span class="terminal-prompt">root:~$</span>
+                        <span class="terminal-output">请输入管理员密码</span>
+                    </div>
+                    <div class="terminal-line">
+                        <span class="terminal-prompt">root:~$</span>
+                            <input type="password" class="terminal-input" id="adminPwdInput" placeholder="password..." autofocus>
+                        <span class="terminal-cursor"></span>
+                    </div>
+                    <div id="adminLoginError" class="terminal-line" style="display:none">
+                        <span class="terminal-prompt">root:~$</span>
+                            <span class="terminal-error" id="adminLoginErrorText">密码错误</span>
+                    </div>
+                </div>
+                ${!需要管理员认证 ? `
+                <div id="normalTerminalSection" style="display:block">
                 <div class="terminal-line">
                     <span class="terminal-prompt">root:~$</span>
                         <span class="terminal-output">${翻译值659.congratulations}</span>
@@ -1456,9 +1479,11 @@ export default {
                 </div>
                 <div class="terminal-line">
                     <span class="terminal-prompt">root:~$</span>
-                        <input type="text" class="terminal-input" id="uuidInput" placeholder="${自定义路径 && 自定义路径.trim() ? 翻译值659.inputD : 翻译值659.inputU}" autofocus>
+                        <input type="text" class="terminal-input" id="uuidInput" placeholder="${自定义路径 && 自定义路径.trim() ? 翻译值659.inputD : 翻译值659.inputU}"${!需要管理员认证 ? ' autofocus' : ''}>
                     <span class="terminal-cursor"></span>
                 </div>
+                </div>
+                ` : ''}
             </div>
         </div>
         <script>
@@ -1604,6 +1629,44 @@ function 处理唯一标识输入() {
     输入10003.value = '';
   }
 }
+// 管理员重定向路径
+var adminRedirectUrl = window.location.origin + '${自定义路径 && 自定义路径.trim() ? '/' + 自定义路径.trim().replace(/^\//, '') : '/' + 认证令牌}';
+// 管理员登录处理（AJAX JSON POST）
+function handleAdminLogin() {
+  var input = document.getElementById('adminPwdInput');
+  var error = document.getElementById('adminLoginError');
+  var errorText = document.getElementById('adminLoginErrorText');
+  var password = input.value.trim();
+  if (!password) {
+    errorText.textContent = '请输入密码';
+    error.style.display = '';
+    return;
+  }
+  input.disabled = true;
+  error.style.display = 'none';
+  fetch('/api/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ password: password })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    if (data.success) {
+      window.location.href = adminRedirectUrl;
+    } else {
+      errorText.textContent = data.message || '密码错误';
+      error.style.display = '';
+      input.disabled = false;
+      input.value = '';
+      input.focus();
+    }
+  })
+  .catch(function(err) {
+    errorText.textContent = '请求失败: ' + err.message;
+    error.style.display = '';
+    input.disabled = false;
+  });
+}
 function 切换语言(语言) {
   localStorage.setItem('preferredLanguage', 语言);
   // 设置Cookie（有效期1年）
@@ -1651,9 +1714,18 @@ document.addEventListener('DOMContentLoaded', function () {
   try {
     创建矩阵雨();
   } catch (事件值10000) {}
+  const 管理员密码输入 = document.getElementById('adminPwdInput');
+  if (管理员密码输入) {
+    管理员密码输入.focus();
+    管理员密码输入.addEventListener('keypress', function (事件值) {
+      if (事件值.key === 'Enter') {
+        handleAdminLogin();
+      }
+    });
+  }
   const 输入 = document.getElementById('uuidInput');
   if (输入) {
-    输入.focus();
+    if (!document.getElementById('adminPwdInput')) 输入.focus();
     输入.addEventListener('keypress', function (事件值) {
       if (事件值.key === 'Enter') {
         处理唯一标识输入();
@@ -8966,45 +9038,4 @@ async function 是否管理员已验证(请求) {
 function 创建管理员令牌(密码, 请求) {
   const 客户端IP = 请求.headers.get('CF-Connecting-IP') || '';
   return btoa(JSON.stringify({ p: 密码, t: Date.now(), ip: 客户端IP }));
-}
-
-function 生成登录页面(密码) {
-  return `<!DOCTYPE html>
-<html lang="zh-CN">
-<head><meta charset="utf-8"><title>管理员登录</title>
-<style>
-* { margin: 0; padding: 0; box-sizing: border-box; }
-body { background: #0a0a0a; color: #00f0ff; font-family: 'Courier New', monospace; display: flex; justify-content: center; align-items: center; min-height: 100vh; overflow: hidden; }
-.login-container { background: rgba(0,20,30,0.9); border: 1px solid #00f0ff; border-radius: 8px; padding: 40px; width: 360px; box-shadow: 0 0 30px rgba(0,240,255,0.1); position: relative; z-index: 1; }
-h2 { text-align: center; margin-bottom: 24px; font-size: 1.4rem; letter-spacing: 4px; text-shadow: 0 0 10px #00f0ff; }
-.input-group { margin-bottom: 20px; }
-.input-group label { display: block; margin-bottom: 6px; font-size: 0.85rem; }
-.input-group input { width: 100%; padding: 12px; background: rgba(0,0,0,0.6); border: 1px solid #00f0ff; border-radius: 4px; color: #00f0ff; font-family: 'Courier New', monospace; font-size: 1rem; outline: none; }
-.input-group input:focus { border-color: #00ff88; box-shadow: 0 0 8px rgba(0,255,136,0.3); }
-button { width: 100%; padding: 12px; background: transparent; border: 1px solid #00f0ff; color: #00f0ff; font-family: 'Courier New', monospace; font-size: 1rem; cursor: pointer; border-radius: 4px; }
-button:hover { background: rgba(0,240,255,0.1); box-shadow: 0 0 15px rgba(0,240,255,0.2); }
-.error { color: #ff4444; text-align: center; margin-top: 12px; font-size: 0.85rem; display: none; }
-</style></head>
-<body>
-<div class="login-container">
-  <h2>管理员登录</h2>
-  <form id="loginForm">
-    <div class="input-group">
-      <label>密码</label>
-      <input type="password" id="password" placeholder="请输入管理员密码" autofocus>
-    </div>
-    <button type="submit">登录</button>
-    <div class="error" id="errorMsg">密码错误，请重试</div>
-  </form>
-</div>
-<script>
-document.getElementById('loginForm').onsubmit = async (e) => {
-  e.preventDefault();
-  const pwd = document.getElementById('password').value;
-  const res = await fetch('api/login', { method: 'POST', body: new URLSearchParams({password: pwd}) });
-  if (res.ok) { location.reload(); }
-  else { document.getElementById('errorMsg').style.display = 'block'; }
-};
-</script>
-</body></html>`;
 }
