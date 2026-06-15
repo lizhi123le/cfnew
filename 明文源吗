@@ -645,9 +645,8 @@ export default {
         const 首次值 = 路径值730[0] || '';
         const 清理值 = 值值727.startsWith('/') ? 值值727.substring(1) : 值值727;
         if (首次值 !== 值值728 && (清理值 ? 首次值 !== 清理值 : false)) {
-          return new Response('Not Found', {
-            status: 404
-          });
+          // 非 UUID/自定义路径的 GET 请求重定向到首页（适配随机路径、伪装首页等场景）
+          return Response.redirect(new URL('/', 请求735.url).href, 302);
         }
       }
       await 处理值键值值(本地值734);
