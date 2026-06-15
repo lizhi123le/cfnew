@@ -6541,7 +6541,10 @@ function 更新加密客户端问候锁定状态() {
     下拉框.value = '';
   } else {
     const 备份值 = localStorage.getItem('ech_alpn_backup');
-    下拉框.value = 备份值 || 下拉框.value;
+    // 只有在当前值为空时才恢复备份（被ECH锁定过），否则不覆盖KV下发的值
+    if (!下拉框.value && 备份值) {
+      下拉框.value = 备份值;
+    }
     下拉框.disabled = false;
     下拉框.style.opacity = '1';
   }
@@ -6707,6 +6710,12 @@ async function 保存配置(配置数据20107) {
     const 结果20102 = await 响应20106.json();
     显示状态(结果20102.message, 结果20102.success ? 'success' : 'error');
     if (结果20102.success) {
+      // 同步更新 ALPN 本地备份缓存，确保下次 ECH 开关时使用最新值
+      const alpn元素 = document.getElementById('alpn');
+      if (alpn元素) {
+        if (alpn元素.value) localStorage.setItem('ech_alpn_backup', alpn元素.value);
+        else localStorage.removeItem('ech_alpn_backup');
+      }
       await 加载当前配置();
       // 更新wk地区选择状态
       更新工作器地区状态();
