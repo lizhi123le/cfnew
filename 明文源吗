@@ -860,7 +860,7 @@ export default {
       // 先加载 KV 配置，确保 UUID/自定义路径等值可用
       await 处理值键值值(本地值734);
       认证令牌 = (本地值734.u || 本地值734.U || 获取配置值('u', '') || 认证令牌).toLowerCase();
-      const 值路径 = (本地值734.d || 本地值734.D || 获取配置值('d', '') || 认证令牌).toLowerCase();
+      const 值路径 = (本地值734.d || 本地值734.D || 获取配置值('d', '') || 认证令牌).toLowerCase().replace(/^\//, '');
       const 请求网址731 = new URL(请求735.url);
       const 路径值730 = 请求网址731.pathname.split('/').filter(参数值729 => 参数值729);
       // 排除 /login 及 管理员路径，避免被伪装反代拦截
