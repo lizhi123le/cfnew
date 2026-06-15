@@ -679,9 +679,9 @@ function 解析地址值端口(输入) {
 // ★ 伪装首页全路径反向代理（edgetunnel 对齐）
 async function 处理伪装反代(请求, 网址, 环境变量) {
   const 首页配置值 = 获取配置值('homepage', 环境变量.homepage || 环境变量.HOMEPAGE);
-  if (!首页配置值) return null;
+  if (!首页配置值) { console.error('伪装页: homepage 未配置'); return null; }
   const 首页列表 = 首页配置值.split('|').map(u => u.trim()).filter(u => u);
-  if (首页列表.length === 0) return null;
+  if (首页列表.length === 0) { console.error('伪装页: homepage 列表为空'); return null; }
   const 选中首页 = 首页列表[Math.floor(Math.random() * 首页列表.length)];
   // 图片URL自动检测：以图片扩展名结尾时包装为HTML
   if (/\.(jpg|jpeg|png|gif|webp|bmp|svg|ico)(\?|$)/i.test(选中首页)) {
@@ -784,7 +784,7 @@ export default {
         const 值值727 = (本地值734.d || 本地值734.D || '').toLowerCase();
         const 首次值 = 路径值730[0] || '';
         const 清理值 = 值值727.startsWith('/') ? 值值727.substring(1) : 值值727;
-        if (首次值 !== 值值728 && (清理值 ? 首次值 !== 清理值 : false)) {
+        if (首次值 !== 值值728 && (!清理值 || 首次值 !== 清理值)) {
           // 非 UUID/自定义路径的 GET 请求 → 全路径反向代理至伪装首页
           const 代理结果 = await 处理伪装反代(请求735, 请求网址731, 本地值734);
           if (代理结果) return 代理结果;
