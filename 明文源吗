@@ -702,8 +702,8 @@ async function 处理伪装反代(请求, 网址, 环境变量) {
       return new Response(图片HTML, { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
     }
   }
+  const 反代URL = new URL(选中首页);
   try {
-    const 反代URL = new URL(选中首页);
     const 缓存键 = 反代URL.origin + 网址.pathname + 网址.search;
     // 内存缓存查询
     const 缓存条目 = 伪装首页缓存.get(缓存键);
@@ -781,6 +781,21 @@ async function 处理伪装反代(请求, 网址, 环境变量) {
     return 反代响应;
   } catch (error) {
     console.error('伪装页反代失败:', error.message);
+    // 非根路径失败时降级到首页根目录重试
+    if (网址.pathname !== '/') {
+      console.warn('尝试降级到首页根路径:', 反代URL.origin);
+      const 回退头 = new Headers(请求.headers);
+      const CF头列表 = ['CF-Connecting-IP', 'CF-IPCountry', 'CF-Ray', 'CF-Visitor', 'CF-Worker', 'CF-Cache-Status', 'True-Client-IP'];
+      for (const h of CF头列表) 回退头.delete(h);
+      回退头.set('Host', 反代URL.host);
+      回退头.set('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36');
+      try {
+        const 回退响应 = await fetchWithTimeout(反代URL.origin + '/', { method: 'GET', headers: 回退头 }, 30000);
+        if (回退响应.ok || 回退响应.status < 500) return 回退响应;
+      } catch (e2) {
+        console.error('首页根路径降级也失败:', e2.message);
+      }
+    }
     return new Response(await nginx(), { status: 200, headers: { 'Content-Type': 'text/html; charset=UTF-8' } });
   }
 }
@@ -844,7 +859,8 @@ export default {
       const 是否值732 = 请求735.method === 'POST';
       const 请求网址731 = new URL(请求735.url);
       const 路径值730 = 请求网址731.pathname.split('/').filter(参数值729 => 参数值729);
-      if (!是否网页套接字 && !是否值732 && 请求网址731.pathname !== '/') {
+      // 排除 /login 路径（由后续登录逻辑处理），避免被伪装反代拦截
+      if (!是否网页套接字 && !是否值732 && 请求网址731.pathname !== '/' && 路径值730[0] !== 'login') {
         const 值值728 = (本地值734.u || 本地值734.U || '').toLowerCase();
         const 值值727 = (本地值734.d || 本地值734.D || '').toLowerCase();
         const 首次值 = 路径值730[0] || '';
@@ -4280,7 +4296,7 @@ async function 处理订阅值(请求241, 用户240 = null) {
       socks5Config: 'SOCKS5配置 (s):',
       customHomepage: '自定义首页URL (homepage):',
       customHomepagePlaceholder: '例如: https://example.com',
-      customHomepageHint: '设置自定义URL作为首页伪装。访问根路径 / 时将显示该URL的内容。留空则显示默认终端页面。',
+      customHomepageHint: '设置自定义URL作为首页伪装。访问根路径 / 时将显示该URL的内容。留空则显示内置nginx欢迎页。特殊值: nginx=内置nginx页, 1101=CF 1101错误页。多个URL用竖线(|)分隔，随机抽取。',
       saveConfig: '保存配置',
       advancedControl: '高级控制',
       subscriptionConverter: '订阅转换地址:',
@@ -4447,7 +4463,7 @@ async function 处理订阅值(请求241, 用户240 = null) {
       socks5Config: 'تنظیمات SOCKS5 (s):',
       customHomepage: 'URL صفحه اصلی سفارشی (homepage):',
       customHomepagePlaceholder: 'مثال: https://example.com',
-      customHomepageHint: 'تنظیم URL سفارشی به عنوان استتار صفحه اصلی. هنگام دسترسی به مسیر اصلی / محتوای این URL نمایش داده می‌شود. اگر خالی بگذارید صفحه ترمینال پیش‌فرض نمایش داده می‌شود.',
+      customHomepageHint: 'تنظیم URL سفارشی به عنوان استتار صفحه اصلی. هنگام دسترسی به مسیر اصلی / محتوای این URL نمایش داده می‌شود. اگر خالی بگذارید صفحه nginx پیش‌فرض نمایش داده می‌شود. مقادیر ویژه: nginx=صفحه nginx داخلی, 1101=صفحه خطای CF 1101. چندین URL با | جدا کنید.',
       saveConfig: 'ذخیره تنظیمات',
       advancedControl: 'کنترل پیشرفته',
       subscriptionConverter: 'آدرس تبدیل اشتراک:',
