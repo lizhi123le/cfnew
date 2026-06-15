@@ -675,6 +675,103 @@ function 解析地址值端口(输入) {
     port: null
   };
 }
+
+// ★ 伪装首页全路径反向代理（edgetunnel 对齐）
+async function 处理伪装反代(请求, 网址, 环境变量) {
+  const 首页配置值 = 获取配置值('homepage', 环境变量.homepage || 环境变量.HOMEPAGE);
+  if (!首页配置值) return null;
+  const 首页列表 = 首页配置值.split('|').map(u => u.trim()).filter(u => u);
+  if (首页列表.length === 0) return null;
+  const 选中首页 = 首页列表[Math.floor(Math.random() * 首页列表.length)];
+  // 图片URL自动检测：以图片扩展名结尾时包装为HTML
+  if (/\.(jpg|jpeg|png|gif|webp|bmp|svg|ico)(\?|$)/i.test(选中首页)) {
+    if (网址.pathname === '/' || !网址.pathname) {
+      const 图片HTML = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>CFnew</title><style>body{margin:0;padding:0;overflow:hidden;background:#000;display:flex;align-items:center;justify-content:center;height:100vh}img{width:100vw;height:100vh;object-fit:fill}</style></head><body><img src="${选中首页}" alt="homepage"></body></html>`;
+      return new Response(图片HTML, { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
+    }
+  }
+  try {
+    const 反代URL = new URL(选中首页);
+    const 缓存键 = 反代URL.origin + 网址.pathname + 网址.search;
+    // 内存缓存查询
+    const 缓存条目 = 伪装首页缓存.get(缓存键);
+    if (缓存条目 && Date.now() - 缓存条目.time < 伪装首页缓存TTL) {
+      const 缓存响应头 = {
+        'Content-Type': 缓存条目.contentType,
+        'Cache-Control': 'no-store',
+      };
+      return new Response(缓存条目.body, { status: 缓存条目.status, headers: 缓存响应头 });
+    }
+    // 清除CF入站头 + 重写出站头
+    const CF_HEADERS = ['CF-Connecting-IP', 'CF-IPCountry', 'CF-Ray', 'CF-Visitor',
+                         'CF-Worker', 'CF-Cache-Status', 'True-Client-IP'];
+    for (const h of CF_HEADERS) 请求.headers.delete(h);
+    const 新请求头 = new Headers(请求.headers);
+    新请求头.set('Host', 反代URL.host);
+    新请求头.set('Referer', 反代URL.origin);
+    新请求头.set('Origin', 反代URL.origin);
+    // UA随机化（浏览器指纹保护）
+    const 浏览器UA池 = [
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36',
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36',
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Edg/149.0.4022.69 Safari/537.36',
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:151.0) Gecko/20100101 Firefox/151.0',
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 15_0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36',
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 15_0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36',
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 15_0) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.5 Safari/605.1.15',
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 15.0; rv:151.0) Gecko/20100101 Firefox/151.0',
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 15_0) AppleWebKit/537.36 (KHTML, like Gecko) Edg/149.0.4022.69 Safari/537.36',
+      'Mozilla/5.0 (Macintosh; ARM Mac OS X 26_0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36',
+      'Mozilla/5.0 (Macintosh; ARM Mac OS X 26_0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36',
+      'Mozilla/5.0 (Macintosh; ARM Mac OS X 26_0) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.5 Safari/605.1.15',
+      'Mozilla/5.0 (Macintosh; ARM Mac OS X 26_0; rv:151.0) Gecko/20100101 Firefox/151.0',
+      'Mozilla/5.0 (Macintosh; ARM Mac OS X 26_0) AppleWebKit/537.36 (KHTML, like Gecko) Edg/149.0.4022.69 Safari/537.36',
+      'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36',
+      'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Edg/149.0.4022.69 Safari/537.36',
+      'Mozilla/5.0 (X11; Linux x86_64; rv:151.0) Gecko/20100101 Firefox/151.0',
+      'Mozilla/5.0 (Linux; Android 15; Pixel 9 Pro) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.7827.103 Mobile Safari/537.36',
+      'Mozilla/5.0 (iPhone; CPU iPhone OS 26_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.5 Mobile/15E148 Safari/604.1',
+      'Mozilla/5.0 (iPad; CPU OS 26_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.5 Mobile/15E148 Safari/604.1',
+    ];
+    新请求头.set('User-Agent', 浏览器UA池[Math.floor(Math.random() * 浏览器UA池.length)]);
+    // 剥离 Sec-CH-UA 系列头（防止随机UA与原始UA不一致导致的指纹泄露）
+    const CH_HEADERS = ['Sec-CH-UA', 'Sec-CH-UA-Arch', 'Sec-CH-UA-Bitness', 'Sec-CH-UA-Full-Version',
+                        'Sec-CH-UA-Mobile', 'Sec-CH-UA-Model', 'Sec-CH-UA-Platform', 'Sec-CH-UA-Platform-Version'];
+    for (const h of CH_HEADERS) 新请求头.delete(h);
+    清理伪装首页缓存();
+    const fetchOptions = { method: 请求.method, headers: 新请求头 };
+    if (请求.method !== 'GET' && 请求.body) fetchOptions.body = 请求.body;
+    const 反代响应 = await fetchWithTimeout(反代URL.origin + 网址.pathname + 网址.search, fetchOptions, 30000);
+    const 内容类型 = 反代响应.headers.get('content-type') || '';
+    const 内容长度 = parseInt(反代响应.headers.get('content-length') || '0', 10);
+    // 文本类型且小于2MB才全量缓冲+替换，否则直接流式转发
+    if (/text|javascript|json|xml/.test(内容类型) && (内容长度 === 0 || 内容长度 < 2 * 1024 * 1024)) {
+      try {
+        const 响应文本 = await withTimeout(反代响应.text(), 5000);
+        const 响应内容 = 响应文本.replaceAll(反代URL.host, 网址.host);
+        const SAFE_PROXY_HEADERS = new Set([
+          'content-type', 'content-length', 'content-encoding', 'transfer-encoding',
+          'accept-ranges', 'content-range', 'content-language',
+          'cache-control', 'expires', 'last-modified', 'age',
+          'vary', 'date', 'content-disposition',
+        ]);
+        const 过滤后头 = {};
+        for (const [k, v] of 反代响应.headers) {
+          if (SAFE_PROXY_HEADERS.has(k.toLowerCase())) 过滤后头[k] = v;
+        }
+        过滤后头['Cache-Control'] = 'no-store';
+        伪装首页缓存.set(缓存键, { body: 响应内容, contentType: 过滤后头['Content-Type'] || 内容类型, status: 反代响应.status, time: Date.now() });
+        return new Response(响应内容, { status: 反代响应.status, headers: 过滤后头 });
+      } catch (e) {
+        console.warn('伪装页缓冲超时，改为流式转发');
+      }
+    }
+    return 反代响应;
+  } catch (error) {
+    console.error('伪装页反代失败:', error.message);
+    return null;
+  }
+}
 export default {
   async fetch(请求735, 本地值734, 本地值733) {
     try {
@@ -688,8 +785,10 @@ export default {
         const 首次值 = 路径值730[0] || '';
         const 清理值 = 值值727.startsWith('/') ? 值值727.substring(1) : 值值727;
         if (首次值 !== 值值728 && (清理值 ? 首次值 !== 清理值 : false)) {
-          // 非 UUID/自定义路径的 GET 请求重定向到首页（适配随机路径、伪装首页等场景）
-          return Response.redirect(new URL('/', 请求735.url).href, 302);
+          // 非 UUID/自定义路径的 GET 请求 → 全路径反向代理至伪装首页
+          const 代理结果 = await 处理伪装反代(请求735, 请求网址731, 本地值734);
+          if (代理结果) return 代理结果;
+          // 无伪装页或代理失败 → 继续执行，由后续逻辑处理
         }
       }
       await 处理值键值值(本地值734);
@@ -1069,69 +1168,8 @@ export default {
         const 跳过首页伪装 = 是登录路径; // /login 始终显示登录页面，不显示伪装首页
         if (网址698.pathname === '/' || 是登录路径) {
           if (!跳过首页伪装) {
-          // 多首页支持：竖线分隔，每次请求随机选取一个
-          const 首页配置值 = 获取配置值('homepage', 本地值734.homepage || 本地值734.HOMEPAGE);
-          if (首页配置值) {
-            const 首页列表 = 首页配置值.split('|').map(u => u.trim()).filter(u => u);
-            if (首页列表.length > 0) {
-              const 选中首页 = 首页列表[Math.floor(Math.random() * 首页列表.length)];
-              try {
-                // 图片URL自动检测：以图片扩展名结尾时包装为HTML
-                if (/\.(jpg|jpeg|png|gif|webp|bmp|svg|ico)(\?|$)/i.test(选中首页)) {
-                  const 图片HTML = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>CFnew</title><style>body{margin:0;padding:0;overflow:hidden;background:#000;display:flex;align-items:center;justify-content:center;height:100vh}img{width:100vw;height:100vh;object-fit:fill}</style></head><body><img src="${选中首页}" alt="homepage"></body></html>`;
-                  return new Response(图片HTML, { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
-                }
-                // 内存缓存查询
-                const 首页缓存键 = 选中首页;
-                const 首页缓存条目 = 伪装首页缓存.get(首页缓存键);
-                if (首页缓存条目 && Date.now() - 首页缓存条目.time < 伪装首页缓存TTL) {
-                  const 缓存响应头 = {
-                    'Content-Type': 首页缓存条目.contentType,
-                    'Cache-Control': 'no-store',
-                  };
-                  return new Response(首页缓存条目.body, { status: 首页缓存条目.status, headers: 缓存响应头 });
-                }
-                清理伪装首页缓存();
-                const 值响应 = await fetchWithTimeout(选中首页, {
-                  method: 'GET',
-                  headers: {
-                    'User-Agent': 请求735.headers.get('User-Agent') || 'Mozilla/5.0',
-                    'Accept': 请求735.headers.get('Accept') || '*/*',
-                    'Accept-Language': 请求735.headers.get('Accept-Language') || 'en-US,en;q=0.9'
-                  },
-                  redirect: 'follow'
-                }, 30000);
-                if (值响应.ok) {
-                  const 内容类型672 = 值响应.headers.get('Content-Type') || 'text/html; charset=utf-8';
-                  const 内容长度 = parseInt(值响应.headers.get('content-length') || '0', 10);
-                  // 优化：只有文本类型且大小小于 2MB 才进行全量缓冲和替换，否则直接流式转发避免挂起
-                  if (/text|javascript|json|xml/.test(内容类型672) && (内容长度 === 0 || 内容长度 < 2 * 1024 * 1024)) {
-                    try {
-                      const 响应文本 = await withTimeout(值响应.text(), 5000);
-                      const SAFE_PROXY_HEADERS = new Set([
-                        'content-type', 'content-length', 'content-encoding', 'transfer-encoding',
-                        'accept-ranges', 'content-range', 'content-language',
-                        'cache-control', 'expires', 'last-modified', 'age',
-                        'vary', 'date', 'content-disposition',
-                      ]);
-                      const 过滤后头 = {};
-                      for (const [k, v] of 值响应.headers) {
-                        if (SAFE_PROXY_HEADERS.has(k.toLowerCase())) 过滤后头[k] = v;
-                      }
-                      过滤后头['Cache-Control'] = 'no-store';
-                      伪装首页缓存.set(首页缓存键, { body: 响应文本, contentType: 过滤后头['Content-Type'] || 内容类型672, status: 值响应.status, time: Date.now() });
-                      return new Response(响应文本, { status: 值响应.status, headers: 过滤后头 });
-                    } catch (e) {
-                      console.warn('伪装首页缓冲超时，改为流式转发');
-                    }
-                  }
-                  return 值响应;
-                }
-              } catch (错误670) {
-                console.error('获取自定义首页失败:', 错误670);
-              }
-            }
-          }
+          const 代理结果 = await 处理伪装反代(请求735, 网址698, 本地值734);
+          if (代理结果) return 代理结果;
           }
           // 管理员密码认证：终端页面显示登录提示（非独立页面）
           const 管理员重定向路径 = (自定义路径 && 自定义路径.trim()) ? '/' + 自定义路径.trim().replace(/^\//, '') : '/' + 认证令牌;
