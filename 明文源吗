@@ -4392,12 +4392,13 @@ async function 处理订阅值(请求241, 用户240 = null) {
                 --cp-grid: rgba(255, 43, 214, 0.16);
             }
             * { margin: 0; padding: 0; box-sizing: border-box; }
-            html, body { min-height: 100%; }
+            html { height: 100%; width: 100%; overflow-x: hidden; }
             body {
-                font-family: "JetBrains Mono", "Fira Code", "Courier New", monospace;
+                font-family: "JetBrains Mono", "Courier New", monospace;
                 background: radial-gradient(ellipse at 80% -10%, #2a0040 0%, var(--cp-bg) 50%, #000 100%);
                 color: var(--cp-text);
                 min-height: 100vh;
+                width: 100%;
                 overflow-x: hidden;
                 position: relative;
             }
@@ -5301,9 +5302,9 @@ async function 处理订阅值(请求241, 用户240 = null) {
                 .cp-hud { font-size: 9px; }
                 .cp-logout-btn { top: 74px; right: 14px; font-size: 10px; padding: 5px 10px; }
                 .cp-action-bar {
-                    right: 50%;
+                    right: 14px;
                     bottom: 14px;
-                    transform: translateX(50%);
+                    transform: none;
                     gap: 8px;
                 }
                 .cp-fab-save {
@@ -5313,8 +5314,8 @@ async function 处理订阅值(请求241, 用户240 = null) {
                     letter-spacing: 0.16em !important;
                 }
                 .cp-action-btn { width: 42px; height: 42px; }
-                .cp-action-status { right: 50%; transform: translate(50%, 8px); }
-                .cp-action-status.cp-show { transform: translate(50%, 0); }
+                .cp-action-status { right: 14px; transform: translateY(8px); }
+                .cp-action-status.cp-show { transform: translateY(0); }
             }
         </style>
     </head>
