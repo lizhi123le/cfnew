@@ -678,10 +678,22 @@ function 解析地址值端口(输入) {
 
 // ★ 伪装首页全路径反向代理（edgetunnel 对齐）
 async function 处理伪装反代(请求, 网址, 环境变量) {
-  const 首页配置值 = 获取配置值('homepage', 环境变量.homepage || 环境变量.HOMEPAGE);
-  if (!首页配置值) { console.error('伪装页: homepage 未配置'); return null; }
-  const 首页列表 = 首页配置值.split('|').map(u => u.trim()).filter(u => u);
-  if (首页列表.length === 0) { console.error('伪装页: homepage 列表为空'); return null; }
+  // 兼容 edgetunnel: KV homepage > env.homepage > env.URL > 默认 nginx
+  let 伪装地址 = (获取配置值('homepage', '') || 环境变量.homepage || 环境变量.HOMEPAGE || 环境变量.URL || '').trim().replace(/\/$/, '');
+  if (!伪装地址) 伪装地址 = 'nginx';
+  // 特殊值处理（edgetunnel兼容）
+  if (伪装地址.toLowerCase() === 'nginx') {
+    return new Response(await nginx(), { status: 200, headers: { 'Content-Type': 'text/html; charset=UTF-8' } });
+  }
+  if (伪装地址 === '1101') {
+    return new Response(await html1101(网址.host), { status: 200, headers: { 'Content-Type': 'text/html; charset=UTF-8' } });
+  }
+  // URL 规范化
+  if (!伪装地址.match(/^https?:\/\//i)) 伪装地址 = 'https://' + 伪装地址;
+  if (伪装地址.toLowerCase().startsWith('http://')) 伪装地址 = 'https://' + 伪装地址.substring(7);
+  try { const u = new URL(伪装地址); 伪装地址 = u.protocol + '//' + u.host; } catch (e) { return new Response(await nginx(), { status: 200, headers: { 'Content-Type': 'text/html; charset=UTF-8' } }); }
+  const 首页列表 = 伪装地址.split('|').map(u => u.trim()).filter(u => u);
+  if (首页列表.length === 0) { return new Response(await nginx(), { status: 200, headers: { 'Content-Type': 'text/html; charset=UTF-8' } }); }
   const 选中首页 = 首页列表[Math.floor(Math.random() * 首页列表.length)];
   // 图片URL自动检测：以图片扩展名结尾时包装为HTML
   if (/\.(jpg|jpeg|png|gif|webp|bmp|svg|ico)(\?|$)/i.test(选中首页)) {
@@ -702,11 +714,11 @@ async function 处理伪装反代(请求, 网址, 环境变量) {
       };
       return new Response(缓存条目.body, { status: 缓存条目.status, headers: 缓存响应头 });
     }
-    // 清除CF入站头 + 重写出站头
+    // 清除CF入站头 + 重写出站头（先克隆，避免修改不可变的原始请求头）
+    const 新请求头 = new Headers(请求.headers);
     const CF_HEADERS = ['CF-Connecting-IP', 'CF-IPCountry', 'CF-Ray', 'CF-Visitor',
                          'CF-Worker', 'CF-Cache-Status', 'True-Client-IP'];
-    for (const h of CF_HEADERS) 请求.headers.delete(h);
-    const 新请求头 = new Headers(请求.headers);
+    for (const h of CF_HEADERS) 新请求头.delete(h);
     新请求头.set('Host', 反代URL.host);
     新请求头.set('Referer', 反代URL.origin);
     新请求头.set('Origin', 反代URL.origin);
@@ -769,9 +781,62 @@ async function 处理伪装反代(请求, 网址, 环境变量) {
     return 反代响应;
   } catch (error) {
     console.error('伪装页反代失败:', error.message);
-    return null;
+    return new Response(await nginx(), { status: 200, headers: { 'Content-Type': 'text/html; charset=UTF-8' } });
   }
 }
+
+// ★ 内置 nginx 欢迎页（edgetunnel 兼容）
+async function nginx() {
+  return `<!DOCTYPE html>
+<html>
+<head>
+<title>Welcome to nginx!</title>
+<style>body{width:35em;margin:0 auto;font-family:Tahoma,Verdana,Arial,sans-serif}</style>
+</head>
+<body>
+<h1>Welcome to nginx!</h1>
+<p>If you see this page, the nginx web server is successfully installed and working. Further configuration is required.</p>
+<p>For online documentation and support please refer to <a href="http://nginx.org/">nginx.org</a>.<br/>Commercial support is available at <a href="http://nginx.com/">nginx.com</a>.</p>
+<p><em>Thank you for using nginx.</em></p>
+</body>
+</html>`;
+}
+
+// ★ 内置 1101 错误页（edgetunnel 兼容）
+async function html1101(host) {
+  const now = new Date();
+  const 时间戳 = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0') + ' ' + String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0') + ':' + String(now.getSeconds()).padStart(2, '0');
+  const 随机串 = Array.from(crypto.getRandomValues(new Uint8Array(8))).map(b => b.toString(16).padStart(2, '0')).join('');
+  return `<!DOCTYPE html>
+<html class="no-js" lang="en-US">
+<head>
+<title>Worker threw exception | ${host} | Cloudflare</title>
+<meta charset="UTF-8" />
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+<meta name="robots" content="noindex, nofollow" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<style>
+*{margin:0;padding:0}html,body{height:100%}body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Roboto","Oxygen","Ubuntu","Cantarell","Fira Sans","Droid Sans","Helvetica Neue",sans-serif;background:#f5f5f5;color:#333;display:flex;align-items:center;justify-content:center}.center{text-align:center;max-width:600px;padding:40px 20px}h1{font-size:28px;margin-bottom:16px;color:#d33}.code{background:#fff;border:1px solid #ddd;border-radius:8px;padding:24px;margin:24px 0;text-align:left;font-family:monospace;font-size:13px;line-height:1.6;overflow-x:auto}.code .line{display:block;white-space:pre}.code .dim{color:#999}.code .highlight{color:#d33}.details{margin-top:16px;font-size:13px;color:#666}
+</style>
+</head>
+<body>
+<div class="center">
+<h1>⚠ Worker threw exception</h1>
+<p>This page is not currently available. Please try again later.</p>
+<div class="code">
+<span class="line"><span class="dim">Worker ID:</span> ${host}</span>
+<span class="line"><span class="dim">Timestamp:</span> ${时间戳}</span>
+<span class="line"><span class="dim">Request ID:</span> ${随机串}</span>
+<span class="line">&nbsp;</span>
+<span class="line"><span class="highlight">Error 1101</span></span>
+</div>
+<div class="details">If you are the site owner, check your worker logs for more details.</div>
+</div>
+</body>
+</html>`;
+}
+
 export default {
   async fetch(请求735, 本地值734, 本地值733) {
     try {
