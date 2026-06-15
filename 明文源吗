@@ -49,6 +49,17 @@ let 自定义主机 = ''; // 用户手动指定的固定 host
 let 键值缓存 = null;
 let 键值缓存时间 = 0;
 
+// ★ 伪装首页内存缓存（避免重复 fetch + text()）
+const 伪装首页缓存 = new Map();
+const 伪装首页缓存TTL = 300000; // 5 分钟
+function 清理伪装首页缓存() {
+  const now = Date.now();
+  for (const [k, v] of 伪装首页缓存) {
+    if (now - v.time >= 伪装首页缓存TTL) 伪装首页缓存.delete(k);
+  }
+  if (伪装首页缓存.size > 100) 伪装首页缓存.clear();
+}
+
 let 键值存储 = null;
 let 键值配置 = {};
 let 键值配置上次加载 = 0;
@@ -113,6 +124,38 @@ function 获取配置文本值(键, 默认值 = '', 备用值 = undefined) {
   const 值 = 获取配置值(键, 备用值 !== undefined ? 备用值 : 默认值);
   return 值 === undefined || 值 === null ? 默认值 : String(值);
 }
+
+async function withTimeout(promise, timeoutMs = 3000, message = '操作超时') {
+  let timer;
+  let timedOut = false;
+  try {
+    return await Promise.race([
+      // 包装原始 promise：超时后丢弃结果/错误，避免内存残留
+      promise.then(value => {
+        if (timedOut) return undefined;
+        return value;
+      }, err => {
+        if (timedOut) return; // 吞掉超时后的错误，防 unhandled rejection
+        throw err;
+      }),
+      new Promise((_, reject) => {
+        timer = setTimeout(() => { timedOut = true; reject(new Error(message)); }, timeoutMs)
+      })
+    ]);
+  } finally {
+    clearTimeout(timer);
+    timedOut = true;
+  }
+}
+
+// Fetch 超时包装器 - 防止外部 API 请求无限挂起
+const fetchWithTimeout = (url, options = {}, timeoutMs = 30000) => {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeoutMs);
+  return fetch(url, { ...options, signal: controller.signal })
+    .then(res => { clearTimeout(id); return res; })
+    .catch(err => { clearTimeout(id); throw err; });
+};
 
 function 整理有效配置(配置) {
   const 快照 = {
@@ -1038,7 +1081,18 @@ export default {
                   const 图片HTML = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>CFnew</title><style>body{margin:0;padding:0;overflow:hidden;background:#000;display:flex;align-items:center;justify-content:center;height:100vh}img{width:100vw;height:100vh;object-fit:fill}</style></head><body><img src="${选中首页}" alt="homepage"></body></html>`;
                   return new Response(图片HTML, { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
                 }
-                const 值响应 = await fetch(选中首页, {
+                // 内存缓存查询
+                const 首页缓存键 = 选中首页;
+                const 首页缓存条目 = 伪装首页缓存.get(首页缓存键);
+                if (首页缓存条目 && Date.now() - 首页缓存条目.time < 伪装首页缓存TTL) {
+                  const 缓存响应头 = {
+                    'Content-Type': 首页缓存条目.contentType,
+                    'Cache-Control': 'no-store',
+                  };
+                  return new Response(首页缓存条目.body, { status: 首页缓存条目.status, headers: 缓存响应头 });
+                }
+                清理伪装首页缓存();
+                const 值响应 = await fetchWithTimeout(选中首页, {
                   method: 'GET',
                   headers: {
                     'User-Agent': 请求735.headers.get('User-Agent') || 'Mozilla/5.0',
@@ -1046,17 +1100,32 @@ export default {
                     'Accept-Language': 请求735.headers.get('Accept-Language') || 'en-US,en;q=0.9'
                   },
                   redirect: 'follow'
-                });
+                }, 30000);
                 if (值响应.ok) {
                   const 内容类型672 = 值响应.headers.get('Content-Type') || 'text/html; charset=utf-8';
-                  const 内容671 = await 值响应.text();
-                  return new Response(内容671, {
-                    status: 值响应.status,
-                    headers: {
-                      'Content-Type': 内容类型672,
-                      'Cache-Control': 'no-cache, no-store, must-revalidate'
+                  const 内容长度 = parseInt(值响应.headers.get('content-length') || '0', 10);
+                  // 优化：只有文本类型且大小小于 2MB 才进行全量缓冲和替换，否则直接流式转发避免挂起
+                  if (/text|javascript|json|xml/.test(内容类型672) && (内容长度 === 0 || 内容长度 < 2 * 1024 * 1024)) {
+                    try {
+                      const 响应文本 = await withTimeout(值响应.text(), 5000);
+                      const SAFE_PROXY_HEADERS = new Set([
+                        'content-type', 'content-length', 'content-encoding', 'transfer-encoding',
+                        'accept-ranges', 'content-range', 'content-language',
+                        'cache-control', 'expires', 'last-modified', 'age',
+                        'vary', 'date', 'content-disposition',
+                      ]);
+                      const 过滤后头 = {};
+                      for (const [k, v] of 值响应.headers) {
+                        if (SAFE_PROXY_HEADERS.has(k.toLowerCase())) 过滤后头[k] = v;
+                      }
+                      过滤后头['Cache-Control'] = 'no-store';
+                      伪装首页缓存.set(首页缓存键, { body: 响应文本, contentType: 过滤后头['Content-Type'] || 内容类型672, status: 值响应.status, time: Date.now() });
+                      return new Response(响应文本, { status: 值响应.status, headers: 过滤后头 });
+                    } catch (e) {
+                      console.warn('伪装首页缓冲超时，改为流式转发');
                     }
-                  });
+                  }
+                  return 值响应;
                 }
               } catch (错误670) {
                 console.error('获取自定义首页失败:', 错误670);
