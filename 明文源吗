@@ -701,7 +701,7 @@ async function 处理伪装反代(请求, 网址, 环境变量) {
   if (!伪装地址.match(/^https?:\/\//i)) 伪装地址 = 'https://' + 伪装地址;
   if (伪装地址.toLowerCase().startsWith('http://')) 伪装地址 = 'https://' + 伪装地址.substring(7);
   // ★ 图片URL检测（必须在new URL归一化之前，以免路径被剥离）
-  if (/\.(jpg|jpeg|png|gif|webp|bmp|svg|ico)(\?|$)/i.test(伪装地址)) {
+  if (/\.(jpg|jpeg|png|gif|webp|bmp|svg|ico)(\?|$)|[?&]f=(jpeg|png|gif|webp|bmp|jpg)\b/i.test(伪装地址)) {
     if (网址.pathname === '/' || !网址.pathname) {
       const 图片HTML = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>CFnew</title><style>body{margin:0;padding:0;overflow:hidden;background:#000;display:flex;align-items:center;justify-content:center;height:100vh}img{width:100vw;height:100vh;object-fit:fill}</style></head><body><img src="${伪装地址}" alt="homepage"></body></html>`;
       return new Response(图片HTML, { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
