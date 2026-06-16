@@ -693,7 +693,11 @@ async function 处理伪装反代(请求, 网址, 环境变量) {
   if (伪装地址 === '1101') {
     return new Response(await html1101(网址.host, 请求.headers.get('CF-Connecting-IP') || ''), { status: 200, headers: { 'Content-Type': 'text/html; charset=UTF-8' } });
   }
-  // URL 规范化
+  // ★ 先拆分多地址（竖线分隔），随机选取一个，再归一化
+  const 全部首页列表 = 伪装地址.split('|').map(u => u.trim()).filter(u => u);
+  if (全部首页列表.length === 0) { return new Response(await nginx(), { status: 200, headers: { 'Content-Type': 'text/html; charset=UTF-8' } }); }
+  伪装地址 = 全部首页列表[Math.floor(Math.random() * 全部首页列表.length)];
+  // URL 规范化（对单个选中地址）
   if (!伪装地址.match(/^https?:\/\//i)) 伪装地址 = 'https://' + 伪装地址;
   if (伪装地址.toLowerCase().startsWith('http://')) 伪装地址 = 'https://' + 伪装地址.substring(7);
   try { const u = new URL(伪装地址); 伪装地址 = u.protocol + '//' + u.host; } catch (e) { return new Response(await nginx(), { status: 200, headers: { 'Content-Type': 'text/html; charset=UTF-8' } }); }
