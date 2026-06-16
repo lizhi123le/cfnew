@@ -78,6 +78,9 @@ function 字节转HTML图片(字节, 内容类型) {
   }
   return `data:${内容类型 || 'image/jpeg'};base64,${btoa(块.join(''))}`;
 }
+function 生成图片HTML(数据URI) {
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>CFnew</title><style>body{margin:0;padding:0;overflow:hidden;background:#000;display:flex;align-items:center;justify-content:center;height:100vh}img{width:100vw;height:100vh;object-fit:fill}</style></head><body><img src="${数据URI}" alt="homepage"></body></html>`;
+}
 
 let 键值存储 = null;
 let 键值配置 = {};
@@ -721,7 +724,7 @@ async function 处理伪装反代(请求, 网址, 环境变量) {
       const 缓存命中 = 伪装图片缓存.get(伪装地址);
       if (缓存命中) {
         const 数据URI = 字节转HTML图片(缓存命中.body, 缓存命中.contentType);
-        return new Response(`<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>CFnew</title><style>body{margin:0;padding:0;overflow:hidden;background:#000;display:flex;align-items:center;justify-content:center;height:100vh}img{width:100vw;height:100vh;object-fit:fill}</style></head><body><img src="${数据URI}" alt="homepage"></body></html>`, { status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8' } });
+        return new Response(生成图片HTML(数据URI), { status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8' } });
       }
       const 图片源 = new URL(伪装地址);
       const 图片反代响应 = await fetch(伪装地址, {
@@ -742,7 +745,7 @@ async function 处理伪装反代(请求, 网址, 环境变量) {
           伪装图片缓存.set(伪装地址, { body: 图片字节, status: 图片反代响应.status, contentType: 内容类型, time: Date.now() });
         }
         const 数据URI = 字节转HTML图片(图片字节, 内容类型);
-        return new Response(`<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>CFnew</title><style>body{margin:0;padding:0;overflow:hidden;background:#000;display:flex;align-items:center;justify-content:center;height:100vh}img{width:100vw;height:100vh;object-fit:fill}</style></head><body><img src="${数据URI}" alt="homepage"></body></html>`, { status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8' } });
+        return new Response(生成图片HTML(数据URI), { status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8' } });
       }
       // >2MB：流式转发原始图片（不包装HTML）
       const 图片头 = { 'Content-Type': 内容类型, 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'public, max-age=86400' };
