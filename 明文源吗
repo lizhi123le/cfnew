@@ -64,6 +64,9 @@ function 清理伪装首页缓存() {
   }
   if (伪装首页缓存.size > 100) 伪装首页缓存.clear();
 }
+// 图片代理缓存（最多12张，FIFO淘汰）
+const 伪装图片缓存 = new Map();
+const 伪装图片缓存最大 = 12;
 
 let 键值存储 = null;
 let 键值配置 = {};
@@ -700,11 +703,54 @@ async function 处理伪装反代(请求, 网址, 环境变量) {
   // URL 协议补充
   if (!伪装地址.match(/^https?:\/\//i)) 伪装地址 = 'https://' + 伪装地址;
   if (伪装地址.toLowerCase().startsWith('http://')) 伪装地址 = 'https://' + 伪装地址.substring(7);
-  // ★ 图片URL检测（必须在new URL归一化之前，以免路径被剥离）
+  // ★ 图片URL检测：通过Worker代理图片（设置Referer绕过防盗链），必须在new URL归一化之前
   if (/\.(jpg|jpeg|png|gif|webp|bmp|svg|ico)(\?|$)|[?&]f=(jpeg|png|gif|webp|bmp|jpg)\b/i.test(伪装地址)) {
     if (网址.pathname === '/' || !网址.pathname) {
-      const 图片HTML = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>CFnew</title><style>body{margin:0;padding:0;overflow:hidden;background:#000;display:flex;align-items:center;justify-content:center;height:100vh}img{width:100vw;height:100vh;object-fit:fill}</style></head><body><img src="${伪装地址}" alt="homepage"></body></html>`;
-      return new Response(图片HTML, { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
+      try {
+        // 内存缓存查询
+        const 图片缓存条目 = 伪装图片缓存.get(伪装地址);
+        if (图片缓存条目) {
+          const 图片头 = {
+            'Content-Type': 图片缓存条目.contentType,
+            'Access-Control-Allow-Origin': '*',
+            'Cache-Control': 'public, max-age=86400',
+          };
+          return new Response(图片缓存条目.body, { status: 图片缓存条目.status, headers: 图片头 });
+        }
+        const 图片源 = new URL(伪装地址);
+        const 图片反代响应 = await fetch(伪装地址, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36',
+            'Referer': 图片源.origin + '/',
+          }
+        });
+        const 图片头 = {};
+        for (const [k, v] of 图片反代响应.headers) {
+          if (['content-type', 'content-length', 'content-encoding', 'cache-control', 'expires', 'last-modified', 'etag', 'accept-ranges'].includes(k.toLowerCase())) {
+            图片头[k] = v;
+          }
+        }
+        图片头['Access-Control-Allow-Origin'] = '*';
+        图片头['Cache-Control'] = 'public, max-age=86400';
+        const 图片长度 = parseInt(图片反代响应.headers.get('content-length') || '0', 10);
+        if (图片长度 === 0 || 图片长度 < 2 * 1024 * 1024) {
+          // <2MB 或未知大小：缓冲后判断实际大小，决定是否缓存
+          const 图片字节 = await 图片反代响应.arrayBuffer();
+          if (图片字节.byteLength < 2 * 1024 * 1024) {
+            // FIFO淘汰
+            if (伪装图片缓存.size >= 伪装图片缓存最大) {
+              const 最旧键 = 伪装图片缓存.keys().next().value;
+              if (最旧键) 伪装图片缓存.delete(最旧键);
+            }
+            伪装图片缓存.set(伪装地址, { body: 图片字节, status: 图片反代响应.status, contentType: 图片反代响应.headers.get('content-type') || 'image/jpeg', time: Date.now() });
+          }
+          return new Response(图片字节, { status: 图片反代响应.status, headers: 图片头 });
+        }
+        // >2MB：流式转发，不缓存
+        return new Response(图片反代响应.body, { status: 图片反代响应.status, headers: 图片头 });
+      } catch (e) {
+        return new Response(await nginx(), { status: 200, headers: { 'Content-Type': 'text/html; charset=UTF-8' } });
+      }
     }
   }
   // URL 归一化（剥离路径，仅保留host用于反向代理）
