@@ -391,13 +391,13 @@ const 地址类型_四版 = 1;
 const 地址类型_网址 = 2;
 const 地址类型_六版 = 3;
 const 传输块大小 = 64 * 1024;
-const 传输下载包大小 = 32 * 1024;
+const 传输下载包大小 = 64 * 1024;
 const 传输下载尾部 = 512;
 const 传输下载延迟 = 0;
-const 传输上传包大小 = 16 * 1024;
-const 传输上传队列上限 = 256 * 1024;
+const 传输上传包大小 = 64 * 1024;
+const 传输上传队列上限 = 8 * 1024 * 1024;
 const 传输连接竞速数 = 2;
-const 首字节超时 = 3500;
+const 首字节超时 = 5000;
 const 共享解码器 = new TextDecoder();
 const 唯一标识字节缓存 = new Map();
 function 是否有效格式(字符串) {
