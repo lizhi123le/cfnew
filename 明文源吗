@@ -703,16 +703,17 @@ async function 处理伪装反代(请求, 网址, 环境变量) {
   // 兼容 edgetunnel: KV homepage > env.homepage > env.URL > 默认 nginx
   let 伪装地址 = (获取配置值('homepage', '') || 环境变量.homepage || 环境变量.HOMEPAGE || 环境变量.URL || '').trim().replace(/\/$/, '');
   if (!伪装地址) 伪装地址 = 'nginx';
+  const hsts头 = ['1', 'true'].includes(环境变量.HSTS_ENABLE) ? { 'Strict-Transport-Security': 'max-age=31536000; includeSubDomains; preload' } : {};
   // 特殊值处理（edgetunnel兼容）
   if (伪装地址.toLowerCase() === 'nginx') {
-    return new Response(await nginx(), { status: 200, headers: { 'Content-Type': 'text/html; charset=UTF-8' } });
+    return new Response(await nginx(), { status: 200, headers: { 'Content-Type': 'text/html; charset=UTF-8', ...hsts头 } });
   }
   if (伪装地址 === '1101') {
-    return new Response(await html1101(网址.host, 请求.headers.get('CF-Connecting-IP') || ''), { status: 200, headers: { 'Content-Type': 'text/html; charset=UTF-8' } });
+    return new Response(await html1101(网址.host, 请求.headers.get('CF-Connecting-IP') || ''), { status: 200, headers: { 'Content-Type': 'text/html; charset=UTF-8', ...hsts头 } });
   }
   // ★ 先拆分多地址（竖线分隔），随机选取一个，再归一化
   const 全部首页列表 = 伪装地址.split('|').map(u => u.trim()).filter(u => u);
-  if (全部首页列表.length === 0) { return new Response(await nginx(), { status: 200, headers: { 'Content-Type': 'text/html; charset=UTF-8' } }); }
+  if (全部首页列表.length === 0) { return new Response(await nginx(), { status: 200, headers: { 'Content-Type': 'text/html; charset=UTF-8', ...hsts头 } }); }
   伪装地址 = 全部首页列表[Math.floor(Math.random() * 全部首页列表.length)];
   // URL 协议补充
   if (!伪装地址.match(/^https?:\/\//i)) 伪装地址 = 'https://' + 伪装地址;
@@ -724,7 +725,7 @@ async function 处理伪装反代(请求, 网址, 环境变量) {
       const 缓存命中 = 伪装图片缓存.get(伪装地址);
       if (缓存命中) {
         const 数据URI = 字节转HTML图片(缓存命中.body, 缓存命中.contentType);
-        return new Response(生成图片HTML(数据URI), { status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8' } });
+        return new Response(生成图片HTML(数据URI), { status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8', ...hsts头 } });
       }
       const 图片源 = new URL(伪装地址);
       const 图片反代响应 = await fetch(伪装地址, {
@@ -745,17 +746,17 @@ async function 处理伪装反代(请求, 网址, 环境变量) {
           伪装图片缓存.set(伪装地址, { body: 图片字节, status: 图片反代响应.status, contentType: 内容类型, time: Date.now() });
         }
         const 数据URI = 字节转HTML图片(图片字节, 内容类型);
-        return new Response(生成图片HTML(数据URI), { status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8' } });
+        return new Response(生成图片HTML(数据URI), { status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8', ...hsts头 } });
       }
       // >2MB：流式转发原始图片（不包装HTML）
-      const 图片头 = { 'Content-Type': 内容类型, 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'public, max-age=86400' };
+      const 图片头 = { 'Content-Type': 内容类型, 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'public, max-age=86400', ...hsts头 };
       return new Response(图片反代响应.body, { status: 图片反代响应.status, headers: 图片头 });
     } catch (e) {
-      return new Response(await nginx(), { status: 200, headers: { 'Content-Type': 'text/html; charset=UTF-8' } });
+      return new Response(await nginx(), { status: 200, headers: { 'Content-Type': 'text/html; charset=UTF-8', ...hsts头 } });
     }
   }
   // URL 归一化（剥离路径，仅保留host用于反向代理）
-  try { const u = new URL(伪装地址); 伪装地址 = u.protocol + '//' + u.host; } catch (e) { return new Response(await nginx(), { status: 200, headers: { 'Content-Type': 'text/html; charset=UTF-8' } }); }
+  try { const u = new URL(伪装地址); 伪装地址 = u.protocol + '//' + u.host; } catch (e) { return new Response(await nginx(), { status: 200, headers: { 'Content-Type': 'text/html; charset=UTF-8', ...hsts头 } }); }
   const 反代URL = new URL(伪装地址);
   try {
     const 缓存键 = 反代URL.origin + 网址.pathname + 网址.search;
@@ -766,6 +767,9 @@ async function 处理伪装反代(请求, 网址, 环境变量) {
         'Content-Type': 缓存条目.contentType,
         'Cache-Control': 'no-store',
       };
+      if (['1', 'true'].includes(环境变量.HSTS_ENABLE)) {
+        缓存响应头['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains; preload';
+      }
       return new Response(缓存条目.body, { status: 缓存条目.status, headers: 缓存响应头 });
     }
     // 清除CF入站头 + 重写出站头（先克隆，避免修改不可变的原始请求头）
@@ -800,20 +804,39 @@ async function 处理伪装反代(请求, 网址, 环境变量) {
       'Mozilla/5.0 (iPad; CPU OS 26_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.5 Mobile/15E148 Safari/604.1',
     ];
     新请求头.set('User-Agent', 浏览器UA池[Math.floor(Math.random() * 浏览器UA池.length)]);
+    // 随机化 Accept-Language（与随机 UA 保持指纹一致）
+    const Accept语言池 = [
+      'en-US,en;q=0.9',        // 美式英语
+      'en-US,en;q=0.9,zh-CN;q=0.8', // 美式英语+中文
+      'en-GB,en;q=0.9',        // 英式英语
+      'en-CA,en;q=0.9',        // 加拿大英语
+      'zh-CN,zh;q=0.9,en;q=0.8',    // 中文
+      'ja-JP,ja;q=0.9,en;q=0.8',    // 日语
+      'ko-KR,ko;q=0.9,en;q=0.8',    // 韩语
+      'ru-RU,ru;q=0.9,en;q=0.8',    // 俄语
+      'de-DE,de;q=0.9,en;q=0.8',    // 德语
+      'fr-FR,fr;q=0.9,en;q=0.8',    // 法语
+      'pt-BR,pt;q=0.9,en;q=0.8',    // 巴西葡语
+      'es-ES,es;q=0.9,en;q=0.8',    // 西班牙语
+    ];
+    新请求头.set('Accept-Language', Accept语言池[Math.floor(Math.random() * Accept语言池.length)]);
     // 剥离 Sec-CH-UA 系列头（防止随机UA与原始UA不一致导致的指纹泄露）
     const CH_HEADERS = ['Sec-CH-UA', 'Sec-CH-UA-Arch', 'Sec-CH-UA-Bitness', 'Sec-CH-UA-Full-Version',
                         'Sec-CH-UA-Mobile', 'Sec-CH-UA-Model', 'Sec-CH-UA-Platform', 'Sec-CH-UA-Platform-Version'];
     for (const h of CH_HEADERS) 新请求头.delete(h);
     清理伪装首页缓存();
-    const fetchOptions = { method: 请求.method, headers: 新请求头 };
+    // [隐私增强] 不向上游透传 request.cf 地理/连接信息
+    const fetchOptions = { method: 请求.method, headers: 新请求头, cf: {} };
     if (请求.method !== 'GET' && 请求.body) fetchOptions.body = 请求.body;
     const 反代响应 = await fetchWithTimeout(反代URL.origin + 网址.pathname + 网址.search, fetchOptions, 30000);
     const 内容类型 = 反代响应.headers.get('content-type') || '';
     const 内容长度 = parseInt(反代响应.headers.get('content-length') || '0', 10);
     // 文本类型且小于2MB才全量缓冲+替换，否则直接流式转发
     if (/text|javascript|json|xml/.test(内容类型) && (内容长度 === 0 || 内容长度 < 2 * 1024 * 1024)) {
+      // 克隆响应以保护原始 body stream：超时后仍可流式降级，避免 body consumed 错误
+      const 反代响应克隆 = 反代响应.clone();
       try {
-        const 响应文本 = await withTimeout(反代响应.text(), 5000);
+        const 响应文本 = await withTimeout(反代响应克隆.text(), 5000);
         const 响应内容 = 响应文本.replaceAll(反代URL.host, 网址.host);
         const SAFE_PROXY_HEADERS = new Set([
           'content-type', 'content-length', 'content-encoding', 'transfer-encoding',
@@ -826,11 +849,19 @@ async function 处理伪装反代(请求, 网址, 环境变量) {
           if (SAFE_PROXY_HEADERS.has(k.toLowerCase())) 过滤后头[k] = v;
         }
         过滤后头['Cache-Control'] = 'no-store';
+        if (['1', 'true'].includes(环境变量.HSTS_ENABLE)) {
+          过滤后头['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains; preload';
+        }
         伪装首页缓存.set(缓存键, { body: 响应内容, contentType: 过滤后头['Content-Type'] || 内容类型, status: 反代响应.status, time: Date.now() });
         return new Response(响应内容, { status: 反代响应.status, headers: 过滤后头 });
       } catch (e) {
         console.warn('伪装页缓冲超时，改为流式转发');
       }
+    }
+    if (['1', 'true'].includes(环境变量.HSTS_ENABLE)) {
+      const hsts头 = new Headers(反代响应.headers);
+      hsts头.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
+      return new Response(反代响应.body, { status: 反代响应.status, statusText: 反代响应.statusText, headers: hsts头 });
     }
     return 反代响应;
   } catch (error) {
@@ -845,10 +876,21 @@ async function 处理伪装反代(请求, 网址, 环境变量) {
       回退头.set('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36');
       try {
         const 回退响应 = await fetchWithTimeout(反代URL.origin + '/', { method: 'GET', headers: 回退头 }, 30000);
-        if (回退响应.ok || 回退响应.status < 500) return 回退响应;
+        if (回退响应.ok || 回退响应.status < 500) {
+          if (['1', 'true'].includes(环境变量.HSTS_ENABLE)) {
+            const hsts头2 = new Headers(回退响应.headers);
+            hsts头2.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
+            return new Response(回退响应.body, { status: 回退响应.status, statusText: 回退响应.statusText, headers: hsts头2 });
+          }
+          return 回退响应;
+        }
       } catch (e2) {
         console.error('首页根路径降级也失败:', e2.message);
       }
+    }
+    if (['1', 'true'].includes(环境变量.HSTS_ENABLE)) {
+      const 内容 = await nginx();
+      return new Response(内容, { status: 200, headers: { 'Content-Type': 'text/html; charset=UTF-8', 'Strict-Transport-Security': 'max-age=31536000; includeSubDomains; preload' } });
     }
     return new Response(await nginx(), { status: 200, headers: { 'Content-Type': 'text/html; charset=UTF-8' } });
   }
@@ -2046,11 +2088,13 @@ document.addEventListener('DOMContentLoaded', function () {
 </script>
     </body>
     </html>`;
+          const 终端响应头 = { 'Content-Type': 'text/html; charset=utf-8' };
+          if (['1', 'true'].includes(本地值734.HSTS_ENABLE)) {
+            终端响应头['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains; preload';
+          }
           return new Response(终端页面, {
             status: 200,
-            headers: {
-              'Content-Type': 'text/html; charset=utf-8'
-            }
+            headers: 终端响应头
           });
         }
         if (自定义路径 && 自定义路径.trim()) {
