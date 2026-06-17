@@ -2591,7 +2591,7 @@ async function 生成值值589(链接列表588, 本地值587 = {}) {
   const 值值580 = ['proxies:'];
   for (const 数量值579 of 节点列表586) {
     值值580.push(构建值节点行(数量值579));
-    if (值值580.length % 50 === 0) await yieldToEventLoop();
+    if (值值580.length % 12 === 0) await yieldToEventLoop();
   }
   const 节点仅 = 名称列表584.length ? 名称列表584.map(数量值578 => `      - ${处理本地值622(数量值578)}`).join('\n') : '      - DIRECT';
   const 值值577 = ['proxy-groups:', '  - name: "🚀 节点选择"', '    type: select', '    proxies:', '      - "🎯 全球直连"', 节点仅, '  - name: "🌍 国外媒体"', '    type: select', '    proxies:', 处理值选择值(名称列表584), '  - name: "📺 哔哩哔哩"', '    type: select', '    proxies:', 处理值选择值(名称列表584, {
@@ -2916,7 +2916,7 @@ async function 生成值值562(链接列表561) {
   for (const 数量值554 of 节点列表560) {
     const 服务名称指示 = 数量值554.sni;
     行列表555.push(`${数量值554.name} = trojan, ${数量值554.server}, ${数量值554.port}, password=${数量值554.password}, sni=${服务名称指示}, ws=true, ws-path=${数量值554.path}, ws-headers=Host:${数量值554.host}, skip-cert-verify=false, tfo=true`);
-    if (行列表555.length % 50 === 0) await yieldToEventLoop();
+    if (行列表555.length % 12 === 0) await yieldToEventLoop();
   }
   if (!节点列表560.length) {
     行列表555.push('Direct = direct');
@@ -2999,7 +2999,7 @@ async function 生成值值552(链接列表551) {
       部分列表543.push(`skip-cert-verify=false`);
       行列表546.push(`${数量值545.name} = trojan,${部分列表543.join(',')}`);
     }
-    if (行列表546.length % 50 === 0) await yieldToEventLoop();
+    if (行列表546.length % 12 === 0) await yieldToEventLoop();
   }
   行列表546.push('');
   行列表546.push('[Proxy Group]');
@@ -3087,7 +3087,7 @@ async function 生成值值(链接列表541) {
       const 部分列表535 = [`${数量值537.server}:${数量值537.port}`, `password=${数量值537.password}`, `over-tls=true`, `tls-host=${数量值537.sni}`, `obfs=wss`, `obfs-host=${数量值537.host}`, `obfs-uri=${数量值537.path}`, `tls-verification=true`, `tag=${数量值537.name}`];
       行列表538.push(`trojan=${部分列表535.join(', ')}`);
     }
-    if (行列表538.length % 50 === 0) await yieldToEventLoop();
+    if (行列表538.length % 12 === 0) await yieldToEventLoop();
   }
   行列表538.push('');
   行列表538.push('[policy]');
@@ -3900,7 +3900,7 @@ async function 处理网页套接字请求(请求417) {
     try {
       let 队列计数 = 0;
       for (;;) {
-        if (++队列计数 % 30 === 0) await yieldToEventLoop();
+        if (++队列计数 % 20 === 0) await yieldToEventLoop();
         if (传输值 || !远程连接值409.writer) break;
         const [数据401] = 值队列.bundle();
         if (!数据401) break;
@@ -8889,7 +8889,7 @@ async function 处理值值远程扩展超文本(计数器166, 写入器165, 本
     await 处理值值(本地值164.data);
     let 块数量162 = 0;
     while (!本地值164.done) {
-      if (++块数量162 % 30 === 0) await yieldToEventLoop();
+      if (++块数量162 % 20 === 0) await yieldToEventLoop();
       const 结果值161 = await 本地值164.reader.read(获取扩展超文本缓冲());
       if (结果值161.done) break;
       await 处理值值(结果值161.value);
@@ -8965,7 +8965,7 @@ function 创建扩展超文本值(本地值150, 远程值) {
       try {
         let 块数量 = 0;
         while (true) {
-          if (++块数量 % 30 === 0) await yieldToEventLoop();
+          if (++块数量 % 20 === 0) await yieldToEventLoop();
           const 结果值141 = await 读取器.read();
           if (结果值141.done) {
             break;
@@ -9093,7 +9093,7 @@ async function 处理扩展超文本客户端(主体128, 唯一标识) {
           let 响应头部 = 本地值125.data && 本地值125.data.byteLength > 0 ? null : 本地值125.resp;
           let 查询计数 = 0;
           while (!本地值125.done) {
-            if (++查询计数 % 30 === 0) await yieldToEventLoop();
+            if (++查询计数 % 20 === 0) await yieldToEventLoop();
             const 结果 = await 本地值125.reader.read();
             if (结果.done) break;
             if (结果.value && 结果.value.byteLength > 0) {
