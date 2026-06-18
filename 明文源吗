@@ -882,8 +882,7 @@ async function 处理伪装反代(请求, 网址, 环境变量) {
           'Referer': 图片源.origin + '/',
         }
       });
-      const 内容类型 = 图片反代响应.headers.get('content-type') || '';
-      if (!内容类型.startsWith('image/')) throw new Error('Not an image response');
+      const 内容类型 = 图片反代响应.headers.get('content-type') || 'image/jpeg';
       const 图片长度 = parseInt(图片反代响应.headers.get('content-length') || '0', 10);
       if (图片长度 === 0 || 图片长度 < 2 * 1024 * 1024) {
         const 图片字节 = await 图片反代响应.arrayBuffer();
