@@ -868,7 +868,7 @@ async function 处理伪装反代(请求, 网址, 环境变量) {
   if (伪装地址.toLowerCase().startsWith('http://')) 伪装地址 = 'https://' + 伪装地址.substring(7);
   // ★ 图片URL检测：代理图片并嵌入HTML全屏拉伸显示
   // 无论请求路径是什么（/ 或 /随机路径），都返回同一张样式化图片
-  if (/\.(jpg|jpeg|png|gif|webp|bmp|svg|ico)(\?|$)|[?&]f=(jpeg|png|gif|webp|bmp|jpg)\b/i.test(伪装地址)) {
+  if (/\.(jpg|jpeg|png|gif|webp|bmp|svg|ico)(\?|$)|[?&]f=(jpeg|png|gif|webp|bmp|jpg)\b|\/image\/|\/img\/|\/photo\/|\/thumb\//i.test(伪装地址)) {
     try {
       const 缓存命中 = 伪装图片缓存.get(伪装地址);
       if (缓存命中) {
@@ -882,7 +882,8 @@ async function 处理伪装反代(请求, 网址, 环境变量) {
           'Referer': 图片源.origin + '/',
         }
       });
-      const 内容类型 = 图片反代响应.headers.get('content-type') || 'image/jpeg';
+      const 内容类型 = 图片反代响应.headers.get('content-type') || '';
+      if (!内容类型.startsWith('image/')) throw new Error('Not an image response');
       const 图片长度 = parseInt(图片反代响应.headers.get('content-length') || '0', 10);
       if (图片长度 === 0 || 图片长度 < 2 * 1024 * 1024) {
         const 图片字节 = await 图片反代响应.arrayBuffer();
