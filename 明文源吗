@@ -541,7 +541,7 @@ const 传输下载延迟 = 0;
 const 传输上传包大小 = 64 * 1024;
 const 传输上传队列上限 = 8 * 1024 * 1024;
 const 传输连接竞速数 = 2;
-const 首字节超时 = 5000;
+const 首字节超时 = 3000;
 const 共享解码器 = new TextDecoder();
 const 唯一标识字节缓存 = new Map();
 function 是否有效格式(字符串) {
@@ -643,7 +643,7 @@ async function 处理值键值值(本地值773) {
       键值存储 = 本地值773.C;
       await 加载键值配置();
       // 订阅缓存版本号：首次请求即加载，确保缓存键始终有版本
-      configVersion = (await 键值存储.get('c_ver')) || '';
+      configVersion = (await withTimeout(键值存储.get('c_ver'), 2000, 'KV c_ver 读取超时')) || '';
     } catch (错误772) {
       键值存储 = null;
     }
@@ -662,7 +662,7 @@ async function 加载键值配置(本地值771 = false) {
     // 读取小体积的版本键 c_ver（约 13B），用于跨 isolate 缓存失效
     let 本地值770 = '';
     try {
-      本地值770 = (await 键值存储.get('c_ver')) || '';
+      本地值770 = (await withTimeout(键值存储.get('c_ver'), 2000, 'KV c_ver 读取超时')) || '';
     } catch (忽略值769) {}
 
     // 版本未变化且已有缓存，仅刷新时间戳，跳过完整读取
@@ -670,7 +670,7 @@ async function 加载键值配置(本地值771 = false) {
       键值配置上次加载 = Date.now();
       return;
     }
-    const 配置数据 = await 键值存储.get('c');
+    const 配置数据 = await withTimeout(键值存储.get('c'), 3000, 'KV c 读取超时');
     if (配置数据) {
       键值配置 = JSON.parse(配置数据);
     }
@@ -690,12 +690,12 @@ async function 保存键值配置() {
   }
   try {
     const 配置字符串 = JSON.stringify(键值配置);
-    await 键值存储.put('c', 配置字符串);
+    await withTimeout(键值存储.put('c', 配置字符串), 3000, 'KV c 写入超时');
     // 写入版本号，让其它 isolate 在下次请求时能立即看到变更
     const 新值 = String(Date.now());
     键值配置版本 = 新值;
     try {
-      await 键值存储.put('c_ver', 新值);
+      await withTimeout(键值存储.put('c_ver', 新值), 3000, 'KV c_ver 写入超时');
     } catch (忽略值767) {}
     键值配置上次加载 = Date.now();
   } catch (错误766) {
@@ -875,16 +875,16 @@ async function 处理伪装反代(请求, 网址, 环境变量) {
         return new Response(生成图片HTML(数据URI), { status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8', ...hsts头 } });
       }
       const 图片源 = new URL(伪装地址);
-      const 图片反代响应 = await fetch(伪装地址, {
+      const 图片反代响应 = await fetchWithTimeout(伪装地址, {
         headers: {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36',
           'Referer': 图片源.origin + '/',
         }
-      });
+      }, 30000);
       const 内容类型 = 图片反代响应.headers.get('content-type') || 'image/jpeg';
       const 图片长度 = parseInt(图片反代响应.headers.get('content-length') || '0', 10);
       if (图片长度 === 0 || 图片长度 < 2 * 1024 * 1024) {
-        const 图片字节 = await 图片反代响应.arrayBuffer();
+        const 图片字节 = await withTimeout(图片反代响应.arrayBuffer(), 5000, '图片代理响应体读取超时');
         if (图片字节.byteLength < 2 * 1024 * 1024) {
           if (伪装图片缓存.size >= 伪装图片缓存最大) {
             const 最旧键 = 伪装图片缓存.keys().next().value;
@@ -3187,11 +3187,11 @@ async function 查询域名系统(域名, type = 65, ...doh服务器列表) {
       catch { continue; }
     }
     const promise = (async () => {
-      const 响应 = await fetch(`${doh服务器}?name=${encodeURIComponent(域名)}&type=${type}`, {
+      const 响应 = await fetchWithTimeout(`${doh服务器}?name=${encodeURIComponent(域名)}&type=${type}`, {
         headers: { 'Accept': 'application/json' }
-      });
+      }, 5000);
       if (!响应.ok) throw new Error(`DoH ${doh服务器} 返回 ${响应.status}`);
-      const 数据 = await 响应.json();
+      const 数据 = await withTimeout(响应.json(), 5000, 'DoH JSON 解析超时');
       const 是空结果 = !数据.Answer || 数据.Answer.length === 0;
       设置缓存值Doh(域名, type, doh服务器, 数据, 是空结果);
       dohBackoffMap.delete(键);
@@ -3789,15 +3789,15 @@ async function 获取值地址列表() {
 }
 async function 获取值解析值(网址426) {
   try {
-    const 响应425 = await fetch(网址426, {
+    const 响应425 = await fetchWithTimeout(网址426, {
       headers: {
         'User-Agent': 'Mozilla/5.0'
       }
-    });
+    }, 10000);
     if (!响应425.ok) {
       return [];
     }
-    const 页面 = await 响应425.text();
+    const 页面 = await withTimeout(响应425.text(), 5000, '页面解析文本超时');
     const 结果列表424 = [];
     const 值正则423 = /<tr[\s\S]*?<\/tr>/g;
     const 值正则422 = /<td data-label="线路名称">(.+?)<\/td>[\s\S]*?<td data-label="优选地址">([\d.:a-fA-F]+)<\/td>[\s\S]*?<td data-label="数据中心">(.+?)<\/td>/;
@@ -9215,9 +9215,9 @@ async function 获取值解析新地址列表() {
       if (执行上下文) 执行上下文.waitUntil(cverP2);
       return 结果列表110;
     }
-    const 响应107 = await fetch(网址113);
+    const 响应107 = await fetchWithTimeout(网址113, {}, 10000);
     if (!响应107.ok) return [];
-    const 文本106 = await 响应107.text();
+    const 文本106 = await withTimeout(响应107.text(), 5000, '优选地址列表文本解析超时');
     const 结果列表105 = [];
     const 行列表104 = 文本106.trim().replace(/\r/g, "").split('\n');
     const 值正则 = /^([^:]+):(\d+)#(.*)$/;
