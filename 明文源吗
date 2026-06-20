@@ -6531,7 +6531,6 @@ const 特征码字典 = [
     String.fromCharCode(99, 102, 110) + Error.name[0].toLowerCase() + String.fromCharCode(119),
     String.fromCharCode(74) + (typeof {})[0] + Error.name[0].toLowerCase() + String.fromCharCode(121),
     String.fromCharCode(67, 77) + URL.name[2] + (Infinity + '')[3] + URL.name[0].toLowerCase() + String.fromCharCode(115, 115, 115, 115),
-    String(2407 * 300 - 10).split('').reverse().join(''),
 ];
 // 订阅转换地址（从服务器配置注入）
 var 订阅转换网址 = "${订阅转换接口}";
