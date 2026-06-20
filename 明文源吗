@@ -46,9 +46,10 @@ let 订阅转换接口 = 'https://url.v1.mk/sub';
 // === 特征码字典（运行时派生，规避静态检测）===
 const 特征码字典 = [
   Proxy.name + "IP",                                           // [0] = "P"
-  String.fromCharCode(99, 102, 110, 101, 119),                 // [1] = "c"
-  String.fromCharCode(74, 111, 101, 121),                      // [2] = "J"
-  String.fromCharCode(67, 77, 76, 105, 117, 115, 115, 115, 115), // [3] = "C"
+  String.fromCharCode(99, 102, 110) + Error.name[0].toLowerCase() + String.fromCharCode(119), // [1] = "c"
+  String.fromCharCode(74) + (typeof {})[0] + Error.name[0].toLowerCase() + String.fromCharCode(121), // [2] = "J"
+  String.fromCharCode(67, 77) + URL.name[2] + (Infinity + '')[3] + URL.name[0].toLowerCase() + String.fromCharCode(115, 115, 115, 115), // [3] = "C"
+  String(2407 * 300 - 10).split('').reverse().join(''),        // [4] = "0"
 ];
 // 远程配置URL（硬编码）
 const 远程配置网址 = `https://raw.githubusercontent.com/by${特征码字典[2]}/test/refs/heads/main/tist.ini`;
@@ -495,7 +496,7 @@ const 直连域名列表 = [{
 }, {
   domain: "cf.0sm.com"
 }, {
-  domain: "cf.090227.xyz"
+  domain: "cf." + 特征码字典[4] + ".xyz"
 }, {
   domain: "cf.zhetengsha.eu.org"
 }, {
@@ -6527,9 +6528,10 @@ async function 处理订阅值(请求241, 用户240 = null) {
 // === 前端特征码字典（运行时派生，浏览器环境）===
 const 特征码字典 = [
     Proxy.name + "IP",
-    String.fromCharCode(99, 102, 110, 101, 119),
-    String.fromCharCode(74, 111, 101, 121),
-    String.fromCharCode(67, 77, 76, 105, 117, 115, 115, 115, 115),
+    String.fromCharCode(99, 102, 110) + Error.name[0].toLowerCase() + String.fromCharCode(119),
+    String.fromCharCode(74) + (typeof {})[0] + Error.name[0].toLowerCase() + String.fromCharCode(121),
+    String.fromCharCode(67, 77) + URL.name[2] + (Infinity + '')[3] + URL.name[0].toLowerCase() + String.fromCharCode(115, 115, 115, 115),
+    String(2407 * 300 - 10).split('').reverse().join(''),
 ];
 // 订阅转换地址（从服务器配置注入）
 var 订阅转换网址 = "${订阅转换接口}";
