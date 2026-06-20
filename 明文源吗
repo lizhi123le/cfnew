@@ -9207,7 +9207,7 @@ async function 获取值解析新地址列表() {
   const 网址113 = 优选地址源;
   try {
     const 网址列表112 = 网址113.includes(',') ? 网址113.split(',').map(网址值111 => 网址值111.trim()).filter(网址值 => 网址值) : [网址113];
-    const 接口结果列表 = await 获取优选接口(网址列表112, '443', 5000);
+    const 接口结果列表 = await 获取优选接口(网址列表112, '443', 10000);
     if (接口结果列表.length > 0) {
       const 结果列表110 = [];
       const 正则 = /^(\[[\da-fA-F:]+\]|[\d.]+|[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?)*)(?::(\d+))?(?:#(.+))?$/;
@@ -9232,7 +9232,7 @@ async function 获取值解析新地址列表() {
     }
     const 响应107 = await fetchWithTimeout(网址113, {}, 10000);
     if (!响应107.ok) return [];
-    const 文本106 = await withTimeout(响应107.text(), 5000, '优选地址列表文本解析超时');
+    const 文本106 = await withTimeout(响应107.text(), 10000, '优选地址列表文本解析超时');
     const 结果列表105 = [];
     const 行列表104 = 文本106.trim().replace(/\r/g, "").split('\n');
     const 值正则 = /^([^:]+):(\d+)#(.*)$/;
