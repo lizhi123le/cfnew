@@ -50,7 +50,6 @@ const 特征码字典 = [
   String.fromCharCode(74, 111, 101, 121),                      // [2] = "J"
   String.fromCharCode(67, 77, 76, 105, 117, 115, 115, 115, 115), // [3] = "C"
 ];
-
 // 远程配置URL（硬编码）
 const 远程配置网址 = `https://raw.githubusercontent.com/by${特征码字典[2]}/test/refs/heads/main/tist.ini`;
 let 启用优选域名 = true; // 优选域名默认关闭
@@ -6525,6 +6524,13 @@ async function 处理订阅值(请求241, 用户240 = null) {
             </button>
         </div>
         <script>
+// === 前端特征码字典（运行时派生，浏览器环境）===
+const 特征码字典 = [
+    Proxy.name + "IP",
+    String.fromCharCode(99, 102, 110, 101, 119),
+    String.fromCharCode(74, 111, 101, 121),
+    String.fromCharCode(67, 77, 76, 105, 117, 115, 115, 115, 115),
+];
 // 订阅转换地址（从服务器配置注入）
 var 订阅转换网址 = "${订阅转换接口}";
 // 远程配置URL（硬编码）
