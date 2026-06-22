@@ -1,4 +1,4 @@
-// CFnew - 终端 版本: v2.9.8b 
+// CFnew - 终端 版本: v2.9.8c
 
 // === P0-1: RequestContext — per-request 状态容器，防止并发串号 ===
 class RequestContext {
@@ -1710,8 +1710,8 @@ export default {
           const 语言值661 = 是否值664 ? 'fa-IR' : 'zh-CN';
           const 本地值660 = {
             zh: {
-              title: '终端 v2.9.8b',
-              terminal: '终端 v2.9.8b',
+              title: '终端 v2.9.8c',
+              terminal: '终端 v2.9.8c',
               congratulations: '恭喜你来到这',
               enterU: '请输入你U变量的值',
               enterD: '请输入你D变量的值',
@@ -1727,8 +1727,8 @@ export default {
               reenter: '请重新输入有效的UUID'
             },
             fa: {
-              title: 'ترمینال v2.9.8b',
-              terminal: 'ترمینال v2.9.8b',
+              title: 'ترمینال v2.9.8c',
+              terminal: 'ترمینال v2.9.8c',
               congratulations: 'تبریک می‌گوییم به شما',
               enterU: 'لطفا مقدار متغیر U خود را وارد کنید',
               enterD: 'لطفا مقدار متغیر D خود را وارد کنید',
@@ -5108,7 +5108,7 @@ async function 处理订阅值(请求241, 用户240 = null) {
         FI: '🇫🇮 芬兰',
         GB: '🇬🇧 英国'
       },
-      terminal: '终端 v2.9.8b',
+      terminal: '终端 v2.9.8c',
       githubProject: 'GitHub 项目',
       优选工具: '优选工具',
       autoDetectClient: '自动识别',
@@ -5263,7 +5263,7 @@ async function 处理订阅值(请求241, 用户240 = null) {
         FI: '🇫🇮 فنلاند',
         GB: '🇬🇧 بریتانیا'
       },
-      terminal: 'ترمینال v2.9.8b',
+      terminal: 'ترمینال v2.9.8c',
       githubProject: 'پروژه GitHub',
       优选工具: 'ابزار ترجیح IP',
       autoDetectClient: 'تشخیص خودکار',
