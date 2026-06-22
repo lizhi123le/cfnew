@@ -180,10 +180,10 @@ async function 解析域名获取IP池(域名) {
   // 去重
   let 候选IP列表 = [...new Set(所有IP)];
   
-  // P0-4: DNS 全失败 → 抛异常（不再降级直连，防止流量被劫持）
+  // 兼容旧版：DNS 全失败时降级到原始域名直连（运行时自带 DNS 解析兜底）
   if (候选IP列表.length === 0) {
-    console.error('[DNS] 所有 DoH 服务器解析失败:', 域名);
-    throw new Error('DNS_RESOLVE_FAILED: 所有上游 DoH 服务器无响应');
+    console.warn('[DNS] 所有 DoH 服务器解析失败，降级到域名直连:', 域名);
+    return [域名];
   }
   
   // LCG 洗牌 + 截取前 8（避免过多 IP 并发拨号）
