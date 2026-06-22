@@ -1271,8 +1271,8 @@ export default {
         headers: { 'Content-Type': 'text/plain;charset=utf-8' }
       });
     }
-    // P0-6: 未设置管理员密码时警告
-    if (!本地值734.管理员密码 && !本地值734.admin) {
+    // P0-6: 未设置管理员密码时警告（支持 管理员密码/admin/ADMIN 三种变量名）
+    if (!本地值734.管理员密码 && !本地值734.admin && !本地值734.ADMIN) {
       console.warn('[安全] 未设置管理员密码 — 管理面板将拒绝所有请求');
     }
     // P2-1: 查询字符串长度限制（防参数爆炸 DOS）
