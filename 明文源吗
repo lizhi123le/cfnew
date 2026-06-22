@@ -104,47 +104,6 @@ let 执行上下文 = null;
 // IPv4 地址正则
 const ipv4正则 = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
 
-// 节点黑名单 Map
-const 节点黑名单 = new Map();
-const 节点黑名单基础拉黑时间 = 30 * 1000;      // 30s 基础退避
-const 节点黑名单最大拉黑时间 = 30 * 60 * 1000;  // 30min 上限
-const 节点黑名单退避系数 = 2;                   // 指数退避系数
-const 节点黑名单最大条目 = 500;                 // 防内存泄漏
-
-// IP 池轮询偏移（用于多 IP 轮询，避免总是从第一个开始）
-let IP池轮询索引 = 0;
-
-// 计算过期时间（指数退避：failCount 从 1 开始）
-function 节点黑名单计算过期时间(failCount) {
-  const 拉黑时间 = Math.min(节点黑名单基础拉黑时间 * Math.pow(节点黑名单退避系数, failCount - 1), 节点黑名单最大拉黑时间);
-  return Date.now() + 拉黑时间;
-}
-
-// 检查并清理过期条目（黑名单预检 continue，不计 failCount）
-function 节点黑名单检查并清理(key) {
-  const 条目 = 节点黑名单.get(key);
-  if (!条目) return false;
-  if (Date.now() < 条目.expiresAt) return true;  // 仍在黑名单中
-  节点黑名单.delete(key);                           // 过期自动清除
-  return false;
-}
-
-// 记录失败（仅真实连接失败递增 failCount）
-function 节点黑名单记录(key) {
-  const 已有记录 = 节点黑名单.get(key);
-  const 失败次数 = 已有记录 ? 已有记录.failCount + 1 : 1;
-  if (!已有记录 && 节点黑名单.size >= 节点黑名单最大条目) {
-    const 最早键 = 节点黑名单.keys().next().value;
-    节点黑名单.delete(最早键);
-  }
-  节点黑名单.set(key, { expiresAt: 节点黑名单计算过期时间(失败次数), failCount: 失败次数 });
-}
-
-// 可选：订阅层过滤查询
-function 节点黑名单查询(ip, port = 443) {
-  return 节点黑名单.has(`${ip}:${port}`);
-}
-
 // 检测地址是否为 IP（而非域名）
 function 是IP地址(地址) {
   return ipv4正则.test(地址) || (地址.includes(':') && !地址.includes('/'));
@@ -153,30 +112,8 @@ function 是IP地址(地址) {
 // 直连域名（跳过 DoH 解析，让运行时 DNS 兜底）
 async function 解析域名获取IP池(域名) {
   if (是IP地址(域名)) return [域名];
-  console.warn('[DNS] 跳过 DoH 解析，直连域名:', 域名);
+  console.debug('[DNS] 直连域名:', 域名);
   return [域名];
-}
-
-// 并发连接候选（多 IP 并发拨号，取最先成功的，失败则记录黑名单）
-async function 并发连接候选(候选列表, 请求值 = null) {
-  if (候选列表.length === 1) {
-    const 候选 = 候选列表[0];
-    return { socket: await 连接值套接字(候选.hostname, 候选.port, 请求值, 1), candidate: 候选 };
-  }
-  // 多候选竞速：每个候选单独拨号，取最先成功的
-  const 拨号任务 = 候选列表.map(候选 =>
-    连接值套接字(候选.hostname, 候选.port, 请求值, 1)
-      .then(套接字 => ({ socket: 套接字, candidate: 候选 }))
-  );
-  // 使用 Promise.any 竞速
-  const 胜出 = await Promise.any(拨号任务);
-  // 关闭其他套接字（用 AbortController，用完成后关闭模式）
-  for (const attempt of 拨号任务) {
-    attempt.then(({ socket }) => {
-      if (socket !== 胜出.socket) try { socket?.close?.() } catch (e) {}
-    }).catch(() => {/* 竞争失败方正常关闭，忽略 */});
-  }
-  return 胜出;  // { socket, candidate }
 }
 
 // 管理员密码（设空则不启用认证）
@@ -549,7 +486,6 @@ const 传输下载尾部 = 512;
 const 传输下载延迟 = 0;
 const 传输上传包大小 = 64 * 1024;
 const 传输上传队列上限 = 8 * 1024 * 1024;
-const 传输连接竞速数 = 2;
 const 首字节超时 = 6000;
 const 共享解码器 = new TextDecoder();
 const 唯一标识字节缓存 = new Map();
