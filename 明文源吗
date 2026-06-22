@@ -3317,7 +3317,7 @@ async function 查询域名系统(域名, type = 65, ...doh服务器列表) {
     }
     const promise = (async () => {
       const 响应 = await fetchWithTimeout(`${doh服务器}?name=${encodeURIComponent(域名)}&type=${type}`, {
-        headers: { 'Accept': 'application/json' }
+        headers: { 'Accept': 'application/dns-json' }
       }, 5000);
       if (!响应.ok) throw new Error(`DoH ${doh服务器} 返回 ${响应.status}`);
       const 数据 = await withTimeout(响应.json(), 5000, 'DoH JSON 解析超时');
