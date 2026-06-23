@@ -519,46 +519,21 @@ const 直连域名列表 = [{
   name: "cloudflare.182682.xyz",
   domain: "cloudflare.182682.xyz"
 }, {
-  name: "speed.marisalnc.com",
-  domain: "speed.marisalnc.com"
-}, {
   domain: "freeyx.cloudflare88.eu.org"
 }, {
   domain: "bestcf.top"
 }, {
   domain: "cdn.2020111.xyz"
 }, {
-  domain: "cfip.cfcdn.vip"
-}, {
   domain: "cf.0sm.com"
 }, {
   domain: "cf." + 特征码字典[4] + ".xyz"
 }, {
-  domain: "cf.zhetengsha.eu.org"
-}, {
-  domain: "cloudflare.9jy.cc"
-}, {
-  domain: "cf.zerone-cdn.pp.ua"
-}, {
   domain: "cfip.1323123.xyz"
-}, {
-  domain: "cnamefuckxxs.yuchen.icu"
 }, {
   domain: "cloudflare-ip.mofashi.ltd"
 }, {
-  domain: "115155.xyz"
-}, {
-  domain: "cname.xirancdn.us"
-}, {
-  domain: "f3058171cad.002404.xyz"
-}, {
-  domain: "8.889288.xyz"
-}, {
-  domain: "cdn.tzpro.xyz"
-}, {
   domain: "cf.877771.xyz"
-}, {
-  domain: "xn--b6gac.eu.org"
 }];
 const 错误_无效数据 = atob('aW52YWxpZCBkYXRh');
 const 错误_无效用户 = atob('aW52YWxpZCB1c2Vy');
@@ -935,9 +910,9 @@ function 解析地址值端口(输入) {
 
 // ★ 伪装首页全路径反向代理
 async function 处理伪装反代(请求, 网址, 环境变量) {
-  // 兼容 KV homepage > env.homepage > env.URL > 默认 nginx
+  // 兼容 KV homepage > env.homepage > env.URL > 默认 1101
   let 伪装地址 = (获取配置值('homepage', '') || 环境变量.homepage || 环境变量.HOMEPAGE || 环境变量.URL || '').trim().replace(/\/$/, '');
-  if (!伪装地址) 伪装地址 = 'nginx';
+  if (!伪装地址) 伪装地址 = '1101';
   const hsts头 = ['1', 'true'].includes(环境变量.HSTS_ENABLE) ? { 'Strict-Transport-Security': 'max-age=31536000; includeSubDomains; preload' } : {};
   // 特殊值处理
   if (伪装地址.toLowerCase() === 'nginx') {
@@ -1435,7 +1410,7 @@ export default {
             是否有效692 = 是否有效格式(路径值693) && 路径值693 === ctxState.认证令牌;
           }
           if (是否有效692) {
-            if (!(await 是否管理员已验证(请求735))) {
+            if (管理员密码 && !(await 是否管理员已验证(请求735))) {
               return new Response('未授权', { status: 401, headers: { 'Content-Type': 'text/plain' } });
             }
             return await 处理配置接口(请求735, 本地值734);
@@ -1473,7 +1448,7 @@ export default {
             是否有效686 = 是否有效格式(路径值687) && 路径值687 === ctxState.认证令牌;
           }
           if (是否有效686) {
-            if (!(await 是否管理员已验证(请求735))) {
+            if (管理员密码 && !(await 是否管理员已验证(请求735))) {
               return new Response('未授权', { status: 401, headers: { 'Content-Type': 'text/plain' } });
             }
             return await 处理优选地址列表接口(请求735);
@@ -1562,7 +1537,7 @@ export default {
               是否有效680 = 是否有效格式(路径值681) && 路径值681 === ctxState.认证令牌;
             }
             if (是否有效680) {
-              if (!(await 是否管理员已验证(请求735))) {
+              if (管理员密码 && !(await 是否管理员已验证(请求735))) {
                 return new Response('未授权', { status: 401, headers: { 'Content-Type': 'text/plain' } });
               }
               const 本地值678 = 获取配置值('p', 本地值734.p || 本地值734.P);
@@ -1630,7 +1605,7 @@ export default {
               是否有效 = 是否有效格式(路径值) && 路径值 === ctxState.认证令牌;
             }
             if (是否有效) {
-              if (!(await 是否管理员已验证(请求735))) {
+              if (管理员密码 && !(await 是否管理员已验证(请求735))) {
                 return new Response('未授权', { status: 401, headers: { 'Content-Type': 'text/plain' } });
               }
               try {
@@ -1670,8 +1645,8 @@ export default {
         }
         // /login 路径：取决于管理员密码设置
         const 是登录路径 = 网址698.pathname === '/login';
-        // /login 路径下且设置了密码，始终显示管理员登录（不管 Cookie 是否有效）
-        const 需要管理员认证 = !(await 是否管理员已验证(请求735)) || 是登录路径;
+        // 无管理员密码时 /login 显示路径登录页（UUID或自定义路径），有密码时显示管理员密码登录
+        const 需要管理员认证 = 是登录路径 ? !!管理员密码 : !(await 是否管理员已验证(请求735));
         const 跳过首页伪装 = 是登录路径; // /login 始终显示登录页面，不显示伪装首页
         if (网址698.pathname === '/' || 是登录路径) {
           if (!跳过首页伪装) {
@@ -2375,7 +2350,7 @@ document.addEventListener('DOMContentLoaded', function () {
           const 规范化自定义路径 = 清理自定义路径.endsWith('/') && 清理自定义路径.length > 1 ? 清理自定义路径.slice(0, -1) : 清理自定义路径;
           const 规范化路径 = 网址698.pathname.endsWith('/') && 网址698.pathname.length > 1 ? 网址698.pathname.slice(0, -1) : 网址698.pathname;
           if (规范化路径 === 规范化自定义路径) {
-            if (!(await 是否管理员已验证(请求735))) {
+            if (管理员密码 && !(await 是否管理员已验证(请求735))) {
               return new Response(null, { status: 302, headers: { 'Location': '/' } });
             }
             return await 处理订阅值(请求735, ctxState.认证令牌);
@@ -2402,7 +2377,7 @@ document.addEventListener('DOMContentLoaded', function () {
             const 用户657 = 网址698.pathname.replace(/\/$/, '').substring(1);
             if (是否有效格式(用户657)) {
               if (用户657 === ctxState.认证令牌) {
-                if (!(await 是否管理员已验证(请求735))) {
+                if (管理员密码 && !(await 是否管理员已验证(请求735))) {
                   return new Response(null, { status: 302, headers: { 'Location': '/' } });
                 }
                 return await 处理订阅值(请求735, 用户657);
