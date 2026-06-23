@@ -237,10 +237,10 @@ function 清理伪装首页缓存() {
   }
   if (伪装首页缓存.size > 100) 伪装首页缓存.clear();
 }
-// 图片代理缓存（最多12张，每张不超过1024KB，FIFO淘汰）
+// 图片代理缓存（最多12张，每张不超过2048KB，FIFO淘汰）
 const 伪装图片缓存 = new Map();
 const 伪装图片缓存最大 = 12;
-const 伪装图片单项最大 = 1024 * 1024; // P2-1: 单图大小上限 1024KB
+const 伪装图片单项最大 = 2 * 1024 * 1024; // P2-1: 单图大小上限 2048KB
 function 字节转HTML图片(字节, 内容类型) {
   const 视图 = new Uint8Array(字节);
   const 块 = [];
@@ -977,8 +977,8 @@ async function 处理伪装反代(请求, 网址, 环境变量) {
       if (图片长度 > 0 && 图片长度 < 2 * 1024 * 1024) {
         const 图片字节 = await withTimeout(图片反代响应.arrayBuffer(), 5000, '图片代理响应体读取超时');
         if (图片字节.byteLength < 2 * 1024 * 1024) {
-          // 1024KB 以内可缓存，超出则返回但不缓存
-          if (图片字节.byteLength <= 伪装图片单项最大) {
+          // 2048KB 以内可缓存，超出则返回但不缓存
+          if (图片字节.byteLength < 伪装图片单项最大) {
             if (伪装图片缓存.size >= 伪装图片缓存最大) {
               const 最旧键 = 伪装图片缓存.keys().next().value;
               if (最旧键) 伪装图片缓存.delete(最旧键);
