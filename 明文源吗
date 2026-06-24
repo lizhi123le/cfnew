@@ -512,7 +512,7 @@ const 直连域名列表 = [{
 }, {
   domain: "cf.0sm.com"
 }, {
-  domain: "cf." + 特征码字典[4] + ".xyz"
+  domain: "*.cf." + 特征码字典[4] + ".xyz"
 }, {
   domain: "cfip.1323123.xyz"
 }, {
@@ -3458,7 +3458,7 @@ async function 处理订阅请求(请求507, 用户506, 网址505 = null) {
   } else {
     if (启用优选域名) {
       const 域名列表 = 直连域名列表.map(丁值491 => ({
-        ip: 丁值491.domain,
+        ip: 丁值491.domain.includes('*') ? 替换通配符(丁值491.domain) : 丁值491.domain,
         isp: 丁值491.name || 丁值491.domain
       }));
       await 添加节点列表来源列表(域名列表);
