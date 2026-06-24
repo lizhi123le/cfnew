@@ -3450,7 +3450,7 @@ async function 处理订阅请求(请求507, 用户506, 网址505 = null) {
     }
     if (自定义优选域名列表.length > 0 && 启用优选域名) {
       const 自定义域名列表 = 自定义优选域名列表.map(丁值492 => ({
-        ip: 丁值492.domain,
+        ip: 丁值492.domain.includes('*') ? 替换通配符(丁值492.domain) : 丁值492.domain,
         isp: 丁值492.name || 丁值492.domain
       }));
       await 添加节点列表来源列表(自定义域名列表);
