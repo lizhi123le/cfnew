@@ -9882,8 +9882,13 @@ function 随机路径(完整节点路径 = "/") {
 }
 // === 随机 Host/SNI 辅助函数 ===
 function 替换通配符(字符串) {
-  const 字符集 = 'abcdefghijklmnopqrstuvwxyz0123456789-';
-  return 字符串.replace(/\*/g, () => 字符集[Math.floor(Math.random() * 字符集.length)]);
+  const 字符集 = 'abcdefghijklmnopqrstuvwxyz0123456789';
+  return 字符串.replace(/\*/g, () => {
+    const 长度 = 3 + Math.floor(Math.random() * 5); // 3-7 位
+    let 结果 = '';
+    for (let i = 0; i < 长度; i++) 结果 += 字符集[Math.floor(Math.random() * 字符集.length)];
+    return 结果;
+  });
 }
 function 获取随机主机(回退地址, 默认地址) {
   if (主机列表 && 主机列表.length > 0) {
