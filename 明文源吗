@@ -230,7 +230,6 @@ function 清理伪装首页缓存() {
 // 图片代理缓存（最多12张，每张不超过2048KB，FIFO淘汰）
 const 伪装图片缓存 = new Map();
 const 伪装图片缓存最大 = 12;
-const 伪装图片单项最大 = 2 * 1024 * 1024; // P2-1: 单图大小上限 2048KB
 function 字节转HTML图片(字节, 内容类型) {
   const 视图 = new Uint8Array(字节);
   const 块 = [];
@@ -924,19 +923,18 @@ async function 处理伪装反代(请求, 网址, 环境变量) {
         }
       }, 10000);
       const 内容类型 = 图片反代响应.headers.get('content-type') || 'image/jpeg';
+      // 假阳性保护：服务器返回 HTML 说明不是图片，降级到普通反代
+      if (内容类型.startsWith('text/html')) throw new Error('非图片响应(' + 内容类型 + ')，跳过图片伪装');
       const 图片长度 = parseInt(图片反代响应.headers.get('content-length') || '0', 10);
       // P2-1: 已知 <2MB → 缓冲 + 缓存 + HTML 包装
       if (图片长度 > 0 && 图片长度 < 2 * 1024 * 1024) {
         const 图片字节 = await withTimeout(图片反代响应.arrayBuffer(), 5000, '图片代理响应体读取超时');
         if (图片字节.byteLength < 2 * 1024 * 1024) {
-          // 2048KB 以内可缓存，超出则返回但不缓存
-          if (图片字节.byteLength < 伪装图片单项最大) {
-            if (伪装图片缓存.size >= 伪装图片缓存最大) {
-              const 最旧键 = 伪装图片缓存.keys().next().value;
-              if (最旧键) 伪装图片缓存.delete(最旧键);
-            }
-            伪装图片缓存.set(伪装地址, { body: 图片字节, status: 图片反代响应.status, contentType: 内容类型, time: Date.now() });
+          if (伪装图片缓存.size >= 伪装图片缓存最大) {
+            const 最旧键 = 伪装图片缓存.keys().next().value;
+            if (最旧键) 伪装图片缓存.delete(最旧键);
           }
+          伪装图片缓存.set(伪装地址, { body: 图片字节, status: 图片反代响应.status, contentType: 内容类型, time: Date.now() });
           const 数据URI = 字节转HTML图片(图片字节, 内容类型);
           return new Response(生成图片HTML(数据URI), { status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8', ...hsts头 } });
         }
@@ -948,7 +946,8 @@ async function 处理伪装反代(请求, 网址, 环境变量) {
       const 图片头 = { 'Content-Type': 内容类型, 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'public, max-age=86400', ...hsts头 };
       return new Response(图片反代响应.body, { status: 图片反代响应.status, headers: 图片头 });
     } catch (e) {
-      return new Response(await nginx(), { status: 200, headers: { 'Content-Type': 'text/html; charset=UTF-8', ...hsts头 } });
+      console.error('伪装图片代理失败:', e.message);
+      // 图片处理失败，fallthrough 到普通伪装页逻辑
     }
   }
   // URL 归一化（剥离路径，仅保留host用于反向代理）
