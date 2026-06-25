@@ -884,8 +884,13 @@ function 解析地址值端口(输入) {
 }
 // ★ 伪装首页全路径反向代理
 async function 处理伪装反代(请求, 网址, 环境变量) {
-  // 兼容 KV homepage > env.homepage > env.URL > 默认 1101
-  let 伪装地址 = (环境变量.homepage || 环境变量.HOMEPAGE || 环境变量.URL || 获取配置值('homepage', '') || '').trim().replace(/\/$/, '');
+  // 优先级: env.homepage/env.HOMEPAGE/env.URL > KV 前端设置 > 1101 兜底
+  // 只有前端设置过伪装首页时才从 KV 配置内存读取，避免无谓触 KV 版本检查
+  let 伪装地址 = (环境变量.homepage || 环境变量.HOMEPAGE || 环境变量.URL || '').trim();
+  if (!伪装地址) {
+    伪装地址 = (键值配置['homepage'] || '1101');
+  }
+  伪装地址 = 伪装地址.replace(/\/$/, '');
   if (!伪装地址) 伪装地址 = '1101';
   const hsts头 = ['1', 'true'].includes(环境变量.HSTS_ENABLE) ? { 'Strict-Transport-Security': 'max-age=31536000; includeSubDomains; preload' } : {};
   // 特殊值处理
