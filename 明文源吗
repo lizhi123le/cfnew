@@ -953,6 +953,72 @@ async function 处理伪装反代(请求, 网址, 环境变量) {
   // URL 归一化（剥离路径，仅保留host用于反向代理）
   try { const u = new URL(伪装地址); 伪装地址 = u.protocol + '//' + u.host; } catch (e) { return new Response(await nginx(), { status: 200, headers: { 'Content-Type': 'text/html; charset=UTF-8', ...hsts头 } }); }
   const 反代URL = new URL(伪装地址);
+    // UA 随机化（浏览器指纹保护）— 按真实市场份额加权（2026.06）
+    const 浏览器UA池 = [
+        // Windows
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36',
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36',
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Edg/149.0.4022.69 Safari/537.36',
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:151.0) Gecko/20100101 Firefox/151.0',
+        // macOS (Intel)
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 15_0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36',
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 15_0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36',
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 15_0) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.5 Safari/605.1.15',
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 15.0; rv:151.0) Gecko/20100101 Firefox/151.0',
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 15_0) AppleWebKit/537.36 (KHTML, like Gecko) Edg/149.0.4022.69 Safari/537.36',
+        // macOS (Apple Silicon)
+        'Mozilla/5.0 (Macintosh; ARM Mac OS X 26_0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36',
+        'Mozilla/5.0 (Macintosh; ARM Mac OS X 26_0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36',
+        'Mozilla/5.0 (Macintosh; ARM Mac OS X 26_0) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.5 Safari/605.1.15',
+        'Mozilla/5.0 (Macintosh; ARM Mac OS X 26_0; rv:151.0) Gecko/20100101 Firefox/151.0',
+        'Mozilla/5.0 (Macintosh; ARM Mac OS X 26_0) AppleWebKit/537.36 (KHTML, like Gecko) Edg/149.0.4022.69 Safari/537.36',
+        // Linux
+        'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36',
+        'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Edg/149.0.4022.69 Safari/537.36',
+        'Mozilla/5.0 (X11; Linux x86_64; rv:151.0) Gecko/20100101 Firefox/151.0',
+        // ChromeOS
+        'Mozilla/5.0 (X11; CrOS x86_64 16640.57.0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36',
+        'Mozilla/5.0 (X11; CrOS aarch64 16640.57.0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36',
+        // Android
+        'Mozilla/5.0 (Linux; Android 15; Pixel 9 Pro) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.7827.103 Mobile Safari/537.36',
+        'Mozilla/5.0 (Linux; Android 15; SM-S938B) AppleWebKit/537.36 (KHTML, like Gecko) SamsungBrowser/30.0 Chrome/149.0.7827.103 Mobile Safari/537.36',
+        'Mozilla/5.0 (Android 15; Mobile; rv:151.0) Gecko/151.0 Firefox/151.0',
+        // iOS / iPadOS
+        'Mozilla/5.0 (iPhone; CPU iPhone OS 26_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.5 Mobile/15E148 Safari/604.1',
+        'Mozilla/5.0 (iPhone; CPU iPhone OS 26_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/149.0.7827.137 Mobile/15E148 Safari/604.1',
+        'Mozilla/5.0 (iPad; CPU OS 26_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.5 Mobile/15E148 Safari/604.1',
+        'Mozilla/5.0 (iPad; CPU OS 26_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/149.0.7827.137 Mobile/15E148 Safari/604.1',
+        // Opera
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36 OPR/132.0.0.0',
+    ];
+    // 桌面份额加权: Chrome ~68%, Safari ~17%, Edge ~5.8%, Firefox ~3.7%, Opera ~1.9%, 其余 ~3.6%
+    // 加权随机选择（按浏览器真实市场份额 June 2026）
+    const UA权重 = [140, 100, 30, 15, 20, 10, 20, 5, 5, 50, 30, 60, 10, 10, 20, 3, 7, 10, 5, 140, 15, 5, 70, 5, 15, 3, 15];
+    const 总权重 = UA权重.reduce((a, b) => a + b, 0);
+    let 随机值 = Math.random() * 总权重;
+    let UA索引 = 0;
+    for (let i = 0; i < UA权重.length; i++) {
+        随机值 -= UA权重[i];
+        if (随机值 <= 0) { UA索引 = i; break; }
+    }
+    // 随机化 Accept-Language（与随机 UA 保持指纹一致）
+    const Accept语言池 = [
+      'en-US,en;q=0.9',
+      'en-US,en;q=0.9,zh-CN;q=0.8',
+      'en-GB,en;q=0.9',
+      'en-CA,en;q=0.9',
+      'zh-CN,zh;q=0.9,en;q=0.8',
+      'ja-JP,ja;q=0.9,en;q=0.8',
+      'ko-KR,ko;q=0.9,en;q=0.8',
+      'ru-RU,ru;q=0.9,en;q=0.8',
+      'de-DE,de;q=0.9,en;q=0.8',
+      'fr-FR,fr;q=0.9,en;q=0.8',
+      'pt-BR,pt;q=0.9,en;q=0.8',
+      'es-ES,es;q=0.9,en;q=0.8',
+    ];
+    // 剥离 Sec-CH-UA 系列头（防止随机UA与原始UA不一致导致的指纹泄露）
+    const CH_HEADERS = ['Sec-CH-UA', 'Sec-CH-UA-Arch', 'Sec-CH-UA-Bitness', 'Sec-CH-UA-Full-Version',
+                        'Sec-CH-UA-Mobile', 'Sec-CH-UA-Model', 'Sec-CH-UA-Platform', 'Sec-CH-UA-Platform-Version'];
   try {
     const 缓存键 = 反代URL.origin + 网址.pathname + 网址.search;
     // 内存缓存查询
@@ -981,50 +1047,9 @@ async function 处理伪装反代(请求, 网址, 环境变量) {
     新请求头.set('Host', 反代URL.host);
     新请求头.set('Referer', 反代URL.origin);
     新请求头.set('Origin', 反代URL.origin);
-    // UA随机化（浏览器指纹保护）
-    const 浏览器UA池 = [
-      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36',
-      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36',
-      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Edg/149.0.4022.69 Safari/537.36',
-      'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:151.0) Gecko/20100101 Firefox/151.0',
-      'Mozilla/5.0 (Macintosh; Intel Mac OS X 15_0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36',
-      'Mozilla/5.0 (Macintosh; Intel Mac OS X 15_0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36',
-      'Mozilla/5.0 (Macintosh; Intel Mac OS X 15_0) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.5 Safari/605.1.15',
-      'Mozilla/5.0 (Macintosh; Intel Mac OS X 15.0; rv:151.0) Gecko/20100101 Firefox/151.0',
-      'Mozilla/5.0 (Macintosh; Intel Mac OS X 15_0) AppleWebKit/537.36 (KHTML, like Gecko) Edg/149.0.4022.69 Safari/537.36',
-      'Mozilla/5.0 (Macintosh; ARM Mac OS X 26_0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36',
-      'Mozilla/5.0 (Macintosh; ARM Mac OS X 26_0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36',
-      'Mozilla/5.0 (Macintosh; ARM Mac OS X 26_0) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.5 Safari/605.1.15',
-      'Mozilla/5.0 (Macintosh; ARM Mac OS X 26_0; rv:151.0) Gecko/20100101 Firefox/151.0',
-      'Mozilla/5.0 (Macintosh; ARM Mac OS X 26_0) AppleWebKit/537.36 (KHTML, like Gecko) Edg/149.0.4022.69 Safari/537.36',
-      'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36',
-      'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Edg/149.0.4022.69 Safari/537.36',
-      'Mozilla/5.0 (X11; Linux x86_64; rv:151.0) Gecko/20100101 Firefox/151.0',
-      'Mozilla/5.0 (Linux; Android 15; Pixel 9 Pro) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.7827.103 Mobile Safari/537.36',
-      'Mozilla/5.0 (iPhone; CPU iPhone OS 26_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.5 Mobile/15E148 Safari/604.1',
-      'Mozilla/5.0 (iPad; CPU OS 26_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.5 Mobile/15E148 Safari/604.1',
-    ];
-    新请求头.set('User-Agent', 浏览器UA池[Math.floor(Math.random() * 浏览器UA池.length)]);
-    // 随机化 Accept-Language（与随机 UA 保持指纹一致）
-    const Accept语言池 = [
-      'en-US,en;q=0.9',        // 美式英语
-      'en-US,en;q=0.9,zh-CN;q=0.8', // 美式英语+中文
-      'en-GB,en;q=0.9',        // 英式英语
-      'en-CA,en;q=0.9',        // 加拿大英语
-      'zh-CN,zh;q=0.9,en;q=0.8',    // 中文
-      'ja-JP,ja;q=0.9,en;q=0.8',    // 日语
-      'ko-KR,ko;q=0.9,en;q=0.8',    // 韩语
-      'ru-RU,ru;q=0.9,en;q=0.8',    // 俄语
-      'de-DE,de;q=0.9,en;q=0.8',    // 德语
-      'fr-FR,fr;q=0.9,en;q=0.8',    // 法语
-      'pt-BR,pt;q=0.9,en;q=0.8',    // 巴西葡语
-      'es-ES,es;q=0.9,en;q=0.8',    // 西班牙语
-    ];
-    新请求头.set('Accept-Language', Accept语言池[Math.floor(Math.random() * Accept语言池.length)]);
-    // 剥离 Sec-CH-UA 系列头（防止随机UA与原始UA不一致导致的指纹泄露）
-    const CH_HEADERS = ['Sec-CH-UA', 'Sec-CH-UA-Arch', 'Sec-CH-UA-Bitness', 'Sec-CH-UA-Full-Version',
-                        'Sec-CH-UA-Mobile', 'Sec-CH-UA-Model', 'Sec-CH-UA-Platform', 'Sec-CH-UA-Platform-Version'];
-    for (const h of CH_HEADERS) 新请求头.delete(h);
+     新请求头.set('User-Agent', 浏览器UA池[UA索引]);
+     新请求头.set('Accept-Language', Accept语言池[Math.floor(Math.random() * Accept语言池.length)]);
+     for (const h of CH_HEADERS) 新请求头.delete(h);
     清理伪装首页缓存();
     // [隐私增强] 不向上游透传 request.cf 地理/连接信息
     const fetchOptions = { method: 请求.method, headers: 新请求头, cf: {} };
@@ -1074,12 +1099,21 @@ return new Response(反代响应.body, { status: 反代响应.status, statusText
     if (网址.pathname !== '/') {
       console.warn('尝试降级到首页根路径:', 反代URL.origin);
       const 回退头 = new Headers(请求.headers);
-      const CF头列表 = ['CF-Connecting-IP', 'CF-IPCountry', 'CF-Ray', 'CF-Visitor', 'CF-Worker', 'CF-Cache-Status', 'True-Client-IP'];
+      const CF头列表 = ['CF-Connecting-IP', 'CF-IPCountry', 'CF-Ray', 'CF-Visitor',
+                         'CF-Worker', 'CF-Cache-Status', 'True-Client-IP',
+                         'X-Forwarded-For', 'X-Forwarded-For-Original',
+                         'X-Forwarded-Proto', 'X-Forwarded-Host',
+                         'Forwarded', 'Via', 'X-Real-IP', 'X-Originating-IP',
+                         'X-Remote-IP', 'X-Client-IP', 'Client-IP',
+                         'X-Cluster-Client-IP',
+                         'CF-Connecting-IPv6', 'CF-Pseudo-IPv4'];
       for (const h of CF头列表) 回退头.delete(h);
+      for (const h of CH_HEADERS) 回退头.delete(h);
       回退头.set('Host', 反代URL.host);
-      回退头.set('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36');
+      回退头.set('User-Agent', 浏览器UA池[UA索引]);
+      回退头.set('Accept-Language', Accept语言池[Math.floor(Math.random() * Accept语言池.length)]);
       try {
-        const 回退响应 = await fetchWithTimeout(反代URL.origin + '/', { method: 'GET', headers: 回退头 }, 39000);
+        const 回退响应 = await fetchWithTimeout(反代URL.origin + '/', { method: 'GET', headers: 回退头, cf: {} }, 39000);
         if (回退响应.ok || 回退响应.status < 500) {
           const 安全头集合 = new Set(['content-type', 'content-length', 'content-encoding', 'transfer-encoding', 'accept-ranges', 'content-range', 'content-language', 'cache-control', 'expires', 'last-modified', 'age', 'vary', 'date', 'content-disposition', 'connection']);
           const 过滤头 = {};
