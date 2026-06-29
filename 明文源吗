@@ -2768,10 +2768,10 @@ async function 生成值值数据对象(链接列表573) {
       };
       if (数量值568.alpn && 数量值568.alpn.length) 输出567.tls.alpn = 数量值568.alpn;
       if (数量值568.ech) {
+        const [ech域名] = 数量值568.ech.split('+');
         输出567.tls.ech = {
           enabled: true,
-          pq_signature_schemes_enabled: false,
-          dynamic_record_sizing_disabled: false
+          query_server_name: ech域名
         };
       }
     }
