@@ -1254,30 +1254,8 @@ function 记录速率限制请求(客户端IP) {
   记录.时间戳队列 = 记录.时间戳队列.filter(t => t > 窗口起点);
   记录.时间戳队列.push(当前时间);
 }
-// ★ 管理员登录失败速率限制（基于 CF-Connecting-IP，每 IP 15 分钟内最多 5 次失败）
-const 登录限流池 = new Map();
-const 登录限流窗口毫秒 = 900000;
-const 登录最大尝试次数 = 5;
-
-function 检查登录限流(客户端IP) {
-  if (!客户端IP) return true;
-  const 当前时间 = Date.now();
-  const 窗口起点 = 当前时间 - 登录限流窗口毫秒;
-  const 记录 = 登录限流池.get(客户端IP);
-  if (!记录) return true;
-  记录.时间戳队列 = 记录.时间戳队列.filter(t => t > 窗口起点);
-  return 记录.时间戳队列.length < 登录最大尝试次数;
-}
-
-function 记录登录失败(客户端IP) {
-  if (!客户端IP) return;
-  const 当前时间 = Date.now();
-  const 窗口起点 = 当前时间 - 登录限流窗口毫秒;
-  let 记录 = 登录限流池.get(客户端IP);
-  if (!记录) { 记录 = { 时间戳队列: [] }; 登录限流池.set(客户端IP, 记录); }
-  记录.时间戳队列 = 记录.时间戳队列.filter(t => t > 窗口起点);
-  记录.时间戳队列.push(当前时间);
-}
+// ★ 管理员登录失败速率限制：内存计数 + KV 持久锁（每 IP 15 分钟内最多 5 次失败）
+const 登录限流计数 = new Map(); // { count, time }，自动过期
 export default {
   async fetch(请求735, 本地值734, 本地值733) {
     // P0-2: 未配置 UUID 时直接拒绝
@@ -1528,20 +1506,26 @@ export default {
       }
       // 管理员登录（不需要 UUID 验证，因为尚未登录）
       if (网址698.pathname.endsWith('/api/login') && 请求735.method === 'POST') {
-        // 登录速率限制检查（同 IP 15 分钟最多 5 次失败尝试）
+        // 登录速率限制：5次/15分钟（内存计数 + KV 持久锁）
         const loginIP = 请求735.headers.get('CF-Connecting-IP') || '';
-        if (!检查登录限流(loginIP)) {
-          const hsts头 = ['1', 'true'].includes(本地值734.HSTS_ENABLE) ? { 'Strict-Transport-Security': 'max-age=31536000; includeSubDomains; preload' } : {};
+        const kv锁 = 键值存储 ? Number(await withTimeout(键值存储.get(`login_fail:${loginIP}`), 2000, 'KV 登录限流读取超时').catch(() => 0) || 0) : 0;
+        const 内存记录 = 登录限流计数.get(loginIP);
+        const 内存计数 = (内存记录 && Date.now() - 内存记录.time < 900000) ? 内存记录.count : 0;
+        if (kv锁 >= 5 || 内存计数 >= 5) {
           console.warn(`[登录限流] IP ${loginIP} 超过管理员登录失败次数限制`);
-          if (键值存储) withTimeout(键值存储.put('login-ratelimit:' + loginIP, new Date().toISOString(), { expirationTtl: 900 }), 2000, 'KV 登录限流写入超时').catch(() => {});
+          const hsts头 = ['1', 'true'].includes(本地值734.HSTS_ENABLE) ? { 'Strict-Transport-Security': 'max-age=31536000; includeSubDomains; preload' } : {};
           return new Response(JSON.stringify({ success: false, message: '尝试次数过多，请15分钟后再试' }), {
             status: 429,
             headers: { 'Content-Type': 'application/json', 'Retry-After': '900', ...hsts头 }
           });
         }
+        const 当前计数 = Math.max(kv锁, 内存计数);
         const 表单 = await 请求735.json();
         const 密码输入 = 表单.password || '';
         if (密码输入 === 管理员密码) {
+          // 登录成功：清除失败计数
+          登录限流计数.delete(loginIP);
+          if (键值存储) 本地值733.waitUntil(withTimeout(键值存储.delete(`login_fail:${loginIP}`), 2000, 'KV 登录限流删除超时').catch(() => {}));
           const 令牌 = await 创建管理员令牌(管理员密码, 请求735);
           const cookie过期 = new Date(Date.now() + 900000); // 15分钟
           return new Response(JSON.stringify({ success: true }), {
@@ -1551,7 +1535,12 @@ export default {
             }
           });
         }
-        记录登录失败(loginIP);
+        // 失败：递增内存计数，仅跨阈值（>=5）时写 KV 持久锁
+        const 新次数 = 当前计数 + 1;
+        登录限流计数.set(loginIP, { count: 新次数, time: Date.now() });
+        if (新次数 >= 5 && 键值存储) {
+          本地值733.waitUntil(withTimeout(键值存储.put(`login_fail:${loginIP}`, String(新次数), { expirationTtl: 900 }), 2000, 'KV 登录限流写入超时').catch(() => {}));
+        }
         return new Response(JSON.stringify({ success: false, message: '密码错误' }), {
           status: 401,
           headers: { 'Content-Type': 'application/json' }
