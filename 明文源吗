@@ -990,8 +990,7 @@ async function 处理伪装反代(请求, 网址, 环境变量) {
         // Opera
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36 OPR/132.0.0.0',
     ];
-    // 桌面份额加权: Chrome ~68%, Safari ~17%, Edge ~5.8%, Firefox ~3.7%, Opera ~1.9%, 其余 ~3.6%
-    // 加权随机选择（按浏览器真实市场份额 June 2026）
+    // 加权随机选择（按浏览器真实市场份额 June 2026）: Chrome ~68%, Safari ~17%, Edge ~5.8%, Firefox ~3.7%, Opera ~1.9%, 其余 ~3.6%
     const UA权重 = [140, 100, 30, 15, 20, 10, 20, 5, 5, 50, 30, 60, 10, 10, 20, 3, 7, 10, 5, 140, 15, 5, 70, 5, 15, 3, 15];
     const 总权重 = UA权重.reduce((a, b) => a + b, 0);
     let 随机值 = Math.random() * 总权重;
