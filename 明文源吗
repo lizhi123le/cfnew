@@ -1230,6 +1230,54 @@ async function html1101(host, 访问IP) {
 </body>
 </html>`;
 }
+// ★ 非管理员/非随机路径请求速率限制（基于 CF-Connecting-IP，每 IP 每小时最多 12 次）
+const 速率限制池 = new Map();
+const 速率限制窗口毫秒 = 3600000;
+
+function 检查速率限制(客户端IP) {
+  if (!客户端IP) return true;
+  const 当前时间 = Date.now();
+  const 窗口起点 = 当前时间 - 速率限制窗口毫秒;
+  const 记录 = 速率限制池.get(客户端IP);
+  if (!记录) return true;
+  记录.时间戳队列 = 记录.时间戳队列.filter(t => t > 窗口起点);
+  if (记录.时间戳队列.length >= 12) return false;
+  return true;
+}
+
+function 记录速率限制请求(客户端IP) {
+  if (!客户端IP) return;
+  const 当前时间 = Date.now();
+  const 窗口起点 = 当前时间 - 速率限制窗口毫秒;
+  let 记录 = 速率限制池.get(客户端IP);
+  if (!记录) { 记录 = { 时间戳队列: [] }; 速率限制池.set(客户端IP, 记录); }
+  记录.时间戳队列 = 记录.时间戳队列.filter(t => t > 窗口起点);
+  记录.时间戳队列.push(当前时间);
+}
+// ★ 管理员登录失败速率限制（基于 CF-Connecting-IP，每 IP 15 分钟内最多 5 次失败）
+const 登录限流池 = new Map();
+const 登录限流窗口毫秒 = 900000;
+const 登录最大尝试次数 = 5;
+
+function 检查登录限流(客户端IP) {
+  if (!客户端IP) return true;
+  const 当前时间 = Date.now();
+  const 窗口起点 = 当前时间 - 登录限流窗口毫秒;
+  const 记录 = 登录限流池.get(客户端IP);
+  if (!记录) return true;
+  记录.时间戳队列 = 记录.时间戳队列.filter(t => t > 窗口起点);
+  return 记录.时间戳队列.length < 登录最大尝试次数;
+}
+
+function 记录登录失败(客户端IP) {
+  if (!客户端IP) return;
+  const 当前时间 = Date.now();
+  const 窗口起点 = 当前时间 - 登录限流窗口毫秒;
+  let 记录 = 登录限流池.get(客户端IP);
+  if (!记录) { 记录 = { 时间戳队列: [] }; 登录限流池.set(客户端IP, 记录); }
+  记录.时间戳队列 = 记录.时间戳队列.filter(t => t > 窗口起点);
+  记录.时间戳队列.push(当前时间);
+}
 export default {
   async fetch(请求735, 本地值734, 本地值733) {
     // P0-2: 未配置 UUID 时直接拒绝
@@ -1267,6 +1315,18 @@ export default {
       if (!是否网页套接字 && !是否值732 && 请求网址731.pathname !== '/' && 路径值730[0] !== 'login') {
         const 首次值 = 路径值730[0] || '';
         if (首次值 !== 管理员路径) {
+          // ★ 速率限制：路径每一段都必须在随机路径池中才放行，任一段不匹配就限流（每 IP 每小时最多 12 次）
+          if (!路径值730.every(段 => 公共路径字典.includes(段))) {
+            const 客户端IP = 请求735.headers.get('CF-Connecting-IP') || '';
+            if (!检查速率限制(客户端IP)) {
+              const hsts头 = ['1', 'true'].includes(本地值734.HSTS_ENABLE) ? { 'Strict-Transport-Security': 'max-age=31536000; includeSubDomains; preload' } : {};
+              console.warn(`[速率限制] IP ${客户端IP} 超过非管理员路径请求限制`);
+              // 将触限 IP 写入 KV（ttl 与限流窗口一致），便于 Dashboard 查看
+              if (键值存储) withTimeout(键值存储.put('ratelimit:' + 客户端IP, new Date().toISOString(), { expirationTtl: 3600 }), 2000, 'KV 速率限制写入超时').catch(() => {});
+              return new Response(await nginx(), { status: 429, headers: { 'Content-Type': 'text/html; charset=UTF-8', 'Retry-After': '3600', ...hsts头 } });
+            }
+            记录速率限制请求(客户端IP);
+          }
           // 非 UUID/自定义路径的 GET 请求 → 全路径反向代理至伪装首页
           const 代理结果 = await 处理伪装反代(请求735, 请求网址731, 本地值734);
           if (代理结果) return 代理结果;
@@ -1468,6 +1528,17 @@ export default {
       }
       // 管理员登录（不需要 UUID 验证，因为尚未登录）
       if (网址698.pathname.endsWith('/api/login') && 请求735.method === 'POST') {
+        // 登录速率限制检查（同 IP 15 分钟最多 5 次失败尝试）
+        const loginIP = 请求735.headers.get('CF-Connecting-IP') || '';
+        if (!检查登录限流(loginIP)) {
+          const hsts头 = ['1', 'true'].includes(本地值734.HSTS_ENABLE) ? { 'Strict-Transport-Security': 'max-age=31536000; includeSubDomains; preload' } : {};
+          console.warn(`[登录限流] IP ${loginIP} 超过管理员登录失败次数限制`);
+          if (键值存储) withTimeout(键值存储.put('login-ratelimit:' + loginIP, new Date().toISOString(), { expirationTtl: 900 }), 2000, 'KV 登录限流写入超时').catch(() => {});
+          return new Response(JSON.stringify({ success: false, message: '尝试次数过多，请15分钟后再试' }), {
+            status: 429,
+            headers: { 'Content-Type': 'application/json', 'Retry-After': '900', ...hsts头 }
+          });
+        }
         const 表单 = await 请求735.json();
         const 密码输入 = 表单.password || '';
         if (密码输入 === 管理员密码) {
@@ -1480,6 +1551,7 @@ export default {
             }
           });
         }
+        记录登录失败(loginIP);
         return new Response(JSON.stringify({ success: false, message: '密码错误' }), {
           status: 401,
           headers: { 'Content-Type': 'application/json' }
