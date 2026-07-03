@@ -46,8 +46,8 @@ let 启用扩展传输 = false;
 let 传输路径 = '';
 // 启用ECH功能（true启用，false禁用）
 let 启用加密客户端问候 = false;
-// 自定义DNS服务器（默认：https://cloudflare-dns.com/dns-query）
-let 自定义域名系统 = 'https://cloudflare-dns.com/dns-query';
+// 自定义DNS服务器（默认：https://doh.applied-privacy.net/query）
+let 自定义域名系统 = 'https://doh.applied-privacy.net/query';
 // === 统一 CPU Yield 策略（混合方案） ===
 // 优先使用 scheduler.yield()（优先级更高、无 4ms 钳制），降级到 setTimeout(r, 0)，内置 5ms 节流，避免热循环中过度让出
 function createYieldStrategy(intervalMs = 5) {
@@ -170,10 +170,10 @@ async function 解析域名获取IP池(域名) {
   // CF DNS 的 IP 保持原始顺序（优先尝试）
   const 所有IP = [...cfIPs];
   // 补充 DNS 的 IP 内部 LCG 洗牌后拼接在 CF IP 之后
+  let 种子 = [...域名].reduce((a, c) => a + c.charCodeAt(0), 0);
   for (const 待排序 of [补充IPs, 补充IPs2]) {
     if (待排序.length > 0) {
       const 排序后 = 待排序.sort((a, b) => a.localeCompare(b));
-      let 种子 = [...域名].reduce((a, c) => a + c.charCodeAt(0), 0);
       const 洗牌后 = [...排序后].sort(() =>
         (种子 = (种子 * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff - 0.5
       );
@@ -3375,7 +3375,7 @@ async function 获取加密客户端问候配置(域名522) {
   try {
     // 1. 查询 cloudflare-ech.com（Google DNS → Cloudflare DNS fallback）
     调试步骤.push('尝试使用 DoH 查询 cloudflare-ech.com...');
-    let 加密客户端问候数据 = await 查询域名系统('cloudflare-ech.com', 65, 'https://v.recipes/dns/dns.google', 'https://doh.applied-privacy.net/query');
+    let 加密客户端问候数据 = await 查询域名系统('cloudflare-ech.com', 65, 'https://v.recipes/dns/dns.google', 'https://cloudflare-dns.com/dns-query');
     if (加密客户端问候数据) {
       const 结果 = 提取值配置值(加密客户端问候数据, 'cloudflare-ech.com');
       if (结果) {
