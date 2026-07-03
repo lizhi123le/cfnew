@@ -158,26 +158,27 @@ async function 解析域名获取IP池(域名) {
     }
     return ips;
   }
-  const 补充DNS = 自定义域名系统 || 'https://cloudflare-dns.com/dns-query';
   // 分层并行查询：
   //   第 1 层 - Cloudflare DNS（Worker 跑在 CF 网络上，CF DNS 返回的 IP 对 CF 边缘最友好）
-  //   第 2 层 - 自定义 DNS / Google DNS（作为补充，IP 排在 CF DNS 之后）
-  const [cfIPs, 补充IPs] = await Promise.all([
+  //   第 2 层 - Google DNS
+  //   第 3 层 - applied-privacy DNS（隐私优先，作为最终兜底）
+  const [cfIPs, 补充IPs, 补充IPs2] = await Promise.all([
     查询DNS获取IPs(['https://cloudflare-dns.com/dns-query']),
-    补充DNS !== 'https://cloudflare-dns.com/dns-query'
-      ? 查询DNS获取IPs([补充DNS])
-      : Promise.resolve([]),
+    查询DNS获取IPs(['https://dns.google/dns-query']),
+    查询DNS获取IPs(['https://doh.applied-privacy.net/query']),
   ]);
   // CF DNS 的 IP 保持原始顺序（优先尝试）
   const 所有IP = [...cfIPs];
   // 补充 DNS 的 IP 内部 LCG 洗牌后拼接在 CF IP 之后
-  if (补充IPs.length > 0) {
-    const 排序后 = 补充IPs.sort((a, b) => a.localeCompare(b));
-    let 种子 = [...域名].reduce((a, c) => a + c.charCodeAt(0), 0);
-    const 洗牌后 = [...排序后].sort(() =>
-      (种子 = (种子 * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff - 0.5
-    );
-    所有IP.push(...洗牌后);
+  for (const 待排序 of [补充IPs, 补充IPs2]) {
+    if (待排序.length > 0) {
+      const 排序后 = 待排序.sort((a, b) => a.localeCompare(b));
+      let 种子 = [...域名].reduce((a, c) => a + c.charCodeAt(0), 0);
+      const 洗牌后 = [...排序后].sort(() =>
+        (种子 = (种子 * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff - 0.5
+      );
+      所有IP.push(...洗牌后);
+    }
   }
   // 去重（保留 CF DNS IP 在前的位置）
   const 已去重 = [...new Set(所有IP)];
