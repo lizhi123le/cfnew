@@ -1243,6 +1243,52 @@ function 记录速率限制请求(客户端IP) {
   记录.时间戳队列 = 记录.时间戳队列.filter(t => t > 窗口起点);
   记录.时间戳队列.push(当前时间);
 }
+// 永久黑名单 — IP 累计违规超过 22 次后永久封禁（内存缓存 + KV 持久化）
+let 永久黑名单缓存 = null;
+let 永久黑名单缓存时间 = 0;
+const 永久黑名单缓存TTL = 60000;
+const 永久黑名单阈值 = 22;
+
+async function 加载永久黑名单() {
+  if (!键值存储) return new Set();
+  const now = Date.now();
+  if (永久黑名单缓存 && (now - 永久黑名单缓存时间) < 永久黑名单缓存TTL) return 永久黑名单缓存;
+  try {
+    const raw = await withTimeout(键值存储.get('永久黑名单'), 3000);
+    永久黑名单缓存 = raw ? new Set(JSON.parse(raw)) : new Set();
+    永久黑名单缓存时间 = now;
+  } catch (e) {
+    永久黑名单缓存 = 永久黑名单缓存 || new Set();
+  }
+  return 永久黑名单缓存;
+}
+
+async function 检查永久黑名单(客户端IP) {
+  if (!客户端IP) return false;
+  const 黑名单 = await 加载永久黑名单();
+  return 黑名单.has(客户端IP);
+}
+
+async function 记录违规并检查拉黑(客户端IP, 上下文) {
+  if (!客户端IP || !键值存储) return;
+  try {
+    const key = `违规计数:${客户端IP}`;
+    const raw = await withTimeout(键值存储.get(key), 3000);
+    const 当前计数 = (raw ? Number(raw) : 0) + 1;
+    上下文.waitUntil(withTimeout(键值存储.put(key, String(当前计数), { expirationTtl: 86400 * 30 }), 2000, 'KV 违规计数写入超时').catch(() => {}));
+    if (当前计数 >= 永久黑名单阈值) {
+      const 黑名单 = await 加载永久黑名单();
+      if (!黑名单.has(客户端IP)) {
+        黑名单.add(客户端IP);
+        永久黑名单缓存时间 = Date.now();
+        上下文.waitUntil(withTimeout(键值存储.put('永久黑名单', JSON.stringify([...黑名单])), 2000, 'KV 黑名单写入超时').catch(() => {}));
+        console.warn(`[永久黑名单] IP ${客户端IP} 累计违规 ${当前计数} 次，已加入永久黑名单`);
+      }
+    }
+  } catch (err) {
+    console.warn('[永久黑名单] 记录违规失败:', err.message);
+  }
+}
 // ★ 管理员登录失败速率限制：内存计数 + KV 持久锁（每 IP 15 分钟内最多 5 次失败）
 const 登录限流计数 = new Map(); // { count, time }，自动过期
 export default {
@@ -1285,11 +1331,16 @@ export default {
           // ★ 速率限制：路径每一段都必须在随机路径池中才放行，任一段不匹配就限流（每 IP 每小时最多 12 次）
           if (!路径值730.every(段 => 公共路径字典.includes(段))) {
             const 客户端IP = 请求735.headers.get('CF-Connecting-IP') || '';
+            const hsts头 = ['1', 'true'].includes(本地值734.HSTS_ENABLE) ? { 'Strict-Transport-Security': 'max-age=31536000; includeSubDomains; preload' } : {};
+            if (await 检查永久黑名单(客户端IP)) {
+              console.warn(`[永久黑名单] IP ${客户端IP} 命中永久黑名单，直接拦截`);
+              return new Response(await nginx(), { status: 429, headers: { 'Content-Type': 'text/html; charset=UTF-8', 'Retry-After': '3600', ...hsts头 } });
+            }
             if (!检查速率限制(客户端IP)) {
-              const hsts头 = ['1', 'true'].includes(本地值734.HSTS_ENABLE) ? { 'Strict-Transport-Security': 'max-age=31536000; includeSubDomains; preload' } : {};
               console.warn(`[速率限制] IP ${客户端IP} 超过非管理员路径请求限制`);
               // 将触限 IP 写入 KV（ttl 与限流窗口一致），便于 Dashboard 查看
               if (键值存储) withTimeout(键值存储.put('ratelimit:' + 客户端IP, new Date().toISOString(), { expirationTtl: 3600 }), 2000, 'KV 速率限制写入超时').catch(() => {});
+              本地值733.waitUntil(记录违规并检查拉黑(客户端IP, 本地值733));
               return new Response(await nginx(), { status: 429, headers: { 'Content-Type': 'text/html; charset=UTF-8', 'Retry-After': '3600', ...hsts头 } });
             }
             记录速率限制请求(客户端IP);
