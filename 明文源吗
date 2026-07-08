@@ -46,8 +46,8 @@ let 启用扩展传输 = false;
 let 传输路径 = '';
 // 启用ECH功能（true启用，false禁用）
 let 启用加密客户端问候 = false;
-// 自定义DNS服务器（默认：https://doh.applied-privacy.net/query）
-let 自定义域名系统 = 'https://doh.applied-privacy.net/query';
+// 自定义DNS服务器（留空则不启用自定义DNS，仅使用 Cloudflare DNS）
+let 自定义域名系统 = '';
 // === 统一 CPU Yield 策略（混合方案） ===
 // 优先使用 scheduler.yield()（优先级更高、无 4ms 钳制），降级到 setTimeout(r, 0)，内置 5ms 节流，避免热循环中过度让出
 function createYieldStrategy(intervalMs = 5) {
@@ -158,33 +158,55 @@ async function 解析域名获取IP池(域名) {
     }
     return ips;
   }
-  // 分层并行查询：
+  // 2 层并行 DNS 查询：
   //   第 1 层 - Cloudflare DNS（Worker 跑在 CF 网络上，CF DNS 返回的 IP 对 CF 边缘最友好）
-  //   第 2 层 - Google DNS
-  //   第 3 层 - applied-privacy DNS（隐私优先，作为最终兜底）
-  const [cfIPs, 补充IPs, 补充IPs2] = await Promise.all([
-    查询DNS获取IPs(['https://cloudflare-dns.com/dns-query']),
-    查询DNS获取IPs(['https://dns.google/dns-query']),
-    查询DNS获取IPs(['https://doh.applied-privacy.net/query']),
-  ]);
+  //   第 2 层 - 用户自定义 DNS（仅当已在管理面板配置时启用）
+  const doh列表 = ['https://cloudflare-dns.com/dns-query'];
+  if (自定义域名系统) {
+    doh列表.push(自定义域名系统);
+  }
+  const dns结果 = await Promise.all(
+    doh列表.map(doh => 查询DNS获取IPs([doh]))
+  );
   // CF DNS 的 IP 保持原始顺序（优先尝试）
-  const 所有IP = [...cfIPs];
-  // 补充 DNS 的 IP 内部 LCG 洗牌后拼接在 CF IP 之后
-  let 种子 = [...域名].reduce((a, c) => a + c.charCodeAt(0), 0);
-  for (const 待排序 of [补充IPs, 补充IPs2]) {
-    if (待排序.length > 0) {
-      const 排序后 = 待排序.sort((a, b) => a.localeCompare(b));
-      const 洗牌后 = [...排序后].sort(() =>
-        (种子 = (种子 * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff - 0.5
-      );
-      所有IP.push(...洗牌后);
-    }
+  const 所有IP = [...dns结果[0]];
+  // 自定义 DNS 的 IP 内部 LCG 洗牌后拼接在 CF IP 之后
+  if (dns结果.length > 1 && dns结果[1].length > 0) {
+    let 种子 = [...域名].reduce((a, c) => a + c.charCodeAt(0), 0);
+    const 待排序 = dns结果[1].sort((a, b) => a.localeCompare(b));
+    const 洗牌后 = [...待排序].sort(() =>
+      (种子 = (种子 * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff - 0.5
+    );
+    所有IP.push(...洗牌后);
   }
   // 去重（保留 CF DNS IP 在前的位置）
   const 已去重 = [...new Set(所有IP)];
   if (已去重.length === 0) return [域名];
-  // 截取前 8 个，CF DNS IP 始终排在前面
-  return 已去重.slice(0, 8);
+  // IP 可达性快速探测：并发 TCP connect 验证，过滤不可达 IP
+  const 可达IPs = await 探测IP可达性(已去重.slice(0, 8));
+  if (可达IPs.length === 0) return 已去重.slice(0, 8);
+  // 保持 CF DNS IP 在前的位置
+  const 已去重2 = [...new Set([...dns结果[0].filter(ip => 可达IPs.includes(ip)), ...可达IPs])];
+  return 已去重2.slice(0, 8);
+}
+
+// IP 可达性快速探测（并发 TCP connect，超时 2s）
+async function 探测IP可达性(IP列表, 超时ms = 2000) {
+  const 结果 = await Promise.allSettled(
+    IP列表.map(async (ip) => {
+      const 目标 = ip.replace(/[\[\]]/g, '');
+      const 套接字 = 连接({ hostname: 目标, port: 443 });
+      const 超时 = new Promise((_, reject) => setTimeout(() => reject(new Error('probe timeout')), 超时ms));
+      await Promise.race([套接字.opened, 超时]);
+      try { 套接字.close(); } catch (e) {}
+      return ip;
+    })
+  );
+  const 可达 = [];
+  for (const r of 结果) {
+    if (r.status === 'fulfilled') 可达.push(r.value);
+  }
+  return 可达;
 }
 // 并发连接候选（多 IP 并发拨号，取最先成功的，失败则记录黑名单）
 async function 并发连接候选(候选列表, 请求值 = null) {
@@ -256,7 +278,7 @@ const 配置默认值 = {
   ex: 'no',
   ech: 'no',
   tp: '',
-  customDNS: 'https://doh.applied-privacy.net/query',
+  customDNS: '',
   customECHDomain: '',
   alpn: '',
   d: '',
@@ -4472,12 +4494,18 @@ async function 处理打开值套接字值(地址319, 端口318, 请求值317 = 
     return 套接字314;
   }
 }
-async function 连接值套接字(地址313, 端口312, 请求值311 = null, 竞速数量 = 1) {
+async function 连接值套接字(地址313, 端口312, 请求值311 = null, 竞速数量 = 1, 连接超时 = 连接超时值) {
   const 数量 = Math.max(1, 竞速数量 | 0);
-  if (数量 <= 1) return 处理打开值套接字值(地址313, 端口312, 请求值311);
-  const 本地值310 = Array.from({
-    length: 数量
-  }, () => 处理打开值套接字值(地址313, 端口312, 请求值311));
+  const 套接字Promise = () => {
+    const p = 处理打开值套接字值(地址313, 端口312, 请求值311);
+    if (!连接超时) return p;
+    return Promise.race([
+      p,
+      处理扩展超文本值195(连接超时).then(() => { throw new Error('connect timeout'); })
+    ]);
+  };
+  if (数量 <= 1) return 套接字Promise();
+  const 本地值310 = Array.from({ length: 数量 }, () => 套接字Promise());
   const 本地值309 = await Promise.any(本地值310);
   本地值310.forEach(本地值308 => {
     本地值308.then(套接字307 => {
