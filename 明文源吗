@@ -1243,7 +1243,7 @@ async function html1101(host, 访问IP) {
 </body>
 </html>`;
 }
-// ★ 非管理员/非随机路径请求速率限制（基于 CF-Connecting-IP，每 IP 每小时最多 12 次）
+// ★ 非管理员/非随机路径请求速率限制（基于 CF-Connecting-IP，每 IP 每小时最多 6 次）
 const 速率限制池 = new Map();
 const 速率限制窗口毫秒 = 3600000;
 function 检查速率限制(客户端IP) {
@@ -1253,7 +1253,7 @@ function 检查速率限制(客户端IP) {
   const 记录 = 速率限制池.get(客户端IP);
   if (!记录) return true;
   记录.时间戳队列 = 记录.时间戳队列.filter(t => t > 窗口起点);
-  if (记录.时间戳队列.length >= 12) return false;
+  if (记录.时间戳队列.length >= 6) return false;
   return true;
 }
 function 记录速率限制请求(客户端IP) {
@@ -1303,8 +1303,8 @@ async function 记录违规并检查拉黑(客户端IP, 上下文) {
       // 已永久黑名单 IP：计数持久保存，不重置（无 expirationTtl）
       上下文.waitUntil(withTimeout(键值存储.put(key, String(当前计数)), 2000, 'KV 违规计数写入超时').catch(() => {}));
     } else {
-      // 非永久黑名单 IP：计数每日重置（1 天过期自动归零）
-      上下文.waitUntil(withTimeout(键值存储.put(key, String(当前计数), { expirationTtl: 86400 }), 2000, 'KV 违规计数写入超时').catch(() => {}));
+      // 非永久黑名单 IP：计数每周重置（7 天过期自动归零）
+      上下文.waitUntil(withTimeout(键值存储.put(key, String(当前计数), { expirationTtl: 86400 * 7 }), 2000, 'KV 违规计数写入超时').catch(() => {}));
     }
     if (当前计数 >= 永久黑名单阈值 && !已永久封禁) {
         黑名单.add(客户端IP);
@@ -1355,7 +1355,7 @@ export default {
       if (!是否网页套接字 && !是否值732 && 请求网址731.pathname !== '/' && 路径值730[0] !== 'login') {
         const 首次值 = 路径值730[0] || '';
         if (首次值 !== 管理员路径) {
-          // ★ 速率限制：路径每一段都必须在随机路径池中才放行，任一段不匹配就限流（每 IP 每小时最多 12 次）
+          // ★ 速率限制：路径每一段都必须在随机路径池中才放行，任一段不匹配就限流（每 IP 每小时最多 6 次）
           if (!路径值730.every(段 => 公共路径字典.includes(段))) {
             const 客户端IP = 请求735.headers.get('CF-Connecting-IP') || '';
             const hsts头 = ['1', 'true'].includes(本地值734.HSTS_ENABLE) ? { 'Strict-Transport-Security': 'max-age=31536000; includeSubDomains; preload' } : {};
