@@ -160,20 +160,20 @@ async function 解析域名获取IP池(域名) {
   }
   // 2 层并行 DNS 查询：
   //   第 1 层 - Cloudflare DNS（Worker 跑在 CF 网络上，CF DNS 返回的 IP 对 CF 边缘最友好）
-  //   第 2 层 - 用户自定义 DNS（仅当已在管理面板配置时启用）
-  const doh列表 = ['https://cloudflare-dns.com/dns-query'];
-  if (自定义域名系统) {
-    doh列表.push(自定义域名系统);
-  }
-  const dns结果 = await Promise.all(
-    doh列表.map(doh => 查询DNS获取IPs([doh]))
-  );
+  //   第 2 层 - 自定义 DNS / Google DNS（作为补充，IP 排在 CF DNS 之后）
+  const 补充DNS = 自定义域名系统 || 'https://dns.google/resolve';
+  const [cfIPs, 补充IPs] = await Promise.all([
+    查询DNS获取IPs(['https://cloudflare-dns.com/dns-query']),
+    补充DNS !== 'https://cloudflare-dns.com/dns-query'
+      ? 查询DNS获取IPs([补充DNS])
+      : Promise.resolve([]),
+  ]);
   // CF DNS 的 IP 保持原始顺序（优先尝试）
-  const 所有IP = [...dns结果[0]];
-  // 自定义 DNS 的 IP 内部 LCG 洗牌后拼接在 CF IP 之后
-  if (dns结果.length > 1 && dns结果[1].length > 0) {
+  const 所有IP = [...cfIPs];
+  // 补充 DNS 的 IP 内部 LCG 洗牌后拼接在 CF IP 之后
+  if (补充IPs.length > 0) {
     let 种子 = [...域名].reduce((a, c) => a + c.charCodeAt(0), 0);
-    const 待排序 = dns结果[1].sort((a, b) => a.localeCompare(b));
+    const 待排序 = 补充IPs.sort((a, b) => a.localeCompare(b));
     const 洗牌后 = [...待排序].sort(() =>
       (种子 = (种子 * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff - 0.5
     );
@@ -186,7 +186,7 @@ async function 解析域名获取IP池(域名) {
   const 可达IPs = await 探测IP可达性(已去重.slice(0, 8));
   if (可达IPs.length === 0) return 已去重.slice(0, 8);
   // 保持 CF DNS IP 在前的位置
-  const 已去重2 = [...new Set([...dns结果[0].filter(ip => 可达IPs.includes(ip)), ...可达IPs])];
+  const 已去重2 = [...new Set([...cfIPs.filter(ip => 可达IPs.includes(ip)), ...可达IPs])];
   return 已去重2.slice(0, 8);
 }
 
