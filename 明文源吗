@@ -76,8 +76,8 @@ const 特征码字典 = [
   String.fromCharCode(67, 77) + URL.name[2] + (Infinity + '')[3] + URL.name[0].toLowerCase() + String.fromCharCode(115, 115, 115, 115), // [3] = "C"
   String(2407 * 300 - 10).split('').reverse().join(''),        // [4] = "0"
 ];
-// 远程配置URL（硬编码）
-const 远程配置网址 = `https://raw.githubusercontent.com/by${特征码字典[2]}/test/refs/heads/main/tist.ini`;
+// 远程配置URL（Subconverter/Clash 规则模板 URL）
+let 远程配置网址 = 'https://raw.githubusercontent.com/lizhi123le/ACL4SSR/master/Clash/config/ACL4SSR_Online_Full_MultiMode.ini';
 let 启用优选域名 = true; // 优选域名默认关闭
 let 启用优选地址 = true;
 let 启用仓库优选 = true;
@@ -288,6 +288,7 @@ const 配置默认值 = {
   s: '',
   homepage: '',
   scu: 'https://url.v1.mk/sub',
+  scc: 'https://raw.githubusercontent.com/lizhi123le/ACL4SSR/master/Clash/config/ACL4SSR_Online_Full_MultiMode.ini',
   ena: 'no',
   epd: 'yes',
   epi: 'yes',
@@ -398,6 +399,7 @@ function 获取环境配置快照(环境值 = {}) {
     s: ['s', 'S'],
     homepage: ['homepage', 'HOMEPAGE'],
     scu: ['scu', 'SCU'],
+    scc: ['scc', 'SCC', 'subConfig', 'SUB_CONFIG', 'configTemplate'],
     ena: ['ena', 'ENA'],
     epd: ['epd', 'EPD'],
     epi: ['epi', 'EPI'],
@@ -1457,6 +1459,7 @@ export default {
       传输路径 = 获取配置文本值('tp', 配置默认值.tp, 本地值734.tp);
       启用扩展传输 = 获取配置开关值('ex', false, 本地值734.ex);
       订阅转换接口 = 获取配置文本值('scu', 配置默认值.scu, 本地值734.scu);
+      远程配置网址 = 获取配置文本值('scc', 配置默认值.scc, 本地值734.scc || 本地值734.SCC);
       启用优选域名 = 获取配置开关值('epd', true, 本地值734.epd || 本地值734.EPD);
       启用优选地址 = 获取配置开关值('epi', true, 本地值734.epi || 本地值734.EPI);
       启用仓库优选 = 获取配置开关值('egi', true, 本地值734.egi || 本地值734.EGI);
@@ -2786,8 +2789,65 @@ function 构建值节点行(数量值596) {
   }
   return 行列表595.join('\n');
 }
-// 内部生成 Clash YAML（完整规则集：Loyalsoldier rule-providers）
-async function 生成值值589(链接列表588, 本地值587 = {}) {
+// 缓存 INI 解析结果（缓存 URL -> rulesets）
+const iniTemplateCache = new Map();
+
+function 解析IniTemplate文本(iniText) {
+  if (!iniText) return null;
+  const lines = iniText.split(/\r?\n/);
+  const rulesets = [];
+  for (let line of lines) {
+    line = line.trim();
+    if (!line || line.startsWith(';') || line.startsWith('#') || line.startsWith('[')) continue;
+    if (line.startsWith('ruleset=')) {
+      const payload = line.substring(8).trim();
+      const firstComma = payload.indexOf(',');
+      if (firstComma === -1) continue;
+      const group = payload.substring(0, firstComma).trim();
+      const rest = payload.substring(firstComma + 1).trim();
+      if (rest.startsWith('[]')) {
+        const ruleContent = rest.substring(2).trim();
+        const ruleComma = ruleContent.indexOf(',');
+        if (ruleComma === -1) {
+          rulesets.push({ group, type: 'inline', ruleType: ruleContent, ruleVal: '' });
+        } else {
+          rulesets.push({
+            group,
+            type: 'inline',
+            ruleType: ruleContent.substring(0, ruleComma).trim(),
+            ruleVal: ruleContent.substring(ruleComma + 1).trim()
+          });
+        }
+      } else if (rest.startsWith('http://') || rest.startsWith('https://')) {
+        rulesets.push({ group, type: 'url', url: rest });
+      }
+    }
+  }
+  return rulesets.length ? rulesets : null;
+}
+
+async function 获取或解析IniTemplate(configUrl) {
+  if (!configUrl) return null;
+  if (iniTemplateCache.has(configUrl)) {
+    return iniTemplateCache.get(configUrl);
+  }
+  try {
+    const res = await fetchWithTimeout(configUrl, {}, 6000);
+    if (!res.ok) return null;
+    const text = await res.text();
+    const parsed = 解析IniTemplate文本(text);
+    if (parsed) {
+      iniTemplateCache.set(configUrl, parsed);
+      return parsed;
+    }
+  } catch (e) {
+    console.warn('[INI Config] Fetch ini template error:', e?.message || e);
+  }
+  return null;
+}
+
+// 内部生成 Clash YAML（支持动态解析 INI 配置模板规则集）
+async function 生成值值589(链接列表588, 指定配置网址 = null) {
   const 节点列表586 = 链接列表588.map(解析值链接).filter(数量值585 => 数量值585 && (数量值585.proto === 'vless' || 数量值585.proto === 'trojan'));
   const 名称列表584 = 节点列表586.map(数量值583 => 数量值583.name);
   const 域名系统值582 = 自定义域名系统 || 'https://cloudflare-dns.com/dns-query';
@@ -2797,6 +2857,58 @@ async function 生成值值589(链接列表588, 本地值587 = {}) {
     值值580.push(构建值节点行(数量值579));
     if (值值580.length % 12 === 0) await yieldToEventLoop();
   }
+
+  const 目标配置URL = 指定配置网址 || 远程配置网址;
+  const 解析后规则集 = await 获取或解析IniTemplate(目标配置URL);
+
+  if (解析后规则集 && 解析后规则集.length > 0) {
+    const 组别集合 = new Set();
+    解析后规则集.forEach(item => 组别集合.add(item.group));
+    const 组别列表 = Array.from(组别集合);
+    const 节点仅 = 名称列表584.length ? 名称列表584.map(数量值578 => `      - ${处理本地值622(数量值578)}`).join('\n') : '      - DIRECT';
+
+    const 策略组Lines = ['proxy-groups:', '  - name: "🚀 节点选择"', '    type: select', '    proxies:', '      - "🎯 全球直连"', 节点仅];
+
+    for (const groupName of 组别列表) {
+      if (groupName === '🚀 节点选择') continue;
+      策略组Lines.push(`  - name: "${groupName}"`, '    type: select', '    proxies:');
+      if (groupName.includes('直连')) {
+        策略组Lines.push('      - DIRECT', '      - "🚀 节点选择"', 节点仅);
+      } else if (groupName.includes('拦截') || groupName.includes('净化') || groupName.includes('防护')) {
+        策略组Lines.push('      - REJECT', '      - DIRECT', '      - "🚀 节点选择"', 节点仅);
+      } else {
+        策略组Lines.push('      - "🚀 节点选择"', '      - DIRECT', 节点仅);
+      }
+    }
+
+    const ruleProvidersLines = ['rule-providers:'];
+    const rulesLines = ['rules:'];
+    let providerIdx = 0;
+
+    for (const item of 解析后规则集) {
+      if (item.type === 'url') {
+        const providerName = `provider_${providerIdx++}`;
+        ruleProvidersLines.push(`  ${providerName}:`);
+        ruleProvidersLines.push(`    type: http`);
+        ruleProvidersLines.push(`    behavior: classical`);
+        ruleProvidersLines.push(`    url: "${item.url}"`);
+        ruleProvidersLines.push(`    path: ./rulesets/${providerName}.yaml`);
+        ruleProvidersLines.push(`    interval: 86400`);
+
+        rulesLines.push(`  - RULE-SET,${providerName},${item.group}`);
+      } else if (item.type === 'inline') {
+        if (item.ruleType === 'FINAL') {
+          rulesLines.push(`  - MATCH,${item.group}`);
+        } else {
+          rulesLines.push(`  - ${item.ruleType},${item.ruleVal},${item.group}`);
+        }
+      }
+    }
+
+    await yieldToEventLoop();
+    return [头部581.join('\n'), 值值580.join('\n'), '', 策略组Lines.join('\n'), ruleProvidersLines.join('\n'), rulesLines.join('\n'), ''].join('\n');
+  }
+
   const 节点仅 = 名称列表584.length ? 名称列表584.map(数量值578 => `      - ${处理本地值622(数量值578)}`).join('\n') : '      - DIRECT';
   const 值值577 = ['proxy-groups:', '  - name: "🚀 节点选择"', '    type: select', '    proxies:', '      - "🎯 全球直连"', 节点仅, '  - name: "🌍 国外媒体"', '    type: select', '    proxies:', 处理值选择值(名称列表584), '  - name: "📺 哔哩哔哩"', '    type: select', '    proxies:', 处理值选择值(名称列表584, {
     directFirst: true
@@ -3684,7 +3796,7 @@ async function 处理订阅请求(请求507, 用户506, 网址505 = null) {
     case 'stash':
     case 'meta':
     case 'clashmeta':
-  订阅内容 = await 生成值值589(最终链接列表);
+  订阅内容 = await 生成值值589(最终链接列表, 网址505.searchParams.get('config') || 远程配置网址);
   内容类型483 = 'text/yaml; charset=utf-8';
   break;
 case 'surge': // surge
@@ -5114,6 +5226,9 @@ async function 处理订阅值(请求241, 用户240 = null) {
       saveProtocol: '保存协议配置',
       subscriptionConverterPlaceholder: '默认: https://url.v1.mk/sub',
       subscriptionConverterHint: '订阅转换已内部实现，无需外部 API。此项仅作兼容保留，可留空。',
+      customConfigTemplate: '自定义配置文件:',
+      customConfigTemplatePlaceholder: '例如: https://raw.githubusercontent.com/lizhi123le/ACL4SSR/master/Clash/config/ACL4SSR_Online_Full_MultiMode.ini',
+      customConfigTemplateHint: '订阅转换使用的 Clash/Subconverter 规则模板 URL（内部转换优先使用此配置模板）。',
       builtinPreferredHint: '控制订阅中包含哪些内置优选节点。默认全部启用。',
       apiEnabledDefault: '默认（关闭API）',
       apiEnabledYes: '开启API管理',
@@ -5269,6 +5384,9 @@ async function 处理订阅值(请求241, 用户240 = null) {
       saveProtocol: 'ذخیره تنظیمات پروتکل',
       subscriptionConverterPlaceholder: 'پیش‌فرض: https://url.v1.mk/sub',
       subscriptionConverterHint: 'تبدیل اشتراک به صورت داخلی پیاده‌سازی شده است و نیازی به API خارجی ندارد. این فیلد فقط برای سازگاری حفظ شده و می‌توان آن را خالی گذاشت.',
+      customConfigTemplate: 'قالب پیکربندی سفارشی:',
+      customConfigTemplatePlaceholder: 'مثال: https://raw.githubusercontent.com/lizhi123le/ACL4SSR/master/Clash/config/ACL4SSR_Online_Full_MultiMode.ini',
+      customConfigTemplateHint: 'آدرس URL قالب قانون Clash/Subconverter مورد استفاده در تبدیل اشتراک (تبدیل داخلی اولویت دارد).',
       builtinPreferredHint: 'کنترل اینکه کدام گره‌های ترجیحی داخلی در اشتراک گنجانده شوند. به طور پیش‌فرض همه فعال هستند.',
       apiEnabledDefault: 'پیش‌فرض (بستن API)',
       apiEnabledYes: 'فعال‌سازی مدیریت API',
@@ -6527,6 +6645,11 @@ async function 处理订阅值(请求241, 用户240 = null) {
                                 <small style="color: #7aa9c4; font-size: 0.85rem;">${翻译值.subscriptionConverterHint}</small>
                         </div>
                         <div style="margin-bottom: 15px;">
+                                <label style="display: block; margin-bottom: 8px; color: #00f0ff; font-weight: bold; text-shadow: 0 0 3px #00f0ff;">${翻译值.customConfigTemplate}</label>
+                                <input type="text" id="scc" placeholder="${翻译值.customConfigTemplatePlaceholder}" style="width: 100%; padding: 12px; background: rgba(0, 0, 0, 0.8); border: 2px solid #00f0ff; color: #00f0ff; font-family: 'Courier New', monospace; font-size: 14px;">
+                                <small style="color: #7aa9c4; font-size: 0.85rem;">${翻译值.customConfigTemplateHint}</small>
+                        </div>
+                        <div style="margin-bottom: 15px;">
                                 <label style="display: block; margin-bottom: 8px; color: #00f0ff; font-weight: bold; text-shadow: 0 0 3px #00f0ff;">${翻译值.builtinPreferred}</label>
                             <div style="padding: 15px; background: rgba(15, 3, 40, 0.6); border: 1px solid #00f0ff; border-radius: 5px;">
                                 <div style="margin-bottom: 10px;">
@@ -7352,6 +7475,7 @@ function 应用配置到界面(配置) {
  写入字段值('customECHDomain', 配置.customECHDomain);
  写入字段值('alpn', 配置.alpn);
  写入字段值('scu', 配置.scu);
+ 写入字段值('scc', 配置.scc);
  写入开关值('ena', 配置.ena, false);
  写入开关值('epd', 配置.epd, true);
  写入开关值('epi', 配置.epi, true);
@@ -7419,6 +7543,7 @@ function 收集界面配置() {
     randomPath: 读取开关值('randomPath', false),
     host: 读取字段值('hostInput'),
     scu: 读取字段值('scu'),
+    scc: 读取字段值('scc'),
     ena: 读取开关值('ena', false),
     epd: 读取开关值('epd', true),
     epi: 读取开关值('epi', true),
@@ -9810,6 +9935,7 @@ function 更新配置值() {
   启用扩展传输 = 有效配置.ex === 'yes';
   传输路径 = 有效配置.tp || '';
   订阅转换接口 = 有效配置.scu || 配置默认值.scu;
+  远程配置网址 = 有效配置.scc || 配置默认值.scc;
   启用优选域名 = 有效配置.epd === 'yes';
   启用优选地址 = 有效配置.epi === 'yes';
   启用仓库优选 = 有效配置.egi === 'yes';
