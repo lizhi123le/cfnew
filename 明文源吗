@@ -3189,6 +3189,13 @@ async function 生成值值数据对象(链接列表573) {
     ruleObj.outbound = rule.group;
     iniRouteRules.push(ruleObj);
   }
+  // Add rule_set references for URL-based providers
+  for (const rp of ruleProviders) {
+    iniRouteRules.push({
+      rule_set: rp.name,
+      outbound: rp.group
+    });
+  }
   // Find the FINAL rule's group for route.final
   const finalRule = inlineRules.find(r => r.ruleType === 'FINAL');
   const finalGroup = finalRule ? finalRule.group : '🐟 漏网之鱼';
