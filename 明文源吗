@@ -3320,13 +3320,13 @@ async function 生成值值数据对象(链接列表573) {
         outbound.outbounds = [...pg.proxies];
         if (pg.url) outbound.url = pg.url;
         if (pg.interval) outbound.interval = String(pg.interval) + 's';
-        if (pg.tolerance) outbound.tolerance = String(pg.tolerance) + 's';
+        if (pg.tolerance) outbound.tolerance = pg.tolerance;
       } else if (pg.type === 'fallback') {
         outbound.type = 'fallback';
         outbound.outbounds = [...pg.proxies];
         if (pg.url) outbound.url = pg.url;
         if (pg.interval) outbound.interval = String(pg.interval) + 's';
-        if (pg.tolerance) outbound.tolerance = String(pg.tolerance) + 's';
+        if (pg.tolerance) outbound.tolerance = pg.tolerance;
       } else {
         outbound.type = 'selector';
         outbound.outbounds = [...pg.proxies, 'direct'];
