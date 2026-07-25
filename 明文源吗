@@ -2847,8 +2847,21 @@ function 解析IniTemplate文本(iniText) {
         if (proxy.startsWith('"') && proxy.endsWith('"')) {
           proxy = proxy.slice(1, -1);
         }
+        // Handle []proxy format: empty brackets followed by proxy name after ]
+        if (!proxy) {
+          current = current.substring(bracketEnd + 1);
+          const backtickIdx = current.indexOf('`');
+          if (backtickIdx === -1) {
+            proxy = current.trim();
+            current = '';
+          } else {
+            proxy = current.substring(0, backtickIdx).trim();
+            current = current.substring(backtickIdx);
+          }
+        } else {
+          current = current.substring(bracketEnd + 1);
+        }
         if (proxy) proxies.push(proxy);
-        current = current.substring(bracketEnd + 1);
       }
       if (current) {
         const parts = current.split('`').map(p => p.trim()).filter(p => p);
