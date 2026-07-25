@@ -3067,12 +3067,10 @@ async function 生成值值589(链接列表588, 指定配置网址 = null) {
     }
     // Inline rules
     for (const rule of inlineRules) {
-      if (rule.type === 'inline') {
-        if (rule.ruleType === 'FINAL') {
-          rulesLines.push(`  - MATCH,${rule.group}`);
-        } else {
-          rulesLines.push(`  - ${rule.ruleType},${rule.ruleVal},${rule.group}`);
-        }
+      if (rule.ruleType === 'FINAL') {
+        rulesLines.push(`  - MATCH,${rule.group}`);
+      } else {
+        rulesLines.push(`  - ${rule.ruleType},${rule.ruleVal},${rule.group}`);
       }
     }
 
@@ -3354,7 +3352,7 @@ async function 生成值值562(链接列表561) {
   }
   for (const rule of inlineRules) {
     if (rule.ruleType === 'FINAL') {
-      行列表555.push('FINAL,🐟 漏网之鱼,dns-failed');
+      行列表555.push(`FINAL,${rule.group},dns-failed`);
     } else {
       行列表555.push(`${rule.ruleType},${rule.ruleVal},${rule.group}`);
     }
@@ -3410,21 +3408,20 @@ async function 生成值值552(链接列表551) {
   };
   行列表546.push('');
   // Remote rules (URL-based providers)
+  行列表546.push('[Remote Rule]');
   for (const rp of ruleProviders) {
     行列表546.push(`${rp.url}, policy=${rp.group}, tag=${rp.name}, enabled=true`);
   }
-  // Inline rules
+  行列表546.push('');
+  // Inline rules (in [Rule] section)
+  行列表546.push('[Rule]');
   for (const rule of inlineRules) {
     if (rule.ruleType === 'FINAL') {
-      行列表546.push('FINAL,🐟 漏网之鱼');
+      行列表546.push(`FINAL,${rule.group}`);
     } else {
       行列表546.push(`${rule.ruleType},${rule.ruleVal},policy=${rule.group}`);
     }
   }
-  行列表546.push('');
-  行列表546.push('[Rule]');
-  行列表546.push('GEOIP,CN,🎯 全球直连');
-  行列表546.push('FINAL,🐟 漏网之鱼');
   await yieldToEventLoop();
   return 行列表546.join('\n');
 }
@@ -3479,11 +3476,12 @@ async function 生成值值(链接列表541) {
   for (const rp of ruleProviders) {
     行列表538.push(`${rp.url}, tag=${rp.name}, force-policy=${rp.group}, update-interval=86400, opt-parser=false, enabled=true`);
   }
+  行列表538.push('');
   // filter_local (inline rules)
   行列表538.push('[filter_local]');
   for (const rule of inlineRules) {
     if (rule.ruleType === 'FINAL') {
-      行列表538.push('final, 🐟 漏网之鱼');
+      行列表538.push(`final, ${rule.group}`);
     } else {
       行列表538.push(`${rule.ruleType.toLowerCase()},${rule.ruleVal}, ${rule.group}`);
     }
