@@ -2984,18 +2984,18 @@ async function 生成值值589(链接列表588, 指定配置网址 = null) {
       let proxiesToUse = [];
       if (pg.type === 'select') {
         // For select groups, proxies are group names or DIRECT/REJECT
-        proxiesToUse = pg.proxies.length > 0 ? pg.proxies : ['DIRECT', '🚀 节点选择', 节点仅];
+        proxiesToUse = pg.proxies.length > 0 ? pg.proxies : ['DIRECT', '🚀 节点选择', ...节点仅];
       } else if (pg.type === 'url-test' || pg.type === 'load-balance' || pg.type === 'fallback') {
         // For auto groups, filter nodes by regex patterns
         if (pg.proxies.length > 0) {
           const filterPatterns = pg.proxies.map(p => new RegExp(p));
           proxiesToUse = 名称列表584.filter(nodeName => filterPatterns.some(re => re.test(nodeName)));
-          if (proxiesToUse.length === 0) proxiesToUse = [节点仅]; // fallback
+          if (proxiesToUse.length === 0) proxiesToUse = 节点仅; // fallback
         } else {
-          proxiesToUse = [节点仅];
+          proxiesToUse = 节点仅;
         }
       } else {
-        proxiesToUse = [节点仅];
+        proxiesToUse = 节点仅;
       }
       for (const proxy of proxiesToUse) {
         策略组Lines.push(`      - ${处理本地值622(proxy)}`);
