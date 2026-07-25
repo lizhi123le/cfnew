@@ -2950,8 +2950,8 @@ function 生成代理组配置(解析后配置, 节点名称列表, 选项 = {})
     } else {
       代理列表 = 类型 === 'select' ? ['DIRECT', ...节点仅] : [...节点仅];
     }
-    // Filter out self-reference to prevent logical deadlock
-    代理列表 = 代理列表.filter(p => p !== pg.name);
+    // Filter out self-reference and 节点选择 to prevent logical deadlock
+    代理列表 = 代理列表.filter(p => p !== pg.name && p !== '🚀 节点选择');
 
     const 组 = { name: pg.name, type: 类型, proxies: 代理列表 };
     if ((类型 === 'url-test' || 类型 === 'load-balance' || 类型 === 'fallback') && pg.url) {
@@ -3006,7 +3006,7 @@ async function 生成值值589(链接列表588, 指定配置网址 = null) {
       let proxiesToUse = [];
       if (pg.type === 'select') {
         // For select groups, proxies are group names or DIRECT/REJECT
-        proxiesToUse = pg.proxies.length > 0 ? pg.proxies : ['DIRECT', '🚀 节点选择', ...节点仅];
+        proxiesToUse = pg.proxies.length > 0 ? pg.proxies.filter(p => p !== '🚀 节点选择') : ['DIRECT', ...节点仅];
       } else if (pg.type === 'url-test' || pg.type === 'load-balance' || pg.type === 'fallback') {
         // For auto groups, filter nodes by regex patterns
         if (pg.proxies.length > 0) {
