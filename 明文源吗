@@ -2856,10 +2856,10 @@ function 解析IniTemplate文本(iniText) {
             current = '';
           } else {
             proxy = current.substring(0, backtickIdx).trim();
-            current = current.substring(backtickIdx);
+            current = current.substring(backtickIdx + 1);
           }
         } else {
-          current = current.substring(bracketEnd + 1);
+          current = current.substring(bracketEnd + 2);
         }
         if (proxy) proxies.push(proxy);
       }
