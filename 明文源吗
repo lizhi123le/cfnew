@@ -2865,10 +2865,17 @@ function 解析IniTemplate文本(iniText) {
       }
       if (current) {
         const parts = current.split('`').map(p => p.trim()).filter(p => p);
-        if (parts.length >= 1) url = parts[0];
-        if (parts.length >= 2) interval = parseInt(parts[1], 10) || 300;
-        if (parts.length >= 3) tolerance = parseInt(parts[2], 10) || 50;
-        if (parts.length >= 4) strategy = parts[3];
+        if (groupType === 'select') {
+          // select: all remaining parts are proxy names or group references
+          if (parts.length > 0) proxies.push(...parts);
+        } else {
+          // url-test/load-balance/fallback: first part is regex pattern for node filtering
+          if (parts.length >= 1) proxies.push(parts[0]);
+          if (parts.length >= 2) url = parts[1];
+          if (parts.length >= 3) interval = parseInt(parts[2], 10) || 300;
+          if (parts.length >= 4) tolerance = parseInt(parts[3], 10) || 50;
+          if (parts.length >= 5) strategy = parts[4];
+        }
       }
       proxyGroups.push({ name: groupName, type: groupType, proxies, url, interval, tolerance, strategy });
     }
