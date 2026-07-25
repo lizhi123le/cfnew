@@ -2842,7 +2842,11 @@ function 解析IniTemplate文本(iniText) {
         current = current.substring(1);
         const bracketEnd = current.indexOf(']');
         if (bracketEnd === -1) break;
-        const proxy = current.substring(0, bracketEnd).trim();
+        let proxy = current.substring(0, bracketEnd).trim();
+        // Strip surrounding quotes if present
+        if (proxy.startsWith('"') && proxy.endsWith('"')) {
+          proxy = proxy.slice(1, -1);
+        }
         if (proxy) proxies.push(proxy);
         current = current.substring(bracketEnd + 1);
       }
