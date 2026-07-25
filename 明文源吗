@@ -2930,6 +2930,8 @@ function 生成代理组配置(解析后配置, 节点名称列表, 选项 = {})
         代理列表 = 节点仅;
       }
     }
+    // Filter out self-reference to prevent logical deadlock
+    代理列表 = 代理列表.filter(p => p !== pg.name);
 
     const 组 = { name: pg.name, type: 类型, proxies: 代理列表 };
     if ((类型 === 'url-test' || 类型 === 'load-balance' || 类型 === 'fallback') && pg.url) {
@@ -2997,8 +2999,6 @@ async function 生成值值589(链接列表588, 指定配置网址 = null) {
       } else {
         proxiesToUse = 节点仅;
       }
-      // Filter out self-reference to prevent logical deadlock
-      proxiesToUse = proxiesToUse.filter(p => p !== pg.name);
       for (const proxy of proxiesToUse) {
         策略组Lines.push(`      - ${proxy}`);
       }
