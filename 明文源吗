@@ -668,10 +668,6 @@ async function 加载键值配置(本地值771 = false) {
   if (!键值存储) {
     return;
   }
-  // 短窗口内完全信任缓存，避免高频请求时打爆 KV
-  if (!本地值771 && 键值配置上次加载 > 0 && Date.now() - 键值配置上次加载 < 键值缓存期限) {
-    return;
-  }
   // P0-3: 单例 Promise 去重 — 并发请求共享一次 KV 读取
   if (kvLoadingPromise) {
     try {
@@ -3922,6 +3918,17 @@ async function 处理订阅请求(请求507, 用户506, 网址505 = null) {
          await 添加节点列表来源列表(备用列表485);
       }
     }
+  }
+  // 全局按协议类型排序：vless 优先，其次 trojan，最后 xhttp
+  if ((启用明文 && 启用木马) || (启用明文 && 启用扩展传输) || (启用木马 && 启用扩展传输)) {
+    最终链接列表.sort((a, b) => {
+      const 获取协议顺序 = (链接) => {
+        if (链接.startsWith('trojan://')) return 2;
+        if (链接.includes('type=xhttp')) return 3;
+        return 1;
+      };
+      return 获取协议顺序(a) - 获取协议顺序(b);
+    });
   }
   if (最终链接列表.length === 0) {
     const 错误备注 = "所有节点获取失败";
