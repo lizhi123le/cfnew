@@ -2983,12 +2983,11 @@ function 生成代理组配置(解析后配置, 节点名称列表, 选项 = {})
     if (pg.proxies.length > 0) {
       if (类型 === 'select') {
         // select: 字面量保留，正则展开为匹配的实际节点名
-        // 对于 `.*` 特殊处理：展开为所有已定义的组名 + DIRECT
+        // `.*` 暂时保留，等所有组处理完后再展开
         代理列表 = [];
         for (const p of pg.proxies) {
           if (p === '.*') {
-            // `.*` 应匹配所有组名 + DIRECT（用于 ☑️ 手动切换 等场景）
-            代理列表.push(...组配置.map(g => g.name), 'DIRECT');
+            代理列表.push('.*'); // 占位，后处理展开
           } else if (是正则表达式(p)) {
             try {
               const re = new RegExp(p);
@@ -3018,6 +3017,18 @@ function 生成代理组配置(解析后配置, 节点名称列表, 选项 = {})
       if (类型 === 'load-balance' && pg.strategy) 组.strategy = pg.strategy;
     }
     组配置.push(组);
+  }
+
+  // 后处理：展开 select 组中的 `.*` 占位符为所有组名 + DIRECT
+  for (const 组 of 组配置) {
+    if (组.type === 'select') {
+      const idx = 组.proxies.indexOf('.*');
+      if (idx !== -1) {
+        组.proxies.splice(idx, 1, ...组配置.map(g => g.name), 'DIRECT');
+        // 去重并过滤自身
+        组.proxies = [...new Set(组.proxies)].filter(p => p !== 组.name && p !== '🚀 节点选择');
+      }
+    }
   }
 
   // 规则提供器（仅 Clash/Sing-box 需要）
