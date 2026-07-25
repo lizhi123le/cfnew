@@ -3322,7 +3322,7 @@ async function 生成值值数据对象(链接列表573) {
         if (pg.interval) outbound.interval = String(pg.interval) + 's';
         if (pg.tolerance) outbound.tolerance = pg.tolerance;
       } else if (pg.type === 'fallback') {
-        outbound.type = 'fallback';
+        outbound.type = 'urltest';
         outbound.outbounds = [...pg.proxies];
         if (pg.url) outbound.url = pg.url;
         if (pg.interval) outbound.interval = String(pg.interval) + 's';
