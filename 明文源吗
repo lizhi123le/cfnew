@@ -2974,7 +2974,7 @@ async function 生成值值589(链接列表588, 指定配置网址 = null) {
 
     // Use parsed proxy groups from INI template
     for (const pg of 解析后代理组) {
-      策略组Lines.push(`  - name: "${pg.name}"`);
+      策略组Lines.push(`  - name: ${处理本地值622(pg.name)}`);
       策略组Lines.push(`    type: ${pg.type}`);
       策略组Lines.push(`    proxies:`);
       let proxiesToUse = [];
