@@ -3257,7 +3257,7 @@ async function 生成值值数据对象(链接列表573) {
       servers: [{
         tag: 'remote',
         address: 域名系统值570,
-        detour: 'select'
+        detour: 代理组列表[0]?.name || 'select'
       }, {
         tag: 'local',
         address: '223.5.5.5',
