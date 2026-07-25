@@ -2907,7 +2907,22 @@ async function 生成值值589(链接列表588, 指定配置网址 = null) {
       策略组Lines.push(`  - name: "${pg.name}"`);
       策略组Lines.push(`    type: ${pg.type}`);
       策略组Lines.push(`    proxies:`);
-      const proxiesToUse = pg.proxies.length > 0 ? pg.proxies : (pg.type === 'select' ? ['DIRECT', '🚀 节点选择', 节点仅] : [节点仅]);
+      let proxiesToUse = [];
+      if (pg.type === 'select') {
+        // For select groups, proxies are group names or DIRECT/REJECT
+        proxiesToUse = pg.proxies.length > 0 ? pg.proxies : ['DIRECT', '🚀 节点选择', 节点仅];
+      } else if (pg.type === 'url-test' || pg.type === 'load-balance' || pg.type === 'fallback') {
+        // For auto groups, filter nodes by regex patterns
+        if (pg.proxies.length > 0) {
+          const filterPatterns = pg.proxies.map(p => new RegExp(p));
+          proxiesToUse = 名称列表584.filter(nodeName => filterPatterns.some(re => re.test(nodeName)));
+          if (proxiesToUse.length === 0) proxiesToUse = [节点仅]; // fallback
+        } else {
+          proxiesToUse = [节点仅];
+        }
+      } else {
+        proxiesToUse = [节点仅];
+      }
       for (const proxy of proxiesToUse) {
         策略组Lines.push(`      - ${处理本地值622(proxy)}`);
       }
@@ -2917,6 +2932,9 @@ async function 生成值值589(链接列表588, 指定配置网址 = null) {
         策略组Lines.push(`    interval: ${pg.interval}`);
         if (pg.type === 'url-test' || pg.type === 'fallback') {
           策略组Lines.push(`    tolerance: ${pg.tolerance}`);
+        }
+        if (pg.type === 'load-balance') {
+          策略组Lines.push(`    strategy: consistent-hashing`);
         }
       }
     }
