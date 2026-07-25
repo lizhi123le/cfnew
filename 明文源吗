@@ -2851,7 +2851,9 @@ function 解析IniTemplate文本(iniText) {
       let tolerance = 50;
       let strategy = '';
       let current = afterType;
+      let hasBracketsConsumed = false;
       while (current.startsWith('[')) {
+        hasBracketsConsumed = true;
         current = current.substring(1);
         const bracketEnd = current.indexOf(']');
         if (bracketEnd === -1) break;
@@ -2882,12 +2884,35 @@ function 解析IniTemplate文本(iniText) {
           // select: all remaining parts are proxy names or group references
           if (parts.length > 0) proxies.push(...parts);
         } else {
-          // url-test/load-balance/fallback: first part is regex pattern for node filtering
-          if (parts.length >= 1) proxies.push(parts[0]);
-          if (parts.length >= 2) url = parts[1];
-          if (parts.length >= 3) interval = parseInt(parts[2], 10) || 300;
-          if (parts.length >= 4) tolerance = parseInt(parts[3], 10) || 50;
-          if (parts.length >= 5) strategy = parts[4];
+          // url-test/load-balance/fallback:
+          // When brackets consumed: parts[0]=URL, parts[1]=params
+          // When NO brackets: parts[0]=regex, parts[1]=URL, parts[2]=params
+          if (hasBracketsConsumed) {
+            if (parts.length >= 1) url = parts[0];
+            if (parts.length >= 2) {
+              const params = parts[1].split(',');
+              if (params[0]) interval = parseInt(params[0], 10) || 300;
+              if (params.length >= 3) {
+                strategy = params[1] || '';
+                if (params[2]) tolerance = parseInt(params[2], 10) || 50;
+              } else if (params.length === 2) {
+                if (params[1]) tolerance = parseInt(params[1], 10) || 50;
+              }
+            }
+          } else {
+            if (parts.length >= 1) proxies.push(parts[0]); // regex pattern
+            if (parts.length >= 2) url = parts[1];
+            if (parts.length >= 3) {
+              const params = parts[2].split(',');
+              if (params[0]) interval = parseInt(params[0], 10) || 300;
+              if (params.length >= 3) {
+                strategy = params[1] || '';
+                if (params[2]) tolerance = parseInt(params[2], 10) || 50;
+              } else if (params.length === 2) {
+                if (params[1]) tolerance = parseInt(params[1], 10) || 50;
+              }
+            }
+          }
         }
       }
       proxyGroups.push({ name: groupName, type: groupType, proxies, url, interval, tolerance, strategy });
@@ -3387,17 +3412,18 @@ async function 生成值值562(链接列表561) {
 
   for (const pg of groups) {
     if (pg.type === 'select') {
-      行列表555.push(`${pg.name} = select, ${pg.proxies.join(', ')}`);
-    } else if (pg.type === 'url-test') {
-      const urlPart = pg.url ? ` url=${pg.url}` : '';
-      const intervalPart = pg.interval ? ` interval=${pg.interval}` : '';
-      const tolerancePart = pg.tolerance ? ` tolerance=${pg.tolerance}` : '';
-      行列表555.push(`${pg.name} = url-test, ${pg.proxies.join(', ')}${urlPart}${intervalPart}${tolerancePart}`);
+      行列表555.push(`${pg.name} = select,${pg.proxies.join(',')}`);
+    } else if (pg.type === 'url-test' || pg.type === 'load-balance') {
+      const urlPart = pg.url ? `,url=${pg.url}` : '';
+      const intervalPart = pg.interval ? `,interval=${pg.interval}` : '';
+      const strategyPart = (pg.type === 'load-balance' && pg.strategy) ? `,strategy=${pg.strategy}` : '';
+      const tolerancePart = pg.tolerance ? `,tolerance=${pg.tolerance}` : '';
+      行列表555.push(`${pg.name} = ${pg.type},${pg.proxies.join(',')}${urlPart}${intervalPart}${strategyPart}${tolerancePart}`);
     } else if (pg.type === 'fallback') {
-      const urlPart = pg.url ? ` url=${pg.url}` : '';
-      const intervalPart = pg.interval ? ` interval=${pg.interval}` : '';
-      const tolerancePart = pg.tolerance ? ` tolerance=${pg.tolerance}` : '';
-      行列表555.push(`${pg.name} = fallback, ${pg.proxies.join(', ')}${urlPart}${intervalPart}${tolerancePart}`);
+      const urlPart = pg.url ? `,url=${pg.url}` : '';
+      const intervalPart = pg.interval ? `,interval=${pg.interval}` : '';
+      const tolerancePart = pg.tolerance ? `,tolerance=${pg.tolerance}` : '';
+      行列表555.push(`${pg.name} = fallback,${pg.proxies.join(',')}${urlPart}${intervalPart}${tolerancePart}`);
     }
   }
 
