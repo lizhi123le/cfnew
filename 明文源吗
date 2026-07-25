@@ -2917,18 +2917,27 @@ function 生成代理组配置(解析后配置, 节点名称列表, 选项 = {})
     }
 
     let 代理列表 = [];
-    if (类型 === 'select') {
-      // select: 直接使用模板列出的分组名/DIRECT/REJECT
-      代理列表 = pg.proxies.length > 0 ? pg.proxies : ['DIRECT', '🚀 节点选择', ...节点仅];
-    } else {
-      // url-test/load-balance/fallback: 按正则筛选实际节点
-      if (pg.proxies.length > 0) {
-        const patterns = 编译正则(pg.proxies);
-        代理列表 = 节点名称列表.filter(nodeName => patterns.some(re => re.test(nodeName)));
-        if (代理列表.length === 0) 代理列表 = 节点仅; // 兜底
-      } else {
-        代理列表 = 节点仅;
+    if (pg.proxies.length > 0) {
+      // 收集已知的分组名和特殊关键字
+      const 已知分组名 = new Set(['DIRECT', 'REJECT', '🚀 节点选择']);
+      解析后代理组.forEach(g => 已知分组名.add(g.name));
+
+      const 字面量 = [];
+      const 正则模式 = [];
+      for (const p of pg.proxies) {
+        if (已知分组名.has(p)) {
+          字面量.push(p);
+        } else {
+          const re = (() => { try { return new RegExp(p); } catch { return null; } })();
+          if (re) 正则模式.push(re);
+        }
       }
+      // 按正则从实际节点列表中筛选
+      const 正则匹配 = 节点名称列表.filter(nodeName => 正则模式.some(re => re.test(nodeName)));
+      代理列表 = [...字面量, ...正则匹配];
+      if (代理列表.length === 0) 代理列表 = 节点仅; // 兜底
+    } else {
+      代理列表 = 类型 === 'select' ? ['DIRECT', ...节点仅] : [...节点仅];
     }
     // Filter out self-reference to prevent logical deadlock
     代理列表 = 代理列表.filter(p => p !== pg.name);
