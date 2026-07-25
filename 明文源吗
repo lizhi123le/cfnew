@@ -3267,7 +3267,7 @@ async function 生成值值数据对象(链接列表573) {
         outbound.outbounds = [...pg.proxies, 'direct'];
         outbound.default = pg.proxies[0] || 'direct';
       } else if (pg.type === 'url-test') {
-        outbound.type = 'url-test';
+        outbound.type = 'urltest';
         outbound.outbounds = [...pg.proxies];
         if (pg.url) outbound.url = pg.url;
         if (pg.interval) outbound.interval = pg.interval;
