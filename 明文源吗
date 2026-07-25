@@ -3159,14 +3159,63 @@ async function 生成值值数据对象(链接列表573) {
     出站值,
     { convertLoadBalanceToUrlTest: true, targetClient: 'singbox' }
   );
-  // Build route rule_set from INI template
-  const iniRouteRuleSet = ruleProviders.map(rp => ({
-    tag: rp.name,
-    type: 'remote',
-    format: 'binary',
-    url: rp.url,
-    download_detour: 'direct'
-  }));
+  // Clash YAML rule text → sing-box source format (headless rules, no outbound)
+  function 转换Clash规则到Singbox格式(clashRuleText) {
+    const lines = clashRuleText.split('\n');
+    const 规则集合 = {};
+    const 类型映射 = {
+      'DOMAIN': 'domain',
+      'DOMAIN-SUFFIX': 'domain_suffix',
+      'DOMAIN-KEYWORD': 'domain_keyword',
+      'DOMAIN-REGEX': 'domain_regex',
+      'IP-CIDR': 'ip_cidr',
+      'IP-CIDR6': 'ip_cidr',
+      'PROCESS-NAME': 'process_name',
+      'PROCESS-PATH': 'process_path',
+      'PROCESS-PATH-REGEX': 'process_path_regex',
+      'PACKAGE-NAME': 'package_name',
+      'PORT': 'port',
+    };
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#') || trimmed.startsWith('//') || trimmed === '---') continue;
+      const cleaned = trimmed.replace(/^\s*-\s*/, '');
+      const parts = cleaned.split(',').map(s => s.trim());
+      if (parts.length < 2) continue;
+      const 字段 = 类型映射[parts[0].toUpperCase()];
+      if (!字段) continue;
+      const 实际值 = parts[1].replace(/,?\s*no-resolve$/i, '').trim();
+      if (!实际值) continue;
+      if (!规则集合[字段]) 规则集合[字段] = new Set();
+      规则集合[字段].add(实际值);
+    }
+    const 规则列表 = [];
+    for (const [字段, 值集合] of Object.entries(规则集合)) {
+      规则列表.push({ [字段]: [...值集合] });
+    }
+    return JSON.stringify({ version: 3, rules: 规则列表 });
+  }
+  // Fetch and convert Clash YAML rule providers to sing-box source format (inline rule-sets)
+  const iniRouteRuleSet = [];
+  if (ruleProviders.length > 0) {
+    const 转换结果 = await Promise.allSettled(ruleProviders.map(async (rp) => {
+      try {
+        const resp = await fetchWithTimeout(rp.url);
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const text = await resp.text();
+        const parsed = JSON.parse(转换Clash规则到Singbox格式(text));
+        return { tag: rp.name, rules: parsed.rules || [] };
+      } catch (e) {
+        console.warn(`[规则集] 获取转换失败 ${rp.name}: ${e.message || e}`);
+        return { tag: rp.name, rules: [] };
+      }
+    }));
+    for (const 结果 of 转换结果) {
+      const { tag, rules } = 结果.status === 'fulfilled' ? 结果.value : { tag: 'error', rules: [] };
+      iniRouteRuleSet.push({ type: 'inline', tag, rules });
+    }
+    await yieldToEventLoop();
+  }
   // Build route rules from INI template inline rules
   const iniRouteRules = [
     { protocol: 'dns', outbound: 'dns-out' },
