@@ -2823,7 +2823,7 @@ function 解析IniTemplate文本(iniText) {
         rulesets.push({ group, type: 'url', url: rest });
       }
     } else if (line.startsWith('custom_proxy_group=')) {
-      const payload = line.substring(17).trim();
+      const payload = line.substring(19).trim();
       const firstBacktick = payload.indexOf('`');
       if (firstBacktick === -1) continue;
       const groupName = payload.substring(0, firstBacktick).trim();
@@ -2972,7 +2972,7 @@ async function 生成值值589(链接列表588, 指定配置网址 = null) {
   if (解析后配置 && (解析后配置.rulesets?.length > 0 || 解析后配置.proxyGroups?.length > 0)) {
     const 解析后规则集 = 解析后配置.rulesets || [];
     const 解析后代理组 = 解析后配置.proxyGroups || [];
-    const 节点仅 = 名称列表584.length ? 名称列表584.map(数量值578 => `      - ${处理本地值622(数量值578)}`).join('\n') : '      - DIRECT';
+    const 节点仅 = 名称列表584.length ? 名称列表584 : ['DIRECT'];
 
     const 策略组Lines = ['proxy-groups:'];
 
