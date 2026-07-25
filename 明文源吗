@@ -2922,6 +2922,11 @@ function 生成代理组配置(解析后配置, 节点名称列表, 选项 = {})
 
   const 组配置 = [];
 
+  // Detect if a string is a regex pattern (not a literal proxy/group name)
+  function 是正则表达式(str) {
+    return /[\(\)\|\*\+\?\[\]\{\}\^\$\\]/.test(str);
+  }
+
   for (const pg of 解析后代理组) {
     let 类型 = pg.type;
     
@@ -2939,8 +2944,8 @@ function 生成代理组配置(解析后配置, 节点名称列表, 选项 = {})
     let 代理列表 = [];
     if (pg.proxies.length > 0) {
       if (类型 === 'select') {
-        // select: 直接使用模板列出的分组名/DIRECT/REJECT（字面量）
-        代理列表 = [...pg.proxies];
+        // select: 直接使用模板列出的分组名/DIRECT/REJECT（字面量），过滤掉正则
+        代理列表 = pg.proxies.filter(p => !是正则表达式(p));
       } else {
         // url-test/load-balance/fallback: 按正则筛选实际节点
         const patterns = 编译正则(pg.proxies);
@@ -3006,7 +3011,7 @@ async function 生成值值589(链接列表588, 指定配置网址 = null) {
       let proxiesToUse = [];
       if (pg.type === 'select') {
         // For select groups, proxies are group names or DIRECT/REJECT
-        proxiesToUse = pg.proxies.length > 0 ? pg.proxies.filter(p => p !== '🚀 节点选择') : ['DIRECT', ...节点仅];
+        proxiesToUse = pg.proxies.length > 0 ? pg.proxies.filter(p => p !== '🚀 节点选择' && !是正则表达式(p)) : ['DIRECT', ...节点仅];
       } else if (pg.type === 'url-test' || pg.type === 'load-balance' || pg.type === 'fallback') {
         // For auto groups, filter nodes by regex patterns
         if (pg.proxies.length > 0) {
