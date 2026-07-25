@@ -3019,12 +3019,13 @@ function 生成代理组配置(解析后配置, 节点名称列表, 选项 = {})
     组配置.push(组);
   }
 
-  // 后处理：展开 select 组中的 `.*` 占位符为所有组名 + DIRECT
+  // 后处理：展开 select 组中的 `.*` 占位符为所有节点名称 + DIRECT
   for (const 组 of 组配置) {
     if (组.type === 'select') {
       const idx = 组.proxies.indexOf('.*');
       if (idx !== -1) {
-        组.proxies.splice(idx, 1, ...组配置.map(g => g.name), 'DIRECT');
+        // .* 展开为所有节点名称 + DIRECT，不是所有分组名
+        组.proxies.splice(idx, 1, ...节点名称列表, 'DIRECT');
         // 去重并过滤自身
         组.proxies = [...new Set(组.proxies)].filter(p => p !== 组.name && p !== '🚀 节点选择');
       }
