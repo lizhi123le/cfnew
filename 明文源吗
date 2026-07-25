@@ -3401,7 +3401,7 @@ async function 生成值值562(链接列表561) {
   const 行列表555 = ['[General]', 'loglevel = notify', 'internet-test-url = http://www.apple.com/library/test/success.html', 'proxy-test-url = http://www.gstatic.com/generate_204', 'test-timeout = 3', `dns-server = ${域名系统值558.replace(/^https?:\/\//, '').replace(/\/.*$/, '')}, 119.29.29.29, system`, 'encrypted-dns-server = https://223.5.5.5/dns-query, https://1.12.12.12/dns-query', 'ipv6 = true', 'allow-wifi-access = false', 'wifi-access-http-port = 6152', 'wifi-access-socks5-port = 6153', 'skip-proxy = 127.0.0.1, 192.168.0.0/16, 10.0.0.0/8, 172.16.0.0/12, localhost, *.local, captive.apple.com', 'exclude-simple-hostnames = true', 'show-error-page-for-reject = true', '', '[Proxy]'];
   for (const 数量值554 of 节点列表560) {
     const 服务名称指示 = 数量值554.sni;
-    行列表555.push(`${数量值554.name} = trojan, ${数量值554.server}, ${数量值554.port}, password=${传输路径 || 数量值554.password || 数量值554.uuid}, sni=${服务名称指示}, ws=true, ws-path=${数量值554.path}, ws-headers=Host:${数量值554.host}, skip-cert-verify=false, tfo=true`);
+    行列表555.push(`${数量值554.name} = trojan, ${数量值554.server}, ${数量值554.port}, password=${传输路径 || 数量值554.uuid}, sni=${服务名称指示}, ws=true, ws-path=${数量值554.path}, ws-headers=Host:${数量值554.host}, skip-cert-verify=false, tfo=true`);
     if (行列表555.length % 12 === 0) await yieldToEventLoop();
   }
   if (!节点列表560.length) {
