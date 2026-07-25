@@ -2824,7 +2824,6 @@ function 解析IniTemplate文本(iniText) {
       }
     } else if (line.startsWith('custom_proxy_group=')) {
       const payload = line.substring(17).trim();
-      // Format: groupName`type`[proxy1`[proxy2`[...]]`[url`interval`tolerance]
       const firstBacktick = payload.indexOf('`');
       if (firstBacktick === -1) continue;
       const groupName = payload.substring(0, firstBacktick).trim();
@@ -2833,11 +2832,11 @@ function 解析IniTemplate文本(iniText) {
       if (secondBacktick === -1) continue;
       const groupType = rest.substring(0, secondBacktick).trim();
       const afterType = rest.substring(secondBacktick + 1);
-      // Parse proxies: split by `[
       const proxies = [];
       let url = '';
       let interval = 300;
       let tolerance = 50;
+      let strategy = '';
       let current = afterType;
       while (current.startsWith('[')) {
         current = current.substring(1);
@@ -2847,14 +2846,14 @@ function 解析IniTemplate文本(iniText) {
         if (proxy) proxies.push(proxy);
         current = current.substring(bracketEnd + 1);
       }
-      // Remaining: url`interval`tolerance (for url-test/load-balance/fallback)
       if (current) {
         const parts = current.split('`').map(p => p.trim()).filter(p => p);
         if (parts.length >= 1) url = parts[0];
         if (parts.length >= 2) interval = parseInt(parts[1], 10) || 300;
         if (parts.length >= 3) tolerance = parseInt(parts[2], 10) || 50;
+        if (parts.length >= 4) strategy = parts[3];
       }
-      proxyGroups.push({ name: groupName, type: groupType, proxies, url, interval, tolerance });
+      proxyGroups.push({ name: groupName, type: groupType, proxies, url, interval, tolerance, strategy });
     }
   }
   return { rulesets, proxyGroups };
@@ -2878,6 +2877,77 @@ async function 获取或解析IniTemplate(configUrl) {
     console.warn('[INI Config] Fetch ini template error:', e?.message || e);
   }
   return null;
+}
+
+// 通用：根据 ACL4SSR 模板生成各格式的 proxy-groups
+// convertLoadBalanceToUrlTest: true 时将 load-balance 转为 url-test（自动选择）
+// targetClient: 'auto' | 'clash' | 'singbox' | 'surge' | 'loon' | 'quantumult' - 用于控制负载均衡转换逻辑
+function 生成代理组配置(解析后配置, 节点名称列表, 选项 = {}) {
+  const { 
+    convertLoadBalanceToUrlTest = false,
+    targetClient = 'auto'  // 'auto' | 'clash' | 'singbox' | 'surge' | 'loon' | 'quantumult'
+  } = 选项;
+  const 解析后规则集 = 解析后配置?.rulesets || [];
+  const 解析后代理组 = 解析后配置?.proxyGroups || [];
+  const 节点仅 = 节点名称列表.length ? 节点名称列表 : ['DIRECT'];
+
+  // 预编译正则（用于 load-balance/url-test/fallback 的节点筛选）
+  const 编译正则 = (patterns) => patterns.map(p => {
+    try { return new RegExp(p); } catch { return null; }
+  }).filter(Boolean);
+
+  const 组配置 = [];
+
+  for (const pg of 解析后代理组) {
+    let 类型 = pg.type;
+    
+    // 仅对非 Clash 客户端转换 load-balance 到 url-test
+    if (convertLoadBalanceToUrlTest && 类型 === 'load-balance') {
+      if (targetClient === 'clash') {
+        // Clash 保持 load-balance 类型
+        // 类型保持不变
+      } else {
+        // 其他客户端转换为 url-test
+        类型 = 'url-test';
+      }
+    }
+
+    let 代理列表 = [];
+    if (类型 === 'select') {
+      // select: 直接使用模板列出的分组名/DIRECT/REJECT
+      代理列表 = pg.proxies.length > 0 ? pg.proxies : ['DIRECT', '🚀 节点选择', ...节点仅];
+    } else {
+      // url-test/load-balance/fallback: 按正则筛选实际节点
+      if (pg.proxies.length > 0) {
+        const patterns = 编译正则(pg.proxies);
+        代理列表 = 节点名称列表.filter(nodeName => patterns.some(re => re.test(nodeName)));
+        if (代理列表.length === 0) 代理列表 = 节点仅; // 兜底
+      } else {
+        代理列表 = 节点仅;
+      }
+    }
+
+    const 组 = { name: pg.name, type: 类型, proxies: 代理列表 };
+    if ((类型 === 'url-test' || 类型 === 'load-balance' || 类型 === 'fallback') && pg.url) {
+      组.url = pg.url;
+      组.interval = pg.interval;
+      if (类型 === 'url-test' || 类型 === 'fallback') 组.tolerance = pg.tolerance;
+      if (类型 === 'load-balance' && pg.strategy) 组.strategy = pg.strategy;
+    }
+    组配置.push(组);
+  }
+
+  // 规则提供器（仅 Clash/Sing-box 需要）
+  const ruleProviders = [];
+  let providerIdx = 0;
+  for (const item of 解析后规则集) {
+    if (item.type === 'url') {
+      const providerName = `provider_${providerIdx++}`;
+      ruleProviders.push({ name: providerName, url: item.url, group: item.group });
+    }
+  }
+
+  return { groups: 组配置, ruleProviders, inlineRules: 解析后规则集.filter(r => r.type === 'inline') };
 }
 
 // 内部生成 Clash YAML（支持动态解析 INI 配置模板规则集）
@@ -3059,6 +3129,12 @@ async function 生成值值数据对象(链接列表573) {
     url: `${值基础地址}/${本地值564}.srs`,
     download_detour: 'direct'
   });
+  // 使用共享函数生成代理组配置
+  const { groups: 代理组列表 } = 生成代理组配置(
+    await 获取或解析IniTemplate(远程配置网址),
+    出站值,
+    { convertLoadBalanceToUrlTest: true }
+  );
   const 配置 = {
     log: {
       level: 'info',
@@ -3120,56 +3196,30 @@ async function 生成值值数据对象(链接列表573) {
       sniff: true,
       sniff_override_destination: true
     }],
-    outbounds: [{
-      type: 'selector',
-      tag: 'select',
-      outbounds: ['direct', ...出站值],
-      default: 出站值[0] || 'direct'
-    }, {
-      type: 'selector',
-      tag: '🌍 国外媒体',
-      outbounds: ['select', 'direct', ...出站值]
-    }, {
-      type: 'selector',
-      tag: '📲 电报信息',
-      outbounds: ['select', 'direct', ...出站值]
-    }, {
-      type: 'selector',
-      tag: '🌐 谷歌服务',
-      outbounds: ['select', 'direct', ...出站值]
-    }, {
-      type: 'selector',
-      tag: '🤖 OpenAI',
-      outbounds: ['select', 'direct', ...出站值]
-    }, {
-      type: 'selector',
-      tag: 'Ⓜ️ 微软服务',
-      outbounds: ['direct', 'select', ...出站值]
-    }, {
-      type: 'selector',
-      tag: '🍎 苹果服务',
-      outbounds: ['direct', 'select', ...出站值]
-    }, {
-      type: 'selector',
-      tag: '📺 哔哩哔哩',
-      outbounds: ['direct', 'select', ...出站值]
-    }, {
-      type: 'selector',
-      tag: '📹 油管视频',
-      outbounds: ['select', '🌍 国外媒体', 'direct', ...出站值]
-    }, {
-      type: 'selector',
-      tag: '🎬 奈飞视频',
-      outbounds: ['select', '🌍 国外媒体', 'direct', ...出站值]
-    }, {
-      type: 'selector',
-      tag: '🎯 全球直连',
-      outbounds: ['direct']
-    }, {
-      type: 'selector',
-      tag: '🐟 漏网之鱼',
-      outbounds: ['select', 'direct', ...出站值]
-    }, ...节点列表572.map(处理节点值出站), {
+    outbounds: [...代理组列表.map(pg => {
+      const outbound = { tag: pg.name };
+      if (pg.type === 'select') {
+        outbound.type = 'selector';
+        outbound.outbounds = [...pg.proxies, 'direct'];
+        outbound.default = pg.proxies[0] || 'direct';
+      } else if (pg.type === 'url-test') {
+        outbound.type = 'url-test';
+        outbound.outbounds = [...pg.proxies];
+        if (pg.url) outbound.url = pg.url;
+        if (pg.interval) outbound.interval = pg.interval;
+        if (pg.tolerance) outbound.tolerance = pg.tolerance;
+      } else if (pg.type === 'fallback') {
+        outbound.type = 'fallback';
+        outbound.outbounds = [...pg.proxies];
+        if (pg.url) outbound.url = pg.url;
+        if (pg.interval) outbound.interval = pg.interval;
+        if (pg.tolerance) outbound.tolerance = pg.tolerance;
+      } else {
+        outbound.type = 'selector';
+        outbound.outbounds = [...pg.proxies, 'direct'];
+      }
+      return outbound;
+    }), ...节点列表572.map(处理节点值出站), {
       type: 'direct',
       tag: 'direct'
     }, {
@@ -3292,30 +3342,30 @@ async function 生成值值562(链接列表561) {
   }
   行列表555.push('');
   行列表555.push('[Proxy Group]');
-  const 列表553 = 名称列表557.length ? 名称列表557.join(', ') : 'DIRECT';
-  行列表555.push(`🚀 节点选择 = select, 🎯 全球直连, ${列表553}`);
-  行列表555.push(`🌍 国外媒体 = select, ${处理值值列表(名称列表557)}`);
-  行列表555.push(`📺 哔哩哔哩 = select, ${处理值值列表(名称列表557, {
-    directFirst: true
-  })}`);
-  行列表555.push(`📹 油管视频 = select, ${处理值值列表(名称列表557, {
-    extraGroups: ['🌍 国外媒体']
-  })}`);
-  行列表555.push(`🎬 奈飞视频 = select, ${处理值值列表(名称列表557, {
-    extraGroups: ['🌍 国外媒体']
-  })}`);
-  行列表555.push(`📲 电报信息 = select, ${处理值值列表(名称列表557)}`);
-  行列表555.push(`🌐 谷歌服务 = select, ${处理值值列表(名称列表557)}`);
-  行列表555.push(`🤖 OpenAI = select, ${处理值值列表(名称列表557)}`);
-  行列表555.push(`Ⓜ️ 微软服务 = select, ${处理值值列表(名称列表557, {
-    directFirst: true
-  })}`);
-  行列表555.push(`🍎 苹果服务 = select, ${处理值值列表(名称列表557, {
-    directFirst: true
-  })}`);
-  行列表555.push(`🎯 全球直连 = select, DIRECT`);
-  行列表555.push(`🛑 全球拦截 = select, REJECT, DIRECT`);
-  行列表555.push(`🐟 漏网之鱼 = select, ${处理值值列表(名称列表557)}`);
+
+  // 使用共享函数生成代理组配置
+  const { groups } = 生成代理组配置(
+    await 获取或解析IniTemplate(远程配置网址),
+    名称列表557,
+    { convertLoadBalanceToUrlTest: true }
+  );
+
+  for (const pg of groups) {
+    if (pg.type === 'select') {
+      行列表555.push(`${pg.name} = select, ${pg.proxies.join(', ')}`);
+    } else if (pg.type === 'url-test') {
+      const urlPart = pg.url ? ` url=${pg.url}` : '';
+      const intervalPart = pg.interval ? ` interval=${pg.interval}` : '';
+      const tolerancePart = pg.tolerance ? ` tolerance=${pg.tolerance}` : '';
+      行列表555.push(`${pg.name} = url-test, ${pg.proxies.join(', ')}${urlPart}${intervalPart}${tolerancePart}`);
+    } else if (pg.type === 'fallback') {
+      const urlPart = pg.url ? ` url=${pg.url}` : '';
+      const intervalPart = pg.interval ? ` interval=${pg.interval}` : '';
+      const tolerancePart = pg.tolerance ? ` tolerance=${pg.tolerance}` : '';
+      行列表555.push(`${pg.name} = fallback, ${pg.proxies.join(', ')}${urlPart}${intervalPart}${tolerancePart}`);
+    }
+  }
+
   行列表555.push('');
   行列表555.push('[Rule]');
   行列表555.push(`RULE-SET,${值规则('LocalAreaNetwork')},🎯 全球直连`);
@@ -3371,45 +3421,28 @@ async function 生成值值552(链接列表551) {
   }
   行列表546.push('');
   行列表546.push('[Proxy Group]');
-  const 列表542 = 名称列表548.length ? 名称列表548.join(',') : 'DIRECT';
-  行列表546.push(`🚀 节点选择 = select,🎯 全球直连,${列表542}`);
-  行列表546.push(`🌍 国外媒体 = select,${处理值值列表(名称列表548, {
-    compact: true
-  })}`);
-  行列表546.push(`📺 哔哩哔哩 = select,${处理值值列表(名称列表548, {
-    directFirst: true,
-    compact: true
-  })}`);
-  行列表546.push(`📹 油管视频 = select,${处理值值列表(名称列表548, {
-    extraGroups: ['🌍 国外媒体'],
-    compact: true
-  })}`);
-  行列表546.push(`🎬 奈飞视频 = select,${处理值值列表(名称列表548, {
-    extraGroups: ['🌍 国外媒体'],
-    compact: true
-  })}`);
-  行列表546.push(`📲 电报信息 = select,${处理值值列表(名称列表548, {
-    compact: true
-  })}`);
-  行列表546.push(`🌐 谷歌服务 = select,${处理值值列表(名称列表548, {
-    compact: true
-  })}`);
-  行列表546.push(`🤖 OpenAI = select,${处理值值列表(名称列表548, {
-    compact: true
-  })}`);
-  行列表546.push(`Ⓜ️ 微软服务 = select,${处理值值列表(名称列表548, {
-    directFirst: true,
-    compact: true
-  })}`);
-  行列表546.push(`🍎 苹果服务 = select,${处理值值列表(名称列表548, {
-    directFirst: true,
-    compact: true
-  })}`);
-  行列表546.push(`🎯 全球直连 = select,DIRECT`);
-  行列表546.push(`🛑 全球拦截 = select,REJECT,DIRECT`);
-  行列表546.push(`🐟 漏网之鱼 = select,${处理值值列表(名称列表548, {
-    compact: true
-  })}`);
+  // 使用共享函数生成代理组配置
+  const { groups: 代理组列表552 } = 生成代理组配置(
+    await 获取或解析IniTemplate(远程配置网址),
+    名称列表548,
+    { convertLoadBalanceToUrlTest: true }
+  );
+  for (const pg of 代理组列表552) {
+    const proxiesStr = pg.proxies.join(',');
+    if (pg.type === 'select') {
+      行列表546.push(`${pg.name} = select,${proxiesStr}`);
+    } else if (pg.type === 'url-test') {
+      const urlPart = pg.url ? `, url=${pg.url}` : '';
+      const intervalPart = pg.interval ? `, interval=${pg.interval}` : '';
+      const tolerancePart = pg.tolerance ? `, tolerance=${pg.tolerance}` : '';
+      行列表546.push(`${pg.name} = url-test, ${proxiesStr}${urlPart}${intervalPart}${tolerancePart}`);
+    } else if (pg.type === 'fallback') {
+      const urlPart = pg.url ? `, url=${pg.url}` : '';
+      const intervalPart = pg.interval ? `, interval=${pg.interval}` : '';
+      const tolerancePart = pg.tolerance ? `, tolerance=${pg.tolerance}` : '';
+      行列表546.push(`${pg.name} = fallback, ${proxiesStr}${urlPart}${intervalPart}${tolerancePart}`);
+    }
+  };
   行列表546.push('');
   行列表546.push('[Remote Rule]');
   行列表546.push(`${值规则('LocalAreaNetwork')}, policy=🎯 全球直连, tag=局域网, enabled=true`);
@@ -3458,30 +3491,32 @@ async function 生成值值(链接列表541) {
   }
   行列表538.push('');
   行列表538.push('[policy]');
-  const 列表534 = 名称列表.length ? 名称列表.join(', ') : 'direct';
-  行列表538.push(`static=🚀 节点选择, ${列表534}, direct, img-url=https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Proxy.png`);
-  行列表538.push(`static=🌍 国外媒体, ${处理值值列表(名称列表)}, img-url=https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/ForeignMedia.png`);
-  行列表538.push(`static=📺 哔哩哔哩, ${处理值值列表(名称列表, {
-    directFirst: true
-  })}, img-url=https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/bilibili.png`);
-  行列表538.push(`static=📹 油管视频, ${处理值值列表(名称列表, {
-    extraGroups: ['🌍 国外媒体']
-  })}, img-url=https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/YouTube.png`);
-  行列表538.push(`static=🎬 奈飞视频, ${处理值值列表(名称列表, {
-    extraGroups: ['🌍 国外媒体']
-  })}, img-url=https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Netflix.png`);
-  行列表538.push(`static=📲 电报信息, ${处理值值列表(名称列表)}, img-url=https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Telegram.png`);
-  行列表538.push(`static=🌐 谷歌服务, ${处理值值列表(名称列表)}, img-url=https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Google.png`);
-  行列表538.push(`static=🤖 OpenAI, ${处理值值列表(名称列表)}, img-url=https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/ChatGPT.png`);
-  行列表538.push(`static=Ⓜ️ 微软服务, ${处理值值列表(名称列表, {
-    directFirst: true
-  })}, img-url=https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Microsoft.png`);
-  行列表538.push(`static=🍎 苹果服务, ${处理值值列表(名称列表, {
-    directFirst: true
-  })}, img-url=https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Apple.png`);
-  行列表538.push(`static=🎯 全球直连, direct, img-url=https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Direct.png`);
-  行列表538.push(`static=🛑 全球拦截, reject, direct, img-url=https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Advertising.png`);
-  行列表538.push(`static=🐟 漏网之鱼, ${处理值值列表(名称列表)}, img-url=https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Final.png`);
+  // 使用共享函数生成代理组配置
+  const { groups: 代理组列表541 } = 生成代理组配置(
+    await 获取或解析IniTemplate(远程配置网址),
+    名称列表,
+    { convertLoadBalanceToUrlTest: true }
+  );
+  const 圈叉图标映射 = {
+    '🚀 节点选择': 'https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Proxy.png',
+    '🌍 国外媒体': 'https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/ForeignMedia.png',
+    '📺 哔哩哔哩': 'https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/bilibili.png',
+    '📹 油管视频': 'https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/YouTube.png',
+    '🎬 奈飞视频': 'https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Netflix.png',
+    '📲 电报信息': 'https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Telegram.png',
+    '🌐 谷歌服务': 'https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Google.png',
+    '🤖 OpenAI': 'https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/ChatGPT.png',
+    'Ⓜ️ 微软服务': 'https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Microsoft.png',
+    '🍎 苹果服务': 'https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Apple.png',
+    '🎯 全球直连': 'https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Direct.png',
+    '🛑 全球拦截': 'https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Advertising.png',
+    '🐟 漏网之鱼': 'https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Final.png'
+  };
+  for (const pg of 代理组列表541) {
+    const proxiesStr = pg.proxies.join(', ');
+    const imgPart = 圈叉图标映射[pg.name] ? `, img-url=${圈叉图标映射[pg.name]}` : '';
+    行列表538.push(`static=${pg.name}, ${proxiesStr}${imgPart}`);
+  };
   行列表538.push('');
   行列表538.push('[filter_remote]');
   行列表538.push(`${圈叉基础配置}/Lan/Lan.list, tag=局域网, force-policy=🎯 全球直连, update-interval=86400, opt-parser=false, enabled=true`);
