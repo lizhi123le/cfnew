@@ -2821,6 +2821,19 @@ function 解析IniTemplate文本(iniText) {
         }
       } else if (rest.startsWith('http://') || rest.startsWith('https://')) {
         rulesets.push({ group, type: 'url', url: rest });
+      } else if (rest) {
+        // Bare domain/IP rule: treat as inline rule (e.g., DOMAIN-SUFFIX,google.com)
+        const ruleComma = rest.indexOf(',');
+        if (ruleComma === -1) {
+          rulesets.push({ group, type: 'inline', ruleType: rest, ruleVal: '' });
+        } else {
+          rulesets.push({
+            group,
+            type: 'inline',
+            ruleType: rest.substring(0, ruleComma).trim(),
+            ruleVal: rest.substring(ruleComma + 1).trim()
+          });
+        }
       }
     } else if (line.startsWith('custom_proxy_group=')) {
       const payload = line.substring(19).trim();
@@ -2981,14 +2994,17 @@ function 生成代理组配置(解析后配置, 节点名称列表, 选项 = {})
   // 规则提供器（仅 Clash/Sing-box 需要）
   const ruleProviders = [];
   let providerIdx = 0;
-  for (const item of 解析后规则集) {
-    if (item.type === 'url') {
-      const providerName = `provider_${providerIdx++}`;
-      ruleProviders.push({ name: providerName, url: item.url, group: item.group });
-    }
+  // 为 URL 规则生成 provider 条目和对应的 RULE-SET 条目
+  const urlRuleSets = 解析后规则集.filter(r => r.type === 'url');
+  for (const item of urlRuleSets) {
+    const providerName = `provider_${providerIdx++}`;
+    ruleProviders.push({ name: providerName, url: item.url, group: item.group });
   }
 
-  return { groups: 组配置, ruleProviders, inlineRules: 解析后规则集.filter(r => r.type === 'inline') };
+  // 内联规则：直接输出
+  const inlineRules = 解析后规则集.filter(r => r.type === 'inline');
+
+  return { groups: 组配置, ruleProviders, inlineRules };
 }
 
 // 内部生成 Clash YAML（支持动态解析 INI 配置模板规则集）
@@ -3045,6 +3061,11 @@ async function 生成值值589(链接列表588, 指定配置网址 = null) {
       ruleProvidersLines.push(`    path: ./rulesets/${rp.name}.yaml`);
       ruleProvidersLines.push(`    interval: 86400`);
     }
+    // RULE-SET entries for URL-based providers
+    for (const rp of ruleProviders) {
+      rulesLines.push(`  - RULE-SET,${rp.name},${rp.group}`);
+    }
+    // Inline rules
     for (const rule of inlineRules) {
       if (rule.type === 'inline') {
         if (rule.ruleType === 'FINAL') {
