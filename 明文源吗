@@ -3390,15 +3390,18 @@ async function 生成值值数据对象(链接列表573) {
   await yieldToEventLoop();
   return JSON.stringify(配置, null, 2);
 }
-// 内部生成 Surge ini (完整 ACL4SSR 规则集；仅 Trojan，Surge 不原生支持 VLESS)
+// 内部生成 Surge ini (完整 ACL4SSR 规则集；优先 Trojan，无 Trojan 时 fallback VLESS 以 Trojan 格式输出)
 async function 生成值值562(链接列表561) {
-  const 节点列表560 = 链接列表561.map(解析值链接).filter(数量值559 => 数量值559 && 数量值559.proto === 'trojan');
+  let 节点列表560 = 链接列表561.map(解析值链接).filter(数量值559 => 数量值559 && 数量值559.proto === 'trojan');
+  if (节点列表560.length === 0) {
+    节点列表560 = 链接列表561.map(解析值链接).filter(数量值559 => 数量值559 && 数量值559.proto === 'vless');
+  }
   const 域名系统值558 = 自定义域名系统 || '223.5.5.5';
   const 名称列表557 = 节点列表560.map(数量值556 => 数量值556.name);
   const 行列表555 = ['[General]', 'loglevel = notify', 'internet-test-url = http://www.apple.com/library/test/success.html', 'proxy-test-url = http://www.gstatic.com/generate_204', 'test-timeout = 3', `dns-server = ${域名系统值558.replace(/^https?:\/\//, '').replace(/\/.*$/, '')}, 119.29.29.29, system`, 'encrypted-dns-server = https://223.5.5.5/dns-query, https://1.12.12.12/dns-query', 'ipv6 = true', 'allow-wifi-access = false', 'wifi-access-http-port = 6152', 'wifi-access-socks5-port = 6153', 'skip-proxy = 127.0.0.1, 192.168.0.0/16, 10.0.0.0/8, 172.16.0.0/12, localhost, *.local, captive.apple.com', 'exclude-simple-hostnames = true', 'show-error-page-for-reject = true', '', '[Proxy]'];
   for (const 数量值554 of 节点列表560) {
     const 服务名称指示 = 数量值554.sni;
-    行列表555.push(`${数量值554.name} = trojan, ${数量值554.server}, ${数量值554.port}, password=${数量值554.password}, sni=${服务名称指示}, ws=true, ws-path=${数量值554.path}, ws-headers=Host:${数量值554.host}, skip-cert-verify=false, tfo=true`);
+    行列表555.push(`${数量值554.name} = trojan, ${数量值554.server}, ${数量值554.port}, password=${数量值554.password || 数量值554.uuid}, sni=${服务名称指示}, ws=true, ws-path=${数量值554.path}, ws-headers=Host:${数量值554.host}, skip-cert-verify=false, tfo=true`);
     if (行列表555.length % 12 === 0) await yieldToEventLoop();
   }
   if (!节点列表560.length) {
