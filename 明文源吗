@@ -2997,6 +2997,8 @@ async function 生成值值589(链接列表588, 指定配置网址 = null) {
       } else {
         proxiesToUse = 节点仅;
       }
+      // Filter out self-reference to prevent logical deadlock
+      proxiesToUse = proxiesToUse.filter(p => p !== pg.name);
       for (const proxy of proxiesToUse) {
         策略组Lines.push(`      - ${proxy}`);
       }
