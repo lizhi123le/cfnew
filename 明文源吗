@@ -2983,9 +2983,13 @@ function 生成代理组配置(解析后配置, 节点名称列表, 选项 = {})
     if (pg.proxies.length > 0) {
       if (类型 === 'select') {
         // select: 字面量保留，正则展开为匹配的实际节点名
+        // 对于 `.*` 特殊处理：展开为所有已定义的组名 + DIRECT
         代理列表 = [];
         for (const p of pg.proxies) {
-          if (是正则表达式(p)) {
+          if (p === '.*') {
+            // `.*` 应匹配所有组名 + DIRECT（用于 ☑️ 手动切换 等场景）
+            代理列表.push(...组配置.map(g => g.name), 'DIRECT');
+          } else if (是正则表达式(p)) {
             try {
               const re = new RegExp(p);
               代理列表.push(...节点名称列表.filter(name => re.test(name)));
