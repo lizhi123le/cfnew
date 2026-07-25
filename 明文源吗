@@ -3007,84 +3007,50 @@ async function 生成值值589(链接列表588, 指定配置网址 = null) {
   const 解析后配置 = await 获取或解析IniTemplate(目标配置URL);
 
   if (解析后配置 && (解析后配置.rulesets?.length > 0 || 解析后配置.proxyGroups?.length > 0)) {
-    const 解析后规则集 = 解析后配置.rulesets || [];
-    const 解析后代理组 = 解析后配置.proxyGroups || [];
-    const 节点仅 = 名称列表584.length ? 名称列表584 : ['DIRECT'];
+    const { groups: 代理组列表, ruleProviders, inlineRules } = 生成代理组配置(
+      解析后配置,
+      名称列表584,
+      { convertLoadBalanceToUrlTest: false, targetClient: 'clash' }
+    );
 
+    // Generate proxy-groups YAML from shared function output
     const 策略组Lines = ['proxy-groups:'];
-
-    // Use parsed proxy groups from INI template
-    for (const pg of 解析后代理组) {
-      策略组Lines.push(`  - name: ${处理本地值622(pg.name)}`);
-      策略组Lines.push(`    type: ${pg.type}`);
+    for (const group of 代理组列表) {
+      策略组Lines.push(`  - name: ${处理本地值622(group.name)}`);
+      策略组Lines.push(`    type: ${group.type}`);
       策略组Lines.push(`    proxies:`);
-      let proxiesToUse = [];
-      if (pg.type === 'select') {
-        // For select groups, proxies are group names or DIRECT/REJECT
-        if (pg.proxies.length > 0) {
-          proxiesToUse = [];
-          for (const p of pg.proxies) {
-            if (p === '🚀 节点选择') continue;
-            if (是正则表达式(p)) {
-              try {
-                const re = new RegExp(p);
-                proxiesToUse.push(...名称列表584.filter(name => re.test(name)));
-              } catch (e) { /* 无效正则跳过 */ }
-            } else {
-              proxiesToUse.push(p);
-            }
-          }
-        } else {
-          proxiesToUse = ['DIRECT', ...节点仅];
-        }
-      } else if (pg.type === 'url-test' || pg.type === 'load-balance' || pg.type === 'fallback') {
-        // For auto groups, filter nodes by regex patterns
-        if (pg.proxies.length > 0) {
-          const filterPatterns = pg.proxies.map(p => new RegExp(p));
-          proxiesToUse = 名称列表584.filter(nodeName => filterPatterns.some(re => re.test(nodeName)));
-          if (proxiesToUse.length === 0) proxiesToUse = 节点仅; // fallback
-        } else {
-          proxiesToUse = 节点仅;
-        }
-      } else {
-        proxiesToUse = 节点仅;
+      for (const proxy of group.proxies) {
+        策略组Lines.push(`      - ${处理本地值622(proxy)}`);
       }
-      for (const proxy of proxiesToUse) {
-        策略组Lines.push(`      - ${proxy}`);
-      }
-      // Add url-test/load-balance/fallback specific fields
-      if ((pg.type === 'url-test' || pg.type === 'load-balance' || pg.type === 'fallback') && pg.url) {
-        策略组Lines.push(`    url: "${pg.url}"`);
-        策略组Lines.push(`    interval: ${pg.interval}`);
-        if (pg.type === 'url-test' || pg.type === 'fallback') {
-          策略组Lines.push(`    tolerance: ${pg.tolerance}`);
+      if ((group.type === 'url-test' || group.type === 'load-balance' || group.type === 'fallback') && group.url) {
+        策略组Lines.push(`    url: "${group.url}"`);
+        策略组Lines.push(`    interval: ${group.interval}`);
+        if (group.type === 'url-test' || group.type === 'fallback') {
+          策略组Lines.push(`    tolerance: ${group.tolerance}`);
         }
-        if (pg.type === 'load-balance') {
+        if (group.type === 'load-balance') {
           策略组Lines.push(`    strategy: consistent-hashing`);
         }
       }
     }
 
+    // Generate rule-providers and rules YAML from shared function output
     const ruleProvidersLines = ['rule-providers:'];
     const rulesLines = ['rules:'];
-    let providerIdx = 0;
-
-    for (const item of 解析后规则集) {
-      if (item.type === 'url') {
-        const providerName = `provider_${providerIdx++}`;
-        ruleProvidersLines.push(`  ${providerName}:`);
-        ruleProvidersLines.push(`    type: http`);
-        ruleProvidersLines.push(`    behavior: classical`);
-        ruleProvidersLines.push(`    url: "${item.url}"`);
-        ruleProvidersLines.push(`    path: ./rulesets/${providerName}.yaml`);
-        ruleProvidersLines.push(`    interval: 86400`);
-
-        rulesLines.push(`  - RULE-SET,${providerName},${item.group}`);
-      } else if (item.type === 'inline') {
-        if (item.ruleType === 'FINAL') {
-          rulesLines.push(`  - MATCH,${item.group}`);
+    for (const rp of ruleProviders) {
+      ruleProvidersLines.push(`  ${rp.name}:`);
+      ruleProvidersLines.push(`    type: http`);
+      ruleProvidersLines.push(`    behavior: classical`);
+      ruleProvidersLines.push(`    url: "${rp.url}"`);
+      ruleProvidersLines.push(`    path: ./rulesets/${rp.name}.yaml`);
+      ruleProvidersLines.push(`    interval: 86400`);
+    }
+    for (const rule of inlineRules) {
+      if (rule.type === 'inline') {
+        if (rule.ruleType === 'FINAL') {
+          rulesLines.push(`  - MATCH,${rule.group}`);
         } else {
-          rulesLines.push(`  - ${item.ruleType},${item.ruleVal},${item.group}`);
+          rulesLines.push(`  - ${rule.ruleType},${rule.ruleVal},${rule.group}`);
         }
       }
     }
