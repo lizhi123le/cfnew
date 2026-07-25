@@ -2903,6 +2903,11 @@ async function 获取或解析IniTemplate(configUrl) {
   return null;
 }
 
+// Detect if a string is a regex pattern (not a literal proxy/group name)
+function 是正则表达式(str) {
+  return /[\(\)\|\*\+\?\[\]\{\}\^\$\\]/.test(str);
+}
+
 // 通用：根据 ACL4SSR 模板生成各格式的 proxy-groups
 // convertLoadBalanceToUrlTest: true 时将 load-balance 转为 url-test（自动选择）
 // targetClient: 'auto' | 'clash' | 'singbox' | 'surge' | 'loon' | 'quantumult' - 用于控制负载均衡转换逻辑
@@ -2921,11 +2926,6 @@ function 生成代理组配置(解析后配置, 节点名称列表, 选项 = {})
   }).filter(Boolean);
 
   const 组配置 = [];
-
-  // Detect if a string is a regex pattern (not a literal proxy/group name)
-  function 是正则表达式(str) {
-    return /[\(\)\|\*\+\?\[\]\{\}\^\$\\]/.test(str);
-  }
 
   for (const pg of 解析后代理组) {
     let 类型 = pg.type;
