@@ -3404,13 +3404,13 @@ async function 生成值值562(链接列表561) {
   行列表555.push('');
   行列表555.push('[Rule]');
   for (const rp of ruleProviders) {
-    行列表555.push(`RULE-SET,${rp.url},${rp.group}`);
+      行列表555.push(`RULE-SET, ${rp.url}, ${rp.group}`);
   }
   for (const rule of inlineRules) {
     if (rule.ruleType === 'FINAL') {
       行列表555.push(`FINAL,${rule.group},dns-failed`);
     } else {
-      行列表555.push(`${rule.ruleType},${rule.ruleVal},${rule.group}`);
+      行列表555.push(`${rule.ruleType}, ${rule.ruleVal}, ${rule.group}`);
     }
   }
   await yieldToEventLoop();
@@ -3539,7 +3539,7 @@ async function 生成值值(链接列表541) {
     if (rule.ruleType === 'FINAL') {
       行列表538.push(`final, ${rule.group}`);
     } else {
-      行列表538.push(`${rule.ruleType.toLowerCase()},${rule.ruleVal}, ${rule.group}`);
+      行列表538.push(`${rule.ruleType.toLowerCase()}, ${rule.ruleVal}, ${rule.group}`);
     }
   }
   await yieldToEventLoop();
