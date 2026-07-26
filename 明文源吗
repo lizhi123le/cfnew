@@ -3045,8 +3045,9 @@ function 生成代理组配置(解析后配置, 节点名称列表, 选项 = {})
     } else {
       代理列表 = 类型 === 'select' ? ['DIRECT', ...节点仅] : [...节点仅];
     }
-    // Filter out self-reference and 节点选择 to prevent logical deadlock
-    代理列表 = 代理列表.filter(p => p !== pg.name && p !== '🚀 节点选择');
+    // Filter out self-reference to prevent circular deadlock
+    // 保留 节点选择 引用——select 组中的 节点选择 是合法的多级路由，不构成环路
+    代理列表 = 代理列表.filter(p => p !== pg.name);
 
     const 组 = { name: pg.name, type: 类型, proxies: 代理列表 };
     if ((类型 === 'url-test' || 类型 === 'load-balance' || 类型 === 'fallback') && pg.url) {
@@ -3066,7 +3067,7 @@ function 生成代理组配置(解析后配置, 节点名称列表, 选项 = {})
         // .* 展开为所有节点名称 + DIRECT，不是所有分组名
         组.proxies.splice(idx, 1, ...节点名称列表, 'DIRECT');
         // 去重并过滤自身
-        组.proxies = [...new Set(组.proxies)].filter(p => p !== 组.name && p !== '🚀 节点选择');
+        组.proxies = [...new Set(组.proxies)].filter(p => p !== 组.name);
       }
     }
   }
