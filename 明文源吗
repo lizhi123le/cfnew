@@ -1645,7 +1645,7 @@ export default {
               'Cache-Control': 'no-store',
               Connection: 'keep-alive',
               'User-Agent': 'Go-http-client/2.0',
-              'Content-Type': 'application/grpc'
+              'Content-Type': 'application/octet-stream'
             }
           });
         }
