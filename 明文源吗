@@ -9654,7 +9654,7 @@ async function 获取值解析新地址列表() {
   const 网址113 = 优选地址源;
   try {
     const 网址列表112 = 网址113.includes(',') ? 网址113.split(',').map(网址值111 => 网址值111.trim()).filter(网址值 => 网址值) : [网址113];
-    const 接口结果列表 = await 获取优选接口(网址列表112, '443', 10000);
+    const 接口结果列表 = await 获取优选接口(网址列表112, '443', 8000);
     if (接口结果列表.length > 0) {
       const 结果列表110 = [];
       const 正则 = /^(\[[\da-fA-F:]+\]|[\d.]+|[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?)*)(?::(\d+))?(?:#(.+))?$/;
@@ -10285,7 +10285,7 @@ async function 解析文本值数组(内容) {
   if (已处理.charAt(已处理.length - 1) == ',') 已处理 = 已处理.slice(0, 已处理.length - 1);
   return 已处理.split(',');
 }
-async function 获取优选接口(网址列表, 默认端口 = '443', 超时 = 3000) {
+async function 获取优选接口(网址列表, 默认端口 = '443', 超时 = 8000) {
   if (!网址列表?.length) return [];
   const 结果列表 = new Set();
   const 所有URL结果 = await Promise.allSettled(网址列表.map(async 网址 => {
