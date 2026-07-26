@@ -10255,7 +10255,8 @@ async function 解析文本值数组(内容) {
 async function 获取优选接口(网址列表, 默认端口 = '443', 超时 = 3000) {
   if (!网址列表?.length) return [];
   const 结果列表 = new Set();
-  await Promise.allSettled(网址列表.map(async 网址 => {
+  const 所有URL结果 = await Promise.allSettled(网址列表.map(async 网址 => {
+    const 当前结果 = [];
     try {
       const 控制器 = new AbortController();
       const 超时标识 = setTimeout(() => 控制器.abort(), 超时);
@@ -10291,10 +10292,10 @@ async function 获取优选接口(网址列表, 默认端口 = '443', 超时 = 3
           文本 = await 响应.text();
         }
         if (!文本 || 文本.trim().length === 0) {
-          return;
+          return 当前结果;
         }
       } catch (事件值15) {
-        return;
+        return 当前结果;
       }
       const 行列表 = 文本.trim().split('\n').map(行值14 => 行值14.trim()).filter(行值 => 行值);
       const 是否值 = 行列表.length > 1 && 行列表[0].includes(',');
@@ -10311,7 +10312,7 @@ async function 获取优选接口(网址列表, 默认端口 = '443', 超时 = 3
             是否有端口 = 值索引 > -1 && /^\d+$/.test(主机部分.substring(值索引 + 1));
           }
           const 端口12 = new URL(网址).searchParams.get('port') || 默认端口;
-          结果列表.add(是否有端口 ? 行13 : `${主机部分}:${端口12}${备注}`);
+          当前结果.push(是否有端口 ? 行13 : `${主机部分}:${端口12}${备注}`);
         });
       } else {
         const 头部列表 = 行列表[0].split(',').map(头值11 => 头值11.trim());
@@ -10325,7 +10326,7 @@ async function 获取优选接口(网址列表, 默认端口 = '443', 超时 = 3
             const 列列表8 = 行9.split(',').map(丙值7 => 丙值7.trim());
             if (传输层安全索引 !== -1 && 列列表8[传输层安全索引]?.toLowerCase() !== 'true') return;
             const 包裹地址6 = 六版地址模式.test(列列表8[地址索引10]) ? `[${列列表8[地址索引10]}]` : 列列表8[地址索引10];
-            结果列表.add(`${包裹地址6}:${列列表8[端口索引]}#${列列表8[备注索引]}`);
+            当前结果.push(`${包裹地址6}:${列列表8[端口索引]}#${列列表8[备注索引]}`);
           });
         } else if (头部列表.some(头值5 => 头值5.includes('IP')) && 头部列表.some(头值4 => 头值4.includes('延迟')) && 头部列表.some(头值3 => 头值3.includes('下载速度'))) {
           const 地址索引 = 头部列表.findIndex(头值2 => 头值2.includes('IP'));
@@ -10335,12 +10336,20 @@ async function 获取优选接口(网址列表, 默认端口 = '443', 超时 = 3
           数据行列表.forEach(行 => {
             const 列列表 = 行.split(',').map(丙值 => 丙值.trim());
             const 包裹地址 = 六版地址模式.test(列列表[地址索引]) ? `[${列列表[地址索引]}]` : 列列表[地址索引];
-            结果列表.add(`${包裹地址}:${端口}#CF优选 ${列列表[延迟索引]}ms ${列列表[速度索引]}MB/s`);
+            当前结果.push(`${包裹地址}:${端口}#CF优选 ${列列表[延迟索引]}ms ${列列表[速度索引]}MB/s`);
           });
         }
       }
     } catch (事件值) {}
+    return 当前结果;
   }));
+  for (const 结果 of 所有URL结果) {
+    if (结果.status === 'fulfilled' && 结果.value) {
+      for (const 项 of 结果.value) {
+        结果列表.add(项);
+      }
+    }
+  }
   return Array.from(结果列表);
 }
 // === 随机路径辅助函数 ===
