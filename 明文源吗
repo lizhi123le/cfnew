@@ -3769,6 +3769,8 @@ async function 处理订阅请求(请求507, 用户506, 网址505 = null) {
   // ★ Phase 2a: 节点名称去重缓存（请求级 Map，避免生成器间重复计算节点名称）
   const 请求节点名称缓存 = new Map();
   const 别名命名器502 = 创建缓存节点命名器(创建值节点命名器(false), 请求节点名称缓存);
+  // ★ 节点 IP:Port 去重集合——确保不同 url 来源的同名地址编号连续不重复
+  const 已处理节点IP = new Set();
   // ★ 订阅缓存：构造缓存键并检查命中
   if (configVersion) {
     const 缓存链接 = new URL(请求507.url);
@@ -3820,7 +3822,13 @@ async function 处理订阅请求(请求507, 用户506, 网址505 = null) {
     加密客户端问候配置501 = `${加密客户端问候域名499}+${域名系统值500}`;
   }
   async function 添加节点列表来源列表(列表498) {
-    const 过滤后列表 = 列表498.filter(允许节点);
+    const 过滤后列表 = 列表498.filter(项目 => {
+      if (!允许节点(项目)) return false;
+      const 键 = (项目.ip || '') + ':' + (项目.port || '443');
+      if (已处理节点IP.has(键)) return false;
+      已处理节点IP.add(键);
+      return true;
+    });
     if (过滤后列表.length === 0) return;
     if (启用明文) {
       最终链接列表.push(...生成链接列表来源源(过滤后列表, 用户506, 工作器域名504, 加密客户端问候配置501, false, 别名命名器502));
@@ -3916,7 +3924,13 @@ async function 处理订阅请求(请求507, 用户506, 网址505 = null) {
   if (!禁用优选 && 启用仓库优选) {
     try {
       const 新地址列表 = await 获取值解析新地址列表();
-      const 过滤后新地址列表 = 新地址列表.filter(项目 => 允许节点({ ip: 项目.ip, name: 项目.name }));
+      const 过滤后新地址列表 = 新地址列表.filter(项目 => {
+        if (!允许节点({ ip: 项目.ip, name: 项目.name })) return false;
+        const 键 = 项目.ip + ':' + (项目.port || '443');
+        if (已处理节点IP.has(键)) return false;
+        已处理节点IP.add(键);
+        return true;
+      });
       if (过滤后新地址列表.length > 0) {
         if (启用明文) {
           最终链接列表.push(...生成链接列表来源新地址列表(过滤后新地址列表, 用户506, 工作器域名504, 加密客户端问候配置501, false, 别名命名器502));
