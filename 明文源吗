@@ -1634,6 +1634,9 @@ export default {
       }
       if (请求735.method === 'POST' && 启用扩展传输) {
         const 结果值684 = await 处理扩展超文本值(请求735, xhttp请求代理配置);
+        if (结果值684 instanceof Response) {
+          return 结果值684;
+        }
         if (结果值684) {
           本地值733.waitUntil(结果值684.closed);
           return new Response(结果值684.readable, {
@@ -9469,7 +9472,8 @@ async function 处理扩展超文本客户端(主体128, 唯一标识, 代理配
   try {
     const 本地值125 = await 读取扩展超文本头部(主体128, 唯一标识);
     if (typeof 本地值125 !== 'object' || !本地值125) {
-      return null;
+      本地值126();
+      return new Response('Bad Request', { status: 400 });
     }
     if (本地值125.isUDP) {
       if (本地值125.port !== 53) throw new Error(错误_仅支持域名系统用户数据报);
@@ -9546,14 +9550,14 @@ async function 处理扩展超文本客户端(主体128, 唯一标识, 代理配
     };
   } catch (错误120) {
     本地值126();
-    return null;
+    return new Response('Internal Server Error', { status: 500 });
   }
 }
 async function 处理扩展超文本值(请求119, 代理配置 = null) {
   try {
     return await 处理扩展超文本客户端(请求119.body, 认证令牌, 代理配置);
   } catch (错误118) {
-    return null;
+    return new Response('Internal Server Error', { status: 500 });
   }
 }
 function 处理基础64值数组(值64字符串) {
