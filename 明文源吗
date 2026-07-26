@@ -2905,37 +2905,40 @@ function 解析IniTemplate文本(iniText) {
           if (parts.length > 0) proxies.push(...parts);
         } else {
           // url-test/load-balance/fallback:
-          // When brackets consumed: parts[0]=URL, parts[1]=params
-          // When NO brackets: parts[0]=regex, parts[1]=URL, parts[2]=params
-          if (hasBracketsConsumed) {
-            if (parts.length >= 1) url = parts[0];
-            if (parts.length >= 2) {
-              const params = parts[1].split(',');
-              if (params[0]) interval = parseInt(params[0], 10) || 300;
-              if (params.length >= 3) {
-                strategy = params[1] || '';
-                if (params[2]) tolerance = parseInt(params[2], 10) || 50;
-              } else if (params.length === 2) {
-                if (params[1]) tolerance = parseInt(params[1], 10) || 50;
+          // Detect format by first part: URL = bracket-only format, else = regex/mixed
+          if (parts.length >= 1) {
+            if (parts[0].startsWith('http://') || parts[0].startsWith('https://')) {
+              // Bracket-only format: parts[0]=URL, parts[1]=params
+              url = parts[0];
+              if (parts.length >= 2) {
+                const params = parts[1].split(',');
+                if (params[0]) interval = parseInt(params[0], 10) || 300;
+                if (params.length >= 3) {
+                  strategy = params[1] || '';
+                  if (params[2]) tolerance = parseInt(params[2], 10) || 50;
+                } else if (params.length === 2) {
+                  if (params[1]) tolerance = parseInt(params[1], 10) || 50;
+                }
               }
-            }
-          } else {
-            if (parts.length >= 1) proxies.push(parts[0]); // regex pattern
-            if (parts.length >= 2) url = parts[1];
-            if (parts.length >= 3) {
-              const params = parts[2].split(',');
-              if (params[0]) interval = parseInt(params[0], 10) || 300;
-              if (params.length >= 3) {
-                strategy = params[1] || '';
-                if (params[2]) tolerance = parseInt(params[2], 10) || 50;
-              } else if (params.length === 2) {
-                if (params[1]) tolerance = parseInt(params[1], 10) || 50;
+            } else {
+              // Regex or mixed format: parts[0]=regex, parts[1]=URL, parts[2]=params
+              proxies.push(parts[0]);
+              if (parts.length >= 2) url = parts[1];
+              if (parts.length >= 3) {
+                const params = parts[2].split(',');
+                if (params[0]) interval = parseInt(params[0], 10) || 300;
+                if (params.length >= 3) {
+                  strategy = params[1] || '';
+                  if (params[2]) tolerance = parseInt(params[2], 10) || 50;
+                } else if (params.length === 2) {
+                  if (params[1]) tolerance = parseInt(params[1], 10) || 50;
+                }
               }
             }
           }
         }
       }
-      proxyGroups.push({ name: groupName, type: groupType, proxies, url, interval, tolerance, strategy });
+      proxyGroups.push({ name: groupName, type: groupType, proxies, url, interval, tolerance, strategy, hasBrackets: hasBracketsConsumed });
     }
   }
   return { rulesets, proxyGroups };
@@ -3018,9 +3021,25 @@ function 生成代理组配置(解析后配置, 节点名称列表, 选项 = {})
           }
         }
       } else {
-        // url-test/load-balance/fallback: 按正则筛选实际节点
-        const patterns = 编译正则(pg.proxies);
-        代理列表 = 节点名称列表.filter(nodeName => patterns.some(re => re.test(nodeName)));
+        // url-test/load-balance/fallback
+        if (pg.hasBrackets) {
+          // Has bracket references: proxies may be mixed group refs + regex
+          代理列表 = [];
+          for (const p of pg.proxies) {
+            if (是正则表达式(p)) {
+              try {
+                const re = new RegExp(p);
+                代理列表.push(...节点名称列表.filter(name => re.test(name)));
+              } catch (e) { /* 无效正则跳过 */ }
+            } else {
+              代理列表.push(p);
+            }
+          }
+        } else {
+          // 正则语法: 按正则筛选实际节点
+          const patterns = 编译正则(pg.proxies);
+          代理列表 = 节点名称列表.filter(nodeName => patterns.some(re => re.test(nodeName)));
+        }
         if (代理列表.length === 0) 代理列表 = 节点仅; // 兜底
       }
     } else {
