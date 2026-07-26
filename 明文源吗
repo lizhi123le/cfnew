@@ -9428,7 +9428,7 @@ function 创建扩展超文本值(本地值150, 远程值) {
 async function 连接值远程扩展超文本(本地值135, ...本地值134) {
   // 提取末尾的代理配置参数（如果有）
   const 最后参数 = 本地值134.length > 0 ? 本地值134[本地值134.length - 1] : null;
-  const 是否代理参数 = 最后参数 && typeof 最后参数 === 'object' && 最后参数.hostname && 最后参数.socksPort;
+  const 是否代理参数 = 最后参数 && typeof 最后参数 === 'object' && 'socksPort' in 最后参数;
   const xhttp代理配置 = 是否代理参数 ? 最后参数 : null;
   const 主机列表 = 是否代理参数 ? 本地值134.slice(0, -1) : 本地值134;
   let 本地值133 = 0;
