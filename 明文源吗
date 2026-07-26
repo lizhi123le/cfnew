@@ -27,6 +27,16 @@ class RequestContext {
   }
 }
 const 连接 = (选项) => (typeof TCP拨号 !== 'undefined' ? TCP拨号 : connect)(选项);
+// ★ 隐私增强：模块级函数 — 智能剥离随机填充前缀（所有协议路径共用）
+const PRIVACY_MAGIC = 0xED7F;
+const 智能剥离填充 = (data) => {
+	if (data.byteLength < 4) return data;
+	const magic = (data[0] << 8) | data[1];
+	if (magic !== PRIVACY_MAGIC) return data; // 旧客户端，无魔数
+	const padLen = (data[2] << 8) | data[3];
+	if (padLen < 64 || padLen > 2048) return data; // 异常值，视为旧客户端
+	return data.subarray(4 + padLen); // 跳过 [魔数][长度][填充]
+};
 let 认证令牌 = null;  // 用户必须通过环境变量 u 配置
 let 回退地址 = '';
 let 代理5配置 = '';
@@ -4372,7 +4382,8 @@ async function 处理网页套接字请求(请求417) {
   本地值398.pipeTo(new WritableStream({
     async write(块397) {
       if (传输值) return;
-      const 数据396 = 处理值值8数组(块397);
+      // ★ 隐私增强：协议检测前剥离魔数+填充
+      const 数据396 = 智能剥离填充(处理值值8数组(块397));
       if (是否域名系统值) {
         if (协议类型 === 'trojan') {
           return await 处理木马用户数据报(数据396, 值值410, 木马上下文, 请求值407);
@@ -9279,6 +9290,11 @@ async function 读取扩展超文本头部(本地值180, 唯一标识字符串) 
 }
 async function 处理值值远程扩展超文本(计数器166, 写入器165, 本地值164) {
   async function 处理值值(丁值) {
+    if (!丁值 || 丁值.length === 0) {
+      return;
+    }
+    // ★ 隐私增强：写入远端前剥离魔数+填充
+    丁值 = 智能剥离填充(丁值);
     if (!丁值 || 丁值.length === 0) {
       return;
     }
