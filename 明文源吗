@@ -9299,6 +9299,7 @@ async function 处理值值远程扩展超文本(计数器166, 写入器165, 本
       return;
     }
     计数器166.add(丁值.length);
+    计数器166.最后活动时间 = Date.now();
     try {
       await 写入器165.write(丁值);
     } catch (错误163) {
@@ -9540,6 +9541,16 @@ async function 处理扩展超文本客户端(主体128, 唯一标识, 代理配
     if (远程连接 === null) {
       return null;
     }
+    远程连接.uploader.counter.最后活动时间 = Date.now();
+    const 空闲定时器 = setInterval(() => {
+      if (Date.now() - 远程连接.uploader.counter.最后活动时间 > 值超时值) {
+        try { 远程连接.close(); } catch (e) {}
+        try { 远程连接.downloader.abort(); } catch (e) {}
+        try { 远程连接.uploader.abort(); } catch (e) {}
+        clearInterval(空闲定时器);
+        本地值126();
+      }
+    }, 8000);
     const 连接值 = Promise.race([(async () => {
       try {
         await 远程连接.downloader.done;
@@ -9548,7 +9559,8 @@ async function 处理扩展超文本客户端(主体128, 唯一标识, 代理配
       try {
         await 远程连接.uploader.done;
       } catch (错误123) {}
-    })(), 处理扩展超文本值195(值超时值).then(() => {})]).finally(() => {
+    })()]).finally(() => {
+      clearInterval(空闲定时器);
       try {
         远程连接.close();
       } catch (忽略值122) {}
