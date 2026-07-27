@@ -56,6 +56,9 @@ let 启用扩展传输 = false;
 let 传输路径 = '';
 // 启用ECH功能（true启用，false禁用）
 let 启用加密客户端问候 = false;
+let dkby已同步 = false; // ECH→dkby 同步标记：首次写入后跳过后续请求的重复检查
+let dkby原始值; // ECH 开启前 dkby 的原始值，未追踪时为 undefined，关闭 ECH 时恢复
+let 上次ECH状态 = false; // 上次 ECH 开关状态，用于检测变更时重置 dkby已同步
 // 自定义DNS服务器（留空则不启用自定义DNS，仅使用 Cloudflare DNS）
 let 自定义域名系统 = '';
 // === 统一 CPU Yield 策略（混合方案） ===
@@ -1078,6 +1081,12 @@ async function 处理伪装反代(请求, 网址, 环境变量) {
     const 反代响应 = await fetchWithTimeout(反代URL.origin + 网址.pathname + 网址.search, fetchOptions, 39000);
     const 内容类型 = 反代响应.headers.get('content-type') || '';
     const 内容长度 = parseInt(反代响应.headers.get('content-length') || '0', 10);
+    const SAFE_PROXY_HEADERS = new Set([
+      'content-type', 'content-length', 'content-encoding', 'transfer-encoding',
+      'accept-ranges', 'content-range', 'content-language',
+      'cache-control', 'expires', 'last-modified', 'age',
+      'vary', 'date', 'content-disposition', 'connection',
+    ]);
     // 文本类型且小于2MB才全量缓冲+替换，否则直接流式转发
     if (/text|javascript|json|xml/.test(内容类型) && (内容长度 === 0 || 内容长度 < 2 * 1024 * 1024)) {
       // 克隆响应以保护原始 body stream：超时后仍可流式降级，避免 body consumed 错误
@@ -1085,12 +1094,6 @@ async function 处理伪装反代(请求, 网址, 环境变量) {
       try {
         const 响应文本 = await withTimeout(反代响应克隆.text(), 5000);
         const 响应内容 = 响应文本.replaceAll(反代URL.host, 网址.host);
-		const SAFE_PROXY_HEADERS = new Set([
-		  'content-type', 'content-length', 'content-encoding', 'transfer-encoding',
-		  'accept-ranges', 'content-range', 'content-language',
-		  'cache-control', 'expires', 'last-modified', 'age',
-		  'vary', 'date', 'content-disposition', 'connection',
-		]);
     const 过滤后头 = {};
     for (const [k, v] of 反代响应.headers) {
       if (SAFE_PROXY_HEADERS.has(k.toLowerCase())) 过滤后头[k] = v;
@@ -1475,13 +1478,34 @@ export default {
       自定义域名系统 = 获取配置文本值('customDNS', 配置默认值.customDNS).trim() || 配置默认值.customDNS;
       自定义加密客户端问候域名 = 获取配置文本值('customECHDomain', 配置默认值.customECHDomain).trim() || 配置默认值.customECHDomain;
       自定义应用层协议协商 = 规范化应用层协议协商(获取配置文本值('alpn', 配置默认值.alpn, 本地值734.alpn || 本地值734.ALPN));
+      // 检测 ECH 状态变更（放在 ECH 判断之前，确保 ON→OFF 和 OFF→ON 都能正确触发）
+      if (启用加密客户端问候 !== 上次ECH状态) {
+        if (启用加密客户端问候) {
+          // OFF → ON：重置同步标记，触发重新同步
+          dkby已同步 = false;
+        } else {
+          // ON → OFF：恢复 dkby 原始值（仅在 dkby 未被手动修改过时恢复）
+          if (dkby原始值 !== undefined) {
+            const 当前dkby值 = 获取配置值('dkby', '');
+            if (当前dkby值 === 'yes') {
+              await 设置配置值('dkby', dkby原始值);
+            }
+            dkby原始值 = undefined;
+          }
+        }
+        上次ECH状态 = 启用加密客户端问候;
+      }
       // 如果启用了ECH，自动启用仅TLS模式（避免80端口干扰），ECH需要TLS才能工作，所以必须禁用非TLS节点
       if (启用加密客户端问候) {
         禁用非传输层安全 = true;
-        // 检查 KV 中是否有 dkby: yes，没有就直接写入
-        const 当前值 = 获取配置值('dkby', '');
-        if (当前值 !== 'yes') {
-          await 设置配置值('dkby', 'yes');
+        // 首次请求/ECH重新启用时才同步 dkby=yes 到 KV
+        if (!dkby已同步) {
+          const 当前dkby值 = 获取配置值('dkby', '');
+          if (当前dkby值 !== 'yes') {
+            dkby原始值 = 当前dkby值; // 保存原始值，关闭 ECH 时恢复
+            await 设置配置值('dkby', 'yes');
+          }
+          dkby已同步 = true;
         }
       }
       if (!启用明文 && !启用木马 && !启用扩展传输) {
