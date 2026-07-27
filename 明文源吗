@@ -3155,20 +3155,36 @@ async function 生成值值589(链接列表588, 指定配置网址 = null) {
       }
     }
 
-    // Generate rule-providers and rules YAML from shared function output
-    const ruleProvidersLines = ['rule-providers:'];
+    // Fetch all rule-providers server-side and inline all rules
     const rulesLines = ['rules:'];
     for (const rp of ruleProviders) {
-      ruleProvidersLines.push(`  ${rp.name}:`);
-      ruleProvidersLines.push(`    type: http`);
-      ruleProvidersLines.push(`    behavior: classical`);
-      ruleProvidersLines.push(`    url: "${rp.url}"`);
-      ruleProvidersLines.push(`    path: ./rulesets/${rp.name}.yaml`);
-      ruleProvidersLines.push(`    interval: 86400`);
-    }
-    // RULE-SET entries for URL-based providers
-    for (const rp of ruleProviders) {
-      rulesLines.push(`  - RULE-SET,${rp.name},${rp.group}`);
+      const lines = await 获取规则集内容(rp.url);
+      if (lines.length === 0) {
+        rulesLines.push(`  # provider ${rp.name} (${rp.url}) unreachable, skipped`);
+        continue;
+      }
+      for (const line of lines) {
+        const c = line.trim().replace(/^\s*-\s*/, '');
+        if (!c) continue;
+        if (/^(IP-CIDR|IP-CIDR6)/i.test(c)) {
+          const withoutNoResolve = c.replace(/,?\s*no-resolve\s*$/i, '').trim();
+          const parts = withoutNoResolve.split(',');
+          if (parts.length >= 3) {
+            // classical format: line already has policy group, just ensure no-resolve
+            rulesLines.push(`  - ${withoutNoResolve},no-resolve`);
+          } else {
+            rulesLines.push(`  - ${withoutNoResolve},${rp.group},no-resolve`);
+          }
+        } else {
+          // classical format lines may already contain policy (≥2 commas)
+          const commaCount = (c.match(/,/g) || []).length;
+          if (commaCount >= 2) {
+            rulesLines.push(`  - ${c}`);
+          } else {
+            rulesLines.push(`  - ${c},${rp.group}`);
+          }
+        }
+      }
     }
     // Inline rules
     for (const rule of inlineRules) {
@@ -3180,7 +3196,7 @@ async function 生成值值589(链接列表588, 指定配置网址 = null) {
     }
 
     await yieldToEventLoop();
-    return [头部581.join('\n'), 值值580.join('\n'), '', 策略组Lines.join('\n'), ruleProvidersLines.join('\n'), rulesLines.join('\n'), ''].join('\n');
+    return [头部581.join('\n'), 值值580.join('\n'), '', 策略组Lines.join('\n'), rulesLines.join('\n'), ''].join('\n');
   }
 
   const 节点仅 = 名称列表584.length ? 名称列表584.map(数量值578 => `      - ${处理本地值622(数量值578)}`).join('\n') : '      - DIRECT';
@@ -3197,11 +3213,67 @@ async function 生成值值589(链接列表588, 指定配置网址 = null) {
   }), '  - name: "🎯 全球直连"', '    type: select', '    proxies:', '      - DIRECT', '  - name: "🛑 全球拦截"', '    type: select', '    proxies:', '      - REJECT', '      - DIRECT', '  - name: "🍃 应用净化"', '    type: select', '    proxies:', '      - REJECT', '      - DIRECT', '  - name: "🐟 漏网之鱼"', '    type: select', '    proxies:', 处理值选择值(名称列表584), ''];
   // Loyalsoldier rule-providers (Clash 经典格式) - CDN: jsDelivr
   const 值基础576 = 'https://fastly.jsdelivr.net/gh/Loyalsoldier/clash-rules@release';
-  const 提供器 = (名称575, 本地值574) => [`  ${名称575}:`, `    type: http`, `    behavior: ${本地值574}`, `    url: "${值基础576}/${名称575}.txt"`, `    path: ./rulesets/loyalsoldier/${名称575}.txt`, `    interval: 86400`].join('\n');
-  const 规则值 = ['rule-providers:', 提供器('reject', 'domain'), 提供器('icloud', 'domain'), 提供器('apple', 'domain'), 提供器('google', 'domain'), 提供器('proxy', 'domain'), 提供器('direct', 'domain'), 提供器('private', 'domain'), 提供器('gfw', 'domain'), 提供器('greatfire', 'domain'), 提供器('tld-not-cn', 'domain'), 提供器('telegramcidr', 'ipcidr'), 提供器('cncidr', 'ipcidr'), 提供器('lancidr', 'ipcidr'), 提供器('applications', 'classical'), ''];
-  const 规则列表 = ['rules:', '  - DOMAIN-SUFFIX,acl4.ssr,🎯 全球直连', '  - DOMAIN-SUFFIX,local,🎯 全球直连', '  - DOMAIN,clash.razord.top,🎯 全球直连', '  - DOMAIN,yacd.haishan.me,🎯 全球直连', '  - DOMAIN,yacd.metacubex.one,🎯 全球直连', '  - DOMAIN,d.metacubex.one,🎯 全球直连', '  - DOMAIN-SUFFIX,googleapis.cn,🌐 谷歌服务', '  - DOMAIN-SUFFIX,gstatic.com,🌐 谷歌服务', '  - DOMAIN-SUFFIX,xn--ngstr-lra8j.com,🌐 谷歌服务', '  - DOMAIN-SUFFIX,googlevideo.com,📹 油管视频', '  - DOMAIN-SUFFIX,googleusercontent.com,🌐 谷歌服务', '  - DOMAIN-KEYWORD,youtube,📹 油管视频', '  - DOMAIN-SUFFIX,youtube.com,📹 油管视频', '  - DOMAIN-SUFFIX,youtu.be,📹 油管视频', '  - DOMAIN-KEYWORD,netflix,🎬 奈飞视频', '  - DOMAIN-SUFFIX,nflxext.com,🎬 奈飞视频', '  - DOMAIN-SUFFIX,nflxso.net,🎬 奈飞视频', '  - DOMAIN-SUFFIX,nflxvideo.net,🎬 奈飞视频', '  - DOMAIN-SUFFIX,nflximg.com,🎬 奈飞视频', '  - DOMAIN-SUFFIX,nflximg.net,🎬 奈飞视频', '  - DOMAIN-SUFFIX,netflix.com,🎬 奈飞视频', '  - DOMAIN-SUFFIX,netflix.net,🎬 奈飞视频', '  - DOMAIN-SUFFIX,bilibili.com,📺 哔哩哔哩', '  - DOMAIN-SUFFIX,bilivideo.com,📺 哔哩哔哩', '  - DOMAIN-SUFFIX,hdslb.com,📺 哔哩哔哩', '  - DOMAIN-KEYWORD,openai,🤖 OpenAI', '  - DOMAIN-KEYWORD,chatgpt,🤖 OpenAI', '  - DOMAIN-SUFFIX,openai.com,🤖 OpenAI', '  - DOMAIN-SUFFIX,chatgpt.com,🤖 OpenAI', '  - DOMAIN-SUFFIX,oaistatic.com,🤖 OpenAI', '  - DOMAIN-SUFFIX,oaiusercontent.com,🤖 OpenAI', '  - DOMAIN-SUFFIX,anthropic.com,🤖 OpenAI', '  - DOMAIN-SUFFIX,claude.ai,🤖 OpenAI', '  - DOMAIN-SUFFIX,perplexity.ai,🤖 OpenAI', '  - DOMAIN-SUFFIX,gemini.google.com,🤖 OpenAI', '  - RULE-SET,applications,🎯 全球直连', '  - RULE-SET,private,🎯 全球直连', '  - RULE-SET,reject,🛑 全球拦截', '  - RULE-SET,icloud,🍎 苹果服务', '  - RULE-SET,apple,🍎 苹果服务', '  - RULE-SET,google,🌐 谷歌服务', '  - RULE-SET,proxy,🚀 节点选择', '  - RULE-SET,gfw,🚀 节点选择', '  - RULE-SET,greatfire,🚀 节点选择', '  - RULE-SET,tld-not-cn,🚀 节点选择', '  - RULE-SET,direct,🎯 全球直连', '  - RULE-SET,lancidr,🎯 全球直连,no-resolve', '  - RULE-SET,cncidr,🎯 全球直连,no-resolve', '  - RULE-SET,telegramcidr,📲 电报信息,no-resolve', '  - GEOIP,LAN,🎯 全球直连,no-resolve', '  - GEOIP,CN,🎯 全球直连,no-resolve', '  - MATCH,🐟 漏网之鱼'];
+  // 所有规则集均在服务端拉取并内联，不再生成 rule-providers
+  const Loyalsoldier提供器列表 = [
+    { 名称: 'reject', 行为: 'domain', 策略: '🛑 全球拦截' },
+    { 名称: 'icloud', 行为: 'domain', 策略: '🍎 苹果服务' },
+    { 名称: 'apple', 行为: 'domain', 策略: '🍎 苹果服务' },
+    { 名称: 'google', 行为: 'domain', 策略: '🌐 谷歌服务' },
+    { 名称: 'proxy', 行为: 'domain', 策略: '🚀 节点选择' },
+    { 名称: 'direct', 行为: 'domain', 策略: '🎯 全球直连' },
+    { 名称: 'private', 行为: 'domain', 策略: '🎯 全球直连' },
+    { 名称: 'gfw', 行为: 'domain', 策略: '🚀 节点选择' },
+    { 名称: 'greatfire', 行为: 'domain', 策略: '🚀 节点选择' },
+    { 名称: 'tld-not-cn', 行为: 'domain', 策略: '🚀 节点选择' },
+    { 名称: 'telegramcidr', 行为: 'ipcidr', 策略: '📲 电报信息' },
+    { 名称: 'cncidr', 行为: 'ipcidr', 策略: '🎯 全球直连' },
+    { 名称: 'lancidr', 行为: 'ipcidr', 策略: '🎯 全球直连' },
+    { 名称: 'applications', 行为: 'classical', 策略: '🎯 全球直连' },
+  ];
+  const 内联规则 = [];
+  for (const { 名称, 行为, 策略 } of Loyalsoldier提供器列表) {
+    const 行列表 = await 获取规则集内容(`${值基础576}/${名称}.txt`);
+    if (行列表.length === 0) {
+      内联规则.push(`  # loyalsoldier/${名称}.txt unreachable, skipped`);
+      continue;
+    }
+    for (const 行 of 行列表) {
+      const c = 行.trim().replace(/^\s*-\s*/, '');
+      if (行为 === 'classical') {
+        const commaCount = (c.match(/,/g) || []).length;
+        if (commaCount >= 2) {
+          内联规则.push(`  - ${c}`);
+        } else {
+          内联规则.push(`  - ${c},${策略}`);
+        }
+      } else if (行为 === 'ipcidr') {
+        if (/^(IP-CIDR|IP-CIDR6)/i.test(c)) {
+          const 无noResolve = c.replace(/,?\s*no-resolve\s*$/i, '').trim();
+          内联规则.push(`  - ${无noResolve},${策略},no-resolve`);
+        }
+      } else {
+        内联规则.push(`  - ${c},${策略}`);
+      }
+    }
+  }
+  const 规则列表 = ['rules:', '  - DOMAIN-SUFFIX,acl4.ssr,🎯 全球直连', '  - DOMAIN-SUFFIX,local,🎯 全球直连', '  - DOMAIN,clash.razord.top,🎯 全球直连', '  - DOMAIN,yacd.haishan.me,🎯 全球直连', '  - DOMAIN,yacd.metacubex.one,🎯 全球直连', '  - DOMAIN,d.metacubex.one,🎯 全球直连', '  - DOMAIN-SUFFIX,googleapis.cn,🌐 谷歌服务', '  - DOMAIN-SUFFIX,gstatic.com,🌐 谷歌服务', '  - DOMAIN-SUFFIX,xn--ngstr-lra8j.com,🌐 谷歌服务', '  - DOMAIN-SUFFIX,googlevideo.com,📹 油管视频', '  - DOMAIN-SUFFIX,googleusercontent.com,🌐 谷歌服务', '  - DOMAIN-KEYWORD,youtube,📹 油管视频', '  - DOMAIN-SUFFIX,youtube.com,📹 油管视频', '  - DOMAIN-SUFFIX,youtu.be,📹 油管视频', '  - DOMAIN-KEYWORD,netflix,🎬 奈飞视频', '  - DOMAIN-SUFFIX,nflxext.com,🎬 奈飞视频', '  - DOMAIN-SUFFIX,nflxso.net,🎬 奈飞视频', '  - DOMAIN-SUFFIX,nflxvideo.net,🎬 奈飞视频', '  - DOMAIN-SUFFIX,nflximg.com,🎬 奈飞视频', '  - DOMAIN-SUFFIX,nflximg.net,🎬 奈飞视频', '  - DOMAIN-SUFFIX,netflix.com,🎬 奈飞视频', '  - DOMAIN-SUFFIX,netflix.net,🎬 奈飞视频', '  - DOMAIN-SUFFIX,bilibili.com,📺 哔哩哔哩', '  - DOMAIN-SUFFIX,bilivideo.com,📺 哔哩哔哩', '  - DOMAIN-SUFFIX,hdslb.com,📺 哔哩哔哩', '  - DOMAIN-KEYWORD,openai,🤖 OpenAI', '  - DOMAIN-KEYWORD,chatgpt,🤖 OpenAI', '  - DOMAIN-SUFFIX,openai.com,🤖 OpenAI', '  - DOMAIN-SUFFIX,chatgpt.com,🤖 OpenAI', '  - DOMAIN-SUFFIX,oaistatic.com,🤖 OpenAI', '  - DOMAIN-SUFFIX,oaiusercontent.com,🤖 OpenAI', '  - DOMAIN-SUFFIX,anthropic.com,🤖 OpenAI', '  - DOMAIN-SUFFIX,claude.ai,🤖 OpenAI', '  - DOMAIN-SUFFIX,perplexity.ai,🤖 OpenAI', '  - DOMAIN-SUFFIX,gemini.google.com,🤖 OpenAI', ...内联规则, '  - GEOIP,LAN,🎯 全球直连,no-resolve', '  - GEOIP,CN,🎯 全球直连,no-resolve', '  - MATCH,🐟 漏网之鱼'];
   await yieldToEventLoop();
-  return [头部581.join('\n'), 值值580.join('\n'), '', 值值577.join('\n'), 规则值.join('\n'), 规则列表.join('\n'), ''].join('\n');
+  return [头部581.join('\n'), 值值580.join('\n'), '', 值值577.join('\n'), 规则列表.join('\n'), ''].join('\n');
+}
+// 服务端获取规则集内容并返回解析后的行列表（自动缓存 / 容错降级）
+async function 获取规则集内容(url) {
+  try {
+    const resp = await fetchWithTimeout(url, {}, 10000);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const text = await resp.text();
+    return text.split(/\r?\n/).filter(l => {
+      const t = l.trim();
+      return t && !t.startsWith('#') && !t.startsWith('//');
+    });
+  } catch (e) {
+    console.warn(`[规则集] 获取失败 ${url}: ${e.message || e}`);
+    return [];
+  }
 }
 // 内部生成 Sing-box JSON 配置（完整规则集：MetaCubeX 镜像 rule-set）
 async function 生成值值数据对象(链接列表573) {
