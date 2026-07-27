@@ -3166,6 +3166,7 @@ async function 生成值值589(链接列表588, 指定配置网址 = null) {
       for (const line of lines) {
         const c = line.trim().replace(/^\s*-\s*/, '');
         if (!c) continue;
+        if (/^URL-REGEX\b/i.test(c)) continue; // Clash 不支持 URL-REGEX
         if (/^(IP-CIDR|IP-CIDR6)/i.test(c)) {
           const withoutNoResolve = c.replace(/,?\s*no-resolve\s*$/i, '').trim();
           const parts = withoutNoResolve.split(',');
@@ -3239,6 +3240,8 @@ async function 生成值值589(链接列表588, 指定配置网址 = null) {
     }
     for (const 行 of 行列表) {
       const c = 行.trim().replace(/^\s*-\s*/, '');
+      if (!c) continue;
+      if (/^URL-REGEX\b/i.test(c)) continue; // Clash 不支持 URL-REGEX
       if (行为 === 'classical') {
         const commaCount = (c.match(/,/g) || []).length;
         if (commaCount >= 2) {
