@@ -3135,6 +3135,11 @@ async function 处理网页套接字请求(请求417) {
   let 协议类型 = null;
   let 值值408 = false;
   let 传输值 = false;
+  // ===== WS 本地测速模式（upstream 22b1abb）=====
+  let WS本地测速模式 = false, WS本地测速回包Socket = null;
+  let WS本地测速请求缓存 = new Uint8Array(0);
+  let WS本地测速首包响应头 = null;
+  const WS本地测速请求上限 = 64 * 1024;
   const 值队列 = 创建块队列(传输上传包大小, 传输上传队列上限, 传输上传队列上限 >> 8);
   const 请求值407 = 请求417.fetcher;
   function 处理值远程写入器() {
@@ -3183,6 +3188,46 @@ async function 处理网页套接字请求(请求417) {
   远程连接值409.drainUpload = () => {
     if (!值值408 && !值队列.empty && 远程连接值409.writer) queueMicrotask(处理值值402);
   };
+  const 发送WS本地测速响应 = async () => {
+    if (!WS本地测速回包Socket) return;
+    const respHeader = WS本地测速首包响应头;
+    WS本地测速首包响应头 = null;
+    await WebSocket发送并等待(WS本地测速回包Socket, 构造WS本地204响应(respHeader));
+  };
+
+  const 查找HTTP请求头结尾 = (data) => {
+    for (let i = 0; i <= data.byteLength - 4; i++) {
+      if (data[i] === 0x0d && data[i + 1] === 0x0a && data[i + 2] === 0x0d && data[i + 3] === 0x0a) return i + 4;
+    }
+    return -1;
+  };
+
+  const 处理WS本地测速数据 = async (data) => {
+    const chunk = 处理值值8数组(data);
+    if (!chunk.byteLength) return;
+    if (WS本地测速请求缓存.byteLength + chunk.byteLength > WS本地测速请求上限) throw new Error('WS local speed-test request is too large');
+    WS本地测速请求缓存 = 拼接值8数组(WS本地测速请求缓存, chunk);
+    while (WS本地测速请求缓存.byteLength) {
+      const headerEnd = 查找HTTP请求头结尾(WS本地测速请求缓存);
+      if (headerEnd === -1) return;
+      const headerText = 共享解码器.decode(WS本地测速请求缓存.subarray(0, headerEnd));
+      const contentLengthMatch = headerText.match(/(?:^|\r\n)content-length\s*:\s*(\d+)/i);
+      const contentLength = contentLengthMatch ? Number(contentLengthMatch[1]) : 0;
+      const requestLength = headerEnd + contentLength;
+      if (!Number.isSafeInteger(contentLength) || requestLength > WS本地测速请求上限) throw new Error('WS local speed-test request body is too large');
+      if (WS本地测速请求缓存.byteLength < requestLength) return;
+      WS本地测速请求缓存 = WS本地测速请求缓存.slice(requestLength);
+      await 发送WS本地测速响应();
+    }
+  };
+
+  const 启用WS本地测速模式 = async (回包Socket, respHeader = null, 首请求数据 = null) => {
+    WS本地测速模式 = true;
+    WS本地测速回包Socket = 回包Socket;
+    WS本地测速请求缓存 = new Uint8Array(0);
+    WS本地测速首包响应头 = respHeader;
+    if (首请求数据?.byteLength > 0) await 处理WS本地测速数据(首请求数据);
+  };
   const 值数据399 = 请求417.headers.get(atob('c2VjLXdlYnNvY2tldC1wcm90b2NvbA==')) || '';
   const 本地值398 = 制作值流(值值410, 值数据399);
   本地值398.pipeTo(new WritableStream({
@@ -3190,6 +3235,11 @@ async function 处理网页套接字请求(请求417) {
       if (传输值) return;
       const 数据396 = 处理值值8数组(块397);
       if (是否域名系统值) return await 处理值用户数据报(数据396, 值值410, null, 请求值407);
+      // 测速拦截：WS 本地测速模式下直接处理请求（upstream 22b1abb）
+      if (WS本地测速模式) {
+        await 处理WS本地测速数据(数据396);
+        return;
+      }
       if (远程连接值409.socket && 远程连接值409.writer) {
         if (!处理队列值(数据396)) throw new Error('upload queue overflow');
         return;
@@ -3216,6 +3266,11 @@ async function 处理网页套接字请求(请求417) {
             }
             const 值头部390 = new Uint8Array([本地值392[0], 0]);
             const 原始数据389 = 数据396.subarray(原始索引);
+            // 测速拦截：无代理时本地 204 响应（upstream 22b1abb）
+            if (isSpeedTestSite(主机名393) && !是否代理已启用 && !请求代理配置413) {
+              await 启用WS本地测速模式(值值410, 值头部390, 原始数据389);
+              return;
+            }
             if (是否域名系统值) return 处理值用户数据报(原始数据389, 值值410, 值头部390, 请求值407);
             await 处理值值384(地址类型395, 主机名393, 端口394, 原始数据389, 值值410, 值头部390, 远程连接值409, 请求回退416, 实际地区411, 请求值414, 请求代理配置413, 请求值407);
             return;
@@ -3231,6 +3286,11 @@ async function 处理网页套接字请求(请求417) {
               hostname: 主机名386,
               rawClientData: 原始客户端数据
             } = 值结果;
+            // 测速拦截：无代理时本地 204 响应（upstream 22b1abb）
+            if (isSpeedTestSite(主机名386) && !是否代理已启用 && !请求代理配置413) {
+              await 启用WS本地测速模式(值值410, null, 原始客户端数据);
+              return;
+            }
             await 处理值值384(地址类型388, 主机名386, 端口387, 原始客户端数据, 值值410, null, 远程连接值409, 请求回退416, 实际地区411, 请求值414, 请求代理配置413, 请求值407);
             return;
           }
@@ -3441,6 +3501,42 @@ function 创建块队列(本地值350, 值值349 = 本地值350, 项目列表上
       return [输出.subarray(0, 本地值340), true];
     }
   };
+}
+// ===== 测速站点检测 + 本地 204 响应（upstream 22b1abb）=====
+function isSpeedTestSite(hostname) {
+  const speedTestDomains = ['speed.cloudflare.com', 'cp.cloudflare.com'];
+  hostname = hostname.toLowerCase();
+  return speedTestDomains.some(domain => hostname === domain || hostname.endsWith('.' + domain));
+}
+
+function 构造本地204响应(respHeader = null) {
+  const 本地204响应 = new TextEncoder().encode(
+    'HTTP/1.1 204 No Content\r\n' +
+    'Content-Length: 0\r\n' +
+    'Connection: close\r\n' +
+    '\r\n'
+  );
+  if (!respHeader || respHeader.byteLength === 0) return 本地204响应;
+  const 协议响应头 = 处理值值8数组(respHeader);
+  const response = new Uint8Array(协议响应头.byteLength + 本地204响应.byteLength);
+  response.set(协议响应头, 0);
+  response.set(本地204响应, 协议响应头.byteLength);
+  return response;
+}
+
+function 构造WS本地204响应(respHeader = null) {
+  const WS本地204响应 = new TextEncoder().encode(
+    'HTTP/1.1 204 No Content\r\n' +
+    'Content-Length: 0\r\n' +
+    'Connection: keep-alive\r\n' +
+    '\r\n'
+  );
+  if (!respHeader || respHeader.byteLength === 0) return WS本地204响应;
+  const 协议响应头 = 处理值值8数组(respHeader);
+  const response = new Uint8Array(协议响应头.byteLength + WS本地204响应.byteLength);
+  response.set(协议响应头, 0);
+  response.set(WS本地204响应, 协议响应头.byteLength);
+  return response;
 }
 function 创建值值(网页套接字335) {
   const 本地值334 = 传输下载包大小;
@@ -8204,6 +8300,16 @@ async function 处理扩展超文本客户端(主体128, 唯一标识) {
     const 本地值125 = await 读取扩展超文本头部(主体128, 唯一标识);
     if (typeof 本地值125 !== 'object' || !本地值125) {
       return null;
+    }
+    // 测速拦截：无代理时本地 204 响应（upstream 22b1abb）
+    if (isSpeedTestSite(本地值125.hostname) && !是否代理已启用) {
+      本地值126();
+      try { 本地值125.reader.releaseLock(); } catch (e) {}
+      本地值125.done = true;
+      return new Response(构造本地204响应(本地值125.resp), {
+        status: 200,
+        headers: { 'Content-Type': 'application/octet-stream', 'X-Accel-Buffering': 'no', 'Cache-Control': 'no-store' }
+      });
     }
     const 远程连接 = await 连接值远程扩展超文本(本地值125, 回退地址, '13.230.34.30');
     if (远程连接 === null) {
