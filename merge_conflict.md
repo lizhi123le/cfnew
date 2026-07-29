@@ -1,10 +1,11 @@
 # 合并冲突报告
-## 冲突时间: Tue Jul 28 11:05:53 UTC 2026
-## 上游更新哈希: 54ff7d0cc282620c425d17a760f60fc2a2a052a1c4427d812535ae9085fbd10a
+## 冲突时间: Wed Jul 29 13:39:10 UTC 2026
+## 上游更新哈希: 6386fc79b76d0761f7ab58a28448a0e09a133e9ad1d028bca4bb63c564254866
 
 以下文件包含冲突标记，需要手动解决：
 
 ```
+<<<<<<< local_明文源吗
 // CFnew - 终端 版本: v2.9.8c
 class RequestContext {
   constructor(env) {
@@ -45,11 +46,25 @@ const 智能剥离填充 = (data) => {
 	return data.subarray(4 + padLen); // 跳过 [魔数][长度][填充]
 };
 let 认证令牌 = null;  // 用户必须通过环境变量 u 配置
+=======
+// CFnew - 终端 v2.9.9
+// 版本: v2.9.9 
+import { connect as 连接 } from 'cloudflare:sockets';
+const 基础64文本解码器 = new TextDecoder();
+function 解码64(文本) {
+  const 二进制 = atob(文本);
+  const 字节 = new Uint8Array(二进制.length);
+  for (let 索引 = 0; 索引 < 二进制.length; 索引++) 字节[索引] = 二进制.charCodeAt(索引);
+  return 基础64文本解码器.decode(字节);
+}
+let 认证令牌 = '351c9981-04b6-4103-aa4b-864aa9c91469';
+>>>>>>> upstream_明文源吗
 let 回退地址 = '';
 let 代理5配置 = '';
 let 自定义优选地址列表 = [];
 let 自定义优选域名列表 = [];
 let 启用代理降级 = false;
+let 仅走代理 = false;
 let 禁用非传输层安全 = false;
 let 禁用优选 = false;
 let 启用地区匹配 = true;
@@ -572,6 +587,23 @@ const 错误_代理无可用方法 = atob('bm8gYWNjZXB0YWJsZSBtZXRob2Rz');
 const 错误_代理需要认证 = atob('c29ja3Mgc2VydmVyIG5lZWRzIGF1dGg=');
 const 错误_代理认证失败 = atob('ZmFpbCB0byBhdXRoIHNvY2tzIHNlcnZlcg==');
 const 错误_代理连接失败 = atob('ZmFpbCB0byBvcGVuIHNvY2tzIGNvbm5lY3Rpb24=');
+const 错误_代理隧道失败 = atob('ZmFpbCB0byBvcGVuIHByb3h5IHR1bm5lbA==');
+const 错误_代理响应异常 = atob('aW52YWxpZCBwcm94eSByZXNwb25zZQ==');
+const 前缀_套接字5 = atob('c29ja3M1Oi8v');
+const 前缀_套接字 = atob('c29ja3M6Ly8=');
+const 前缀_超文本 = atob('aHR0cDovLw==');
+const 前缀_安全超文本 = atob('aHR0cHM6Ly8=');
+const 文本_连接方法 = atob('Q09OTkVDVA==');
+const 文本_协议版本 = atob('IEhUVFAvMS4x');
+const 文本_主机头 = atob('SG9zdDog');
+const 文本_代理认证头 = atob('UHJveHktQXV0aG9yaXphdGlvbjogQmFzaWMg');
+const 文本_代理保持 = atob('UHJveHktQ29ubmVjdGlvbjogS2VlcC1BbGl2ZQ==');
+const 文本_用户代理头 = atob('VXNlci1BZ2VudDogTW96aWxsYS81LjA=');
+const 文本_换行 = atob('DQo=');
+const 文本_响应前缀 = atob('SFRUUC8=');
+const 代理种类_套接字5 = 'p5';
+const 代理种类_隧道 = 'pt';
+const 代理种类_安全隧道 = 'pts';
 let 已解析代理5配置 = {};
 let 是否代理已启用 = false;
 const 地址类型_四版 = 1;
@@ -1465,7 +1497,9 @@ export default {
         }
       }
       const 值控制711 = 获取配置文本值('qj', 配置默认值.qj, 本地值734.qj || 本地值734.QJ);
-      启用代理降级 = !!(值控制711 && 值控制711.toLowerCase() === 'no');
+      const 值控制711值 = (值控制711 || '').toLowerCase();
+      启用代理降级 = 值控制711值 === 'no';
+      仅走代理 = 值控制711值 === 'only';
       const 值控制710 = 获取配置文本值('dkby', 配置默认值.dkby, 本地值734.dkby || 本地值734.DKBY);
       禁用非传输层安全 = !!(值控制710 && 值控制710.toLowerCase() === 'yes');
       const 值控制709 = 获取配置文本值('yxby', 配置默认值.yxby, 本地值734.yxby || 本地值734.YXBY);
@@ -1857,8 +1891,8 @@ export default {
           const 语言值661 = 是否值664 ? 'fa-IR' : 'zh-CN';
           const 本地值660 = {
             zh: {
-              title: '终端 v2.9.8c',
-              terminal: '终端 v2.9.8c',
+              title: '终端 v2.9.9',
+              terminal: '终端 v2.9.9',
               congratulations: '恭喜你来到这',
               enterU: '请输入你U变量的值',
               enterD: '请输入你D变量的值',
@@ -1874,8 +1908,8 @@ export default {
               reenter: '请重新输入有效的UUID'
             },
             fa: {
-              title: 'ترمینال v2.9.8c',
-              terminal: 'ترمینال v2.9.8c',
+              title: 'ترمینال v2.9.9',
+              terminal: 'ترمینال v2.9.9',
               congratulations: 'تبریک می‌گوییم به شما',
               enterU: 'لطفا مقدار متغیر U خود را وارد کنید',
               enterD: 'لطفا مقدار متغیر D خود را وارد کنید',
@@ -2714,12 +2748,7 @@ function 规范化值主机(主机名619) {
   if (头值618.includes(':') && !头值618.startsWith('[')) return `[${头值618}]`;
   return 头值618;
 }
-<<<<<<< local_明文源吗
 // Clash 策略组 proxies：策略组 + 全部节点（避免分组里只有「节点选择」没有具体节点）
-=======
-
-// 策略组列表：策略组 + 全部节点（避免分组里只有「节点选择」没有具体节点）
->>>>>>> upstream_明文源吗
 function 处理值选择值(名称列表617, 本地值616 = {}) {
   const {
     directFirst: 直连首次615 = false,
@@ -2736,12 +2765,7 @@ function 处理值选择值(名称列表617, 本地值616 = {}) {
   行列表612.push(节点行列表);
   return 行列表612.join('\n');
 }
-<<<<<<< local_明文源吗
 // Surge / Loon 策略组列表：策略组 + 全部节点
-=======
-
-// 圈类客户端策略组列表：策略组 + 全部节点
->>>>>>> upstream_明文源吗
 function 处理值值列表(名称列表610, 本地值609 = {}) {
   const {
     directFirst: 直连首次 = false,
@@ -2768,7 +2792,7 @@ function 解析值链接(链接603) {
         uuid: 网址602.username,
         server: 规范化值主机(网址602.hostname),
         port: parseInt(网址602.port) || 443,
-        tls: 参数值601.get('security') === 'tls' || 参数值601.get('security') === 解码64('cmVhbGl0eQ=='),
+        tls: 参数值601.get('security') === 'tls' || 参数值601.get('security') === 'reality',
         network: 参数值601.get('type') || 'ws',
         path: 参数值601.get('path') || '/?ed=2048',
         host: 规范化值主机(参数值601.get('host') || 网址602.hostname),
@@ -2803,12 +2827,7 @@ function 解析值链接(链接603) {
   } catch (事件值597) {}
   return null;
 }
-<<<<<<< local_明文源吗
 // 单个节点 → Clash 块级 YAML（避免 flow style 解析错误）
-=======
-
-// 单个节点 → 块级 YAML（避免 flow style 解析错误）
->>>>>>> upstream_明文源吗
 function 构建值节点行(数量值596) {
   const 行列表595 = [];
   const 本地值594 = 规范化值主机(数量值596.server);
@@ -3095,7 +3114,6 @@ function 生成代理组配置(解析后配置, 节点名称列表, 选项 = {})
     // 保留 节点选择 引用——select 组中的 节点选择 是合法的多级路由，不构成环路
     代理列表 = 代理列表.filter(p => p !== pg.name);
 
-<<<<<<< local_明文源吗
     const 组 = { name: pg.name, type: 类型, proxies: 代理列表 };
     if ((类型 === 'url-test' || 类型 === 'load-balance' || 类型 === 'fallback') && pg.url) {
       组.url = pg.url;
@@ -3138,11 +3156,6 @@ function 生成代理组配置(解析后配置, 节点名称列表, 选项 = {})
 // 内部生成 Clash YAML（支持动态解析 INI 配置模板规则集）
 async function 生成值值589(链接列表588, 指定配置网址 = null) {
   const 节点列表586 = 链接列表588.map(解析值链接).filter(数量值585 => 数量值585 && (数量值585.proto === 'vless' || 数量值585.proto === 'trojan'));
-=======
-// 内部生成 YAML（完整规则集，远端 rule-providers）
-function 生成值值589(链接列表588, 本地值587 = {}) {
-  const 节点列表586 = 链接列表588.map(解析值链接).filter(数量值585 => 数量值585 && (数量值585.proto === 解码64('dmxlc3M=') || 数量值585.proto === 解码64('dHJvamFu')));
->>>>>>> upstream_明文源吗
   const 名称列表584 = 节点列表586.map(数量值583 => 数量值583.name);
   const 域名系统值582 = 自定义域名系统 || 'https://cloudflare-dns.com/dns-query';
   const 头部581 = ['mixed-port: 7890', 'allow-lan: true', 'mode: rule', 'log-level: info', 'ipv6: true', 'external-controller: 127.0.0.1:9090', 'unified-delay: true', 'tcp-concurrent: true', 'geodata-mode: true', 'geo-auto-update: true', 'geo-update-interval: 24', 'geox-url:', '  geoip: "https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geoip.dat"', '  geosite: "https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geosite.dat"', '  mmdb: "https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/country.mmdb"', '  asn: "https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/GeoLite2-ASN.mmdb"', 'sniffer:', '  enable: true', '  force-dns-mapping: true', '  parse-pure-ip: true', '  sniff:', '    HTTP:', '      ports: [80, 8080-8880]', '      override-destination: true', '    TLS:', '      ports: [443, 8443]', '    QUIC:', '      ports: [443, 8443]', 'dns:', '  enable: true', '  listen: 0.0.0.0:1053', '  ipv6: true', '  enhanced-mode: fake-ip', '  fake-ip-range: 198.18.0.1/16', '  fake-ip-filter:', '    - "*.lan"', '    - "+.local"', '    - "+.market.xiaomi.com"', '    - "+.msftconnecttest.com"', '    - "+.msftncsi.com"', '    - "localhost.ptlogin2.qq.com"', '    - "+.srv.nintendo.net"', '    - "+.stun.playstation.net"', '    - "+.xboxlive.com"', '  default-nameserver:', '    - 223.5.5.5', '    - 119.29.29.29', '  nameserver:', `    - ${域名系统值582}`, '    - https://119.29.29.29/dns-query', '  fallback:', '    - https://1.1.1.1/dns-query', '    - https://8.8.8.8/dns-query', '  fallback-filter:', '    geoip: true', '    geoip-code: CN', '    ipcidr:', '      - 240.0.0.0/4', ''];
@@ -3240,7 +3253,6 @@ function 生成值值589(链接列表588, 本地值587 = {}) {
   }), '  - name: "🍎 苹果服务"', '    type: select', '    proxies:', 处理值选择值(名称列表584, {
     directFirst: true
   }), '  - name: "🎯 全球直连"', '    type: select', '    proxies:', '      - DIRECT', '  - name: "🛑 全球拦截"', '    type: select', '    proxies:', '      - REJECT', '      - DIRECT', '  - name: "🍃 应用净化"', '    type: select', '    proxies:', '      - REJECT', '      - DIRECT', '  - name: "🐟 漏网之鱼"', '    type: select', '    proxies:', 处理值选择值(名称列表584), ''];
-<<<<<<< local_明文源吗
   // Loyalsoldier rule-providers (Clash 经典格式) - CDN: jsDelivr
   const 值基础576 = 'https://fastly.jsdelivr.net/gh/Loyalsoldier/clash-rules@release';
   // 所有规则集均在服务端拉取并内联，不再生成 rule-providers
@@ -3311,21 +3323,6 @@ async function 获取规则集内容(url) {
 async function 生成值值数据对象(链接列表573) {
   const 节点列表572 = 链接列表573.map(解析值链接).filter(数量值571 => 数量值571 && (数量值571.proto === 'vless' || 数量值571.proto === 'trojan'));
   const 域名系统值570 = 自定义域名系统 || 'https://cloudflare-dns.com/dns-query';
-=======
-
-  // 规则源 - CDN: jsDelivr
-  const 值基础576 = 解码64('aHR0cHM6Ly9mYXN0bHkuanNkZWxpdnIubmV0L2doL0xveWFsc29sZGllci9jbGFzaC1ydWxlc0ByZWxlYXNl');
-  const 提供器 = (名称575, 本地值574) => [`  ${名称575}:`, `    type: http`, `    behavior: ${本地值574}`, `    url: "${值基础576}/${名称575}.txt"`, `    path: ./rulesets/loyalsoldier/${名称575}.txt`, `    interval: 86400`].join('\n');
-  const 规则值 = ['rule-providers:', 提供器('reject', 'domain'), 提供器('icloud', 'domain'), 提供器('apple', 'domain'), 提供器('google', 'domain'), 提供器(解码64('cHJveHk='), 'domain'), 提供器('direct', 'domain'), 提供器('private', 'domain'), 提供器('gfw', 'domain'), 提供器('greatfire', 'domain'), 提供器('tld-not-cn', 'domain'), 提供器('telegramcidr', 'ipcidr'), 提供器('cncidr', 'ipcidr'), 提供器('lancidr', 'ipcidr'), 提供器('applications', 'classical'), ''];
-  const 规则列表 = ['rules:', '  - DOMAIN-SUFFIX,acl4.ssr,🎯 全球直连', '  - DOMAIN-SUFFIX,local,🎯 全球直连', 解码64('ICAtIERPTUFJTixjbGFzaC5yYXpvcmQudG9wLPCfjq8g5YWo55CD55u06L+e'), '  - DOMAIN,yacd.haishan.me,🎯 全球直连', '  - DOMAIN,yacd.metacubex.one,🎯 全球直连', '  - DOMAIN,d.metacubex.one,🎯 全球直连', '  - DOMAIN-SUFFIX,googleapis.cn,🌐 谷歌服务', '  - DOMAIN-SUFFIX,gstatic.com,🌐 谷歌服务', '  - DOMAIN-SUFFIX,xn--ngstr-lra8j.com,🌐 谷歌服务', '  - DOMAIN-SUFFIX,googlevideo.com,📹 油管视频', '  - DOMAIN-SUFFIX,googleusercontent.com,🌐 谷歌服务', '  - DOMAIN-KEYWORD,youtube,📹 油管视频', '  - DOMAIN-SUFFIX,youtube.com,📹 油管视频', '  - DOMAIN-SUFFIX,youtu.be,📹 油管视频', '  - DOMAIN-KEYWORD,netflix,🎬 奈飞视频', '  - DOMAIN-SUFFIX,nflxext.com,🎬 奈飞视频', '  - DOMAIN-SUFFIX,nflxso.net,🎬 奈飞视频', '  - DOMAIN-SUFFIX,nflxvideo.net,🎬 奈飞视频', '  - DOMAIN-SUFFIX,nflximg.com,🎬 奈飞视频', '  - DOMAIN-SUFFIX,nflximg.net,🎬 奈飞视频', '  - DOMAIN-SUFFIX,netflix.com,🎬 奈飞视频', '  - DOMAIN-SUFFIX,netflix.net,🎬 奈飞视频', '  - DOMAIN-SUFFIX,bilibili.com,📺 哔哩哔哩', '  - DOMAIN-SUFFIX,bilivideo.com,📺 哔哩哔哩', '  - DOMAIN-SUFFIX,hdslb.com,📺 哔哩哔哩', '  - DOMAIN-KEYWORD,openai,🤖 OpenAI', '  - DOMAIN-KEYWORD,chatgpt,🤖 OpenAI', '  - DOMAIN-SUFFIX,openai.com,🤖 OpenAI', '  - DOMAIN-SUFFIX,chatgpt.com,🤖 OpenAI', '  - DOMAIN-SUFFIX,oaistatic.com,🤖 OpenAI', '  - DOMAIN-SUFFIX,oaiusercontent.com,🤖 OpenAI', '  - DOMAIN-SUFFIX,anthropic.com,🤖 OpenAI', '  - DOMAIN-SUFFIX,claude.ai,🤖 OpenAI', '  - DOMAIN-SUFFIX,perplexity.ai,🤖 OpenAI', '  - DOMAIN-SUFFIX,gemini.google.com,🤖 OpenAI', '  - RULE-SET,applications,🎯 全球直连', '  - RULE-SET,private,🎯 全球直连', '  - RULE-SET,reject,🛑 全球拦截', '  - RULE-SET,icloud,🍎 苹果服务', '  - RULE-SET,apple,🍎 苹果服务', '  - RULE-SET,google,🌐 谷歌服务', 解码64('ICAtIFJVTEUtU0VULHByb3h5LPCfmoAg6IqC54K56YCJ5oup'), '  - RULE-SET,gfw,🚀 节点选择', '  - RULE-SET,greatfire,🚀 节点选择', '  - RULE-SET,tld-not-cn,🚀 节点选择', '  - RULE-SET,direct,🎯 全球直连', '  - RULE-SET,lancidr,🎯 全球直连,no-resolve', '  - RULE-SET,cncidr,🎯 全球直连,no-resolve', '  - RULE-SET,telegramcidr,📲 电报信息,no-resolve', '  - GEOIP,LAN,🎯 全球直连,no-resolve', '  - GEOIP,CN,🎯 全球直连,no-resolve', '  - MATCH,🐟 漏网之鱼'];
-  return [头部581.join('\n'), 值值580.join('\n'), '', 值值577.join('\n'), 规则值.join('\n'), 规则列表.join('\n'), ''].join('\n');
-}
-
-// 内部生成 JSON 客户端配置（完整规则集：远端镜像）
-function 生成值值数据对象(链接列表573) {
-  const 节点列表572 = 链接列表573.map(解析值链接).filter(数量值571 => 数量值571 && (数量值571.proto === 解码64('dmxlc3M=') || 数量值571.proto === 解码64('dHJvamFu')));
-  const 域名系统值570 = 自定义域名系统 || 'https://223.5.5.5/dns-query';
->>>>>>> upstream_明文源吗
   const 出站值 = 节点列表572.map(数量值569 => 数量值569.name);
   function 处理节点值出站(数量值568) {
     const 输出567 = {
@@ -3377,7 +3374,6 @@ function 生成值值数据对象(链接列表573) {
     }
     return 输出567;
   }
-<<<<<<< local_明文源吗
   // 使用共享函数生成代理组配置
   const { groups: 代理组列表, ruleProviders, inlineRules } = 生成代理组配置(
     await 获取或解析IniTemplate(远程配置网址),
@@ -3473,26 +3469,6 @@ function 生成值值数据对象(链接列表573) {
   // Find the FINAL rule's group for route.final
   const finalRule = inlineRules.find(r => r.ruleType === 'FINAL');
   const finalGroup = finalRule ? finalRule.group : '🐟 漏网之鱼';
-=======
-
-  // 远端 SRS 文件（CDN：jsDelivr 镜像）
-  const 值基础值 = 'https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite';
-  const 值基础地址 = 'https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geoip';
-  const 值规则566 = 本地值565 => ({
-    tag: `geosite-${本地值565}`,
-    type: 'remote',
-    format: 'binary',
-    url: `${值基础值}/${本地值565}.srs`,
-    download_detour: 'direct'
-  });
-  const 地址规则 = 本地值564 => ({
-    tag: `geoip-${本地值564}`,
-    type: 'remote',
-    format: 'binary',
-    url: `${值基础地址}/${本地值564}.srs`,
-    download_detour: 'direct'
-  });
->>>>>>> upstream_明文源吗
   const 配置 = {
     log: {
       level: 'info',
@@ -3606,23 +3582,12 @@ function 生成值值数据对象(链接列表573) {
   await yieldToEventLoop();
   return JSON.stringify(配置, null, 2);
 }
-<<<<<<< local_明文源吗
 // 内部生成 Surge ini (完整 ACL4SSR 规则集；优先 Trojan，无 Trojan 时 fallback VLESS 以 Trojan 格式输出)
 async function 生成值值562(链接列表561) {
   let 节点列表560 = 链接列表561.map(解析值链接).filter(数量值559 => 数量值559 && 数量值559.proto === 'trojan');
   if (节点列表560.length === 0) {
     节点列表560 = 链接列表561.map(解析值链接).filter(数量值559 => 数量值559 && 数量值559.proto === 'vless');
   }
-=======
-
-// 规则源（CDN：jsDelivr 镜像 GitHub）
-const 值基础 = 解码64('aHR0cHM6Ly9mYXN0bHkuanNkZWxpdnIubmV0L2doL0FDTDRTU1IvQUNMNFNTUkBtYXN0ZXIvQ2xhc2g=');
-const 值规则 = 名称563 => `${值基础}/${名称563}.list`;
-
-// 内部生成 ini 客户端配置（完整规则集）
-function 生成值值562(链接列表561) {
-  const 节点列表560 = 链接列表561.map(解析值链接).filter(数量值559 => 数量值559 && 数量值559.proto === 解码64('dHJvamFu'));
->>>>>>> upstream_明文源吗
   const 域名系统值558 = 自定义域名系统 || '223.5.5.5';
   const 名称列表557 = 节点列表560.map(数量值556 => 数量值556.name);
   const 行列表555 = ['[General]', 'loglevel = notify', 'internet-test-url = http://www.apple.com/library/test/success.html', 'proxy-test-url = http://www.gstatic.com/generate_204', 'test-timeout = 3', `dns-server = ${域名系统值558.replace(/^https?:\/\//, '').replace(/\/.*$/, '')}, 119.29.29.29, system`, 'encrypted-dns-server = https://223.5.5.5/dns-query, https://1.12.12.12/dns-query', 'ipv6 = true', 'allow-wifi-access = false', 'wifi-access-http-port = 6152', 'wifi-access-socks5-port = 6153', 'skip-proxy = 127.0.0.1, 192.168.0.0/16, 10.0.0.0/8, 172.16.0.0/12, localhost, *.local, captive.apple.com', 'exclude-simple-hostnames = true', 'show-error-page-for-reject = true', '', '[Proxy]'];
@@ -3741,16 +3706,9 @@ async function 生成值值552(链接列表551) {
   await yieldToEventLoop();
   return 行列表546.join('\n');
 }
-<<<<<<< local_明文源吗
 // 内部生成 Quantumult X 配置（完整 ACL4SSR 远端 filter 资源）
 async function 生成值值(链接列表541) {
   const 节点列表 = 链接列表541.map(解析值链接).filter(数量值540 => 数量值540 && (数量值540.proto === 'vless' || 数量值540.proto === 'trojan'));
-=======
-
-// 内部生成圈叉配置（完整远端 filter 资源）
-function 生成值值(链接列表541) {
-  const 节点列表 = 链接列表541.map(解析值链接).filter(数量值540 => 数量值540 && (数量值540.proto === 解码64('dmxlc3M=') || 数量值540.proto === 解码64('dHJvamFu')));
->>>>>>> upstream_明文源吗
   const 名称列表 = 节点列表.map(数量值539 => 数量值539.name);
   const 行列表538 = ['[general]', 'network_check_url=http://www.gstatic.com/generate_204', 'server_check_url=http://www.gstatic.com/generate_204', `profile_img_url=https://fastly.jsdelivr.net/gh/by${特征码字典[2]}/${特征码字典[1]}@main/snippets/logo.png`, 'dns_exclusion_list=*.cmpassport.com, *.jegotrip.com.cn, *.icloud.com, *.icloud.com.cn, *.apple.com, *.weibo.com, *.qq.com', 'running_mode_trigger=filter', '', '[dns]', `server=${(自定义域名系统 || '223.5.5.5').replace(/^https?:\/\//, '').replace(/\/.*$/, '')}`, 'server=119.29.29.29', 'server=https://223.5.5.5/dns-query', 'server=https://1.12.12.12/dns-query', '', '[server_local]'];
   for (const 数量值537 of 节点列表) {
@@ -4769,6 +4727,11 @@ async function 处理值值384(地址类型383, 主机, 端口数字, 原始数�
     });
   }
   async function 处理重试连接() {
+    // 只走代理：不回落到直连或备用地址，避免出口 IP 泄漏
+    if (仅走代理 && 实际代理已启用) {
+      关闭套接字值(网页套接字382);
+      return;
+    }
     if (启用代理降级 && 实际代理已启用) {
       try {
         const {
@@ -4821,10 +4784,12 @@ async function 处理值值384(地址类型383, 主机, 端口数字, 原始数�
     }
   }
   try {
+    // 首跳是否走代理：只走代理 → 必走；优先直连 → 不走；其余按代理是否配置
+    const 首跳走代理 = 仅走代理 && 实际代理已启用 ? true : 启用代理降级 ? false : 实际代理已启用;
     const {
       remoteSock: 值套接字358,
       writer: 值写入器
-    } = await 连接值发送(主机, 端口数字, 启用代理降级 ? false : 实际代理已启用);
+    } = await 连接值发送(主机, 端口数字, 首跳走代理);
     处理值远程(值套接字358, 值写入器, () => {
       处理值值当前(值套接字358, 值写入器);
       处理重试连接();
@@ -5424,6 +5389,10 @@ async function 处理值用户数据报(用户数据报块, 网页套接字, 值
   } catch (错误263) { console.warn('[DNS] 缓存流处理异常:', 错误263?.message); }
 }
 async function 处理值代理连接(地址类型, 地址262, 端口261, 代理配置 = 已解析代理5配置) {
+  // 按代理种类分派：隧道走建隧请求，其余保持套接字5 握手
+  if (代理配置 && (代理配置.kind === 代理种类_隧道 || 代理配置.kind === 代理种类_安全隧道)) {
+    return 处理值隧道连接(地址262, 端口261, 代理配置);
+  }
   const {
     username: 本地值260,
     password: 密码259,
@@ -5469,8 +5438,129 @@ async function 处理值代理连接(地址类型, 地址262, 端口261, 代理�
   读取器254.releaseLock();
   return 套接字256;
 }
+async function 处理值隧道连接(地址238值, 端口237值, 代理配置) {
+  const {
+    username: 隧道用户,
+    password: 隧道密码,
+    hostname: 隧道主机,
+    socksPort: 隧道端口,
+    kind: 隧道种类
+  } = 代理配置;
+  const 套接字 = 连接({
+    hostname: 隧道主机,
+    port: 隧道端口
+  }, 隧道种类 === 代理种类_安全隧道 ? {
+    secureTransport: 'on'
+  } : undefined);
+  if (套接字?.opened) await 套接字.opened;
+  // IPv6 目标在请求行里要带方括号
+  const 目标主机 = 地址238值.includes(':') && !/^\[.*\]$/.test(地址238值) ? `[${地址238值}]` : 地址238值;
+  const 目标地址 = `${目标主机}:${端口237值}`;
+  let 请求头 = `${文本_连接方法} ${目标地址}${文本_协议版本}${文本_换行}` + `${文本_主机头}${目标地址}${文本_换行}` + `${文本_用户代理头}${文本_换行}` + `${文本_代理保持}${文本_换行}`;
+  if (隧道用户) {
+    请求头 += `${文本_代理认证头}${btoa(`${隧道用户}:${隧道密码 || ''}`)}${文本_换行}`;
+  }
+  请求头 += 文本_换行;
+  const 写入器 = 套接字.writable.getWriter();
+  const 读取器 = 套接字.readable.getReader();
+  try {
+    await 写入器.write(new TextEncoder().encode(请求头));
+    // 响应可能分片到达，累积到头部结束（空行）为止
+    const 分隔 = [13, 10, 13, 10];
+    let 缓冲 = new Uint8Array(0);
+    let 头部结束 = -1;
+    while (头部结束 < 0) {
+      const {
+        value: 分片,
+        done: 已结束
+      } = await 读取器.read();
+      if (已结束 || !分片) throw new Error(错误_代理隧道失败);
+      缓冲 = 拼接值8数组(缓冲, 分片);
+      for (let 位置 = 0; 位置 + 3 < 缓冲.length; 位置++) {
+        if (缓冲[位置] === 分隔[0] && 缓冲[位置 + 1] === 分隔[1] && 缓冲[位置 + 2] === 分隔[2] && 缓冲[位置 + 3] === 分隔[3]) {
+          头部结束 = 位置 + 4;
+          break;
+        }
+      }
+      if (头部结束 < 0 && 缓冲.length > 8192) throw new Error(错误_代理响应异常);
+    }
+    const 状态行 = 共享解码器.decode(缓冲.subarray(0, Math.min(头部结束, 128)));
+    if (!状态行.startsWith(文本_响应前缀)) throw new Error(错误_代理响应异常);
+    const 状态码 = Number(状态行.split(' ')[1]);
+    if (!(状态码 >= 200 && 状态码 < 300)) throw new Error(错误_代理隧道失败);
+    // 代理在头部之后可能已经捎带了目标数据，需要交还给下游
+    const 残留数据 = 缓冲.subarray(头部结束);
+    写入器.releaseLock();
+    读取器.releaseLock();
+    if (残留数据.byteLength) return 包装残留套接字(套接字, 残留数据);
+    return 套接字;
+  } catch (隧道错误) {
+    try {
+      写入器.releaseLock();
+    } catch (忽略隧道1) {}
+    try {
+      读取器.releaseLock();
+    } catch (忽略隧道2) {}
+    try {
+      套接字.close();
+    } catch (忽略隧道3) {}
+    throw 隧道错误;
+  }
+}
+// 把建隧响应里捎带的目标数据重新挂回可读流首部
+function 包装残留套接字(套接字, 残留数据) {
+  let 上游读取器 = null;
+  const 新可读 = new ReadableStream({
+    start(控制器) {
+      控制器.enqueue(残留数据);
+      上游读取器 = 套接字.readable.getReader();
+    },
+    async pull(控制器) {
+      const {
+        value: 分片,
+        done: 已结束
+      } = await 上游读取器.read();
+      if (已结束) {
+        控制器.close();
+        return;
+      }
+      控制器.enqueue(分片);
+    },
+    cancel(原因) {
+      try {
+        上游读取器?.cancel(原因);
+      } catch (忽略取消) {}
+    }
+  });
+  return {
+    readable: 新可读,
+    writable: 套接字.writable,
+    closed: 套接字.closed,
+    opened: 套接字.opened,
+    close: () => 套接字.close()
+  };
+}
 function 解析代理配置(地址249) {
-  let [本地值248, 本地值247] = 地址249.split("@").reverse();
+  let 剩余地址 = String(地址249 || '').trim();
+  // 按前缀识别代理种类，无前缀保持原有行为（套接字5）
+  let 代理种类 = 代理种类_套接字5;
+  const 小写地址 = 剩余地址.toLowerCase();
+  if (小写地址.startsWith(前缀_安全超文本)) {
+    代理种类 = 代理种类_安全隧道;
+    剩余地址 = 剩余地址.slice(前缀_安全超文本.length);
+  } else if (小写地址.startsWith(前缀_超文本)) {
+    代理种类 = 代理种类_隧道;
+    剩余地址 = 剩余地址.slice(前缀_超文本.length);
+  } else if (小写地址.startsWith(前缀_套接字5)) {
+    剩余地址 = 剩余地址.slice(前缀_套接字5.length);
+  } else if (小写地址.startsWith(前缀_套接字)) {
+    剩余地址 = 剩余地址.slice(前缀_套接字.length);
+  }
+  // 去掉可能存在的尾部路径，只留 认证@主机:端口
+  const 路径位置 = 剩余地址.indexOf('/');
+  if (路径位置 >= 0) 剩余地址 = 剩余地址.slice(0, 路径位置);
+  if (!剩余地址) throw new Error(错误_无效代理地址);
+  let [本地值248, 本地值247] = 剩余地址.split("@").reverse();
   let 本地值246, 密码245, 主机名244, 代理端口;
   if (本地值247) {
     const 本地值243 = 本地值247.split(":");
@@ -5478,15 +5568,23 @@ function 解析代理配置(地址249) {
     [本地值246, 密码245] = 本地值243;
   }
   const 本地值242 = 本地值248.split(":");
-  代理端口 = Number(本地值242.pop());
-  if (isNaN(代理端口)) throw new Error(错误_无效代理地址);
+  const 末段值 = 本地值242.pop();
+  代理端口 = Number(末段值);
+  // 隧道模式允许省略端口，按明文 80 / 安全 443 兜底
+  if (isNaN(代理端口)) {
+    if (代理种类 === 代理种类_套接字5) throw new Error(错误_无效代理地址);
+    本地值242.push(末段值);
+    代理端口 = 代理种类 === 代理种类_安全隧道 ? 443 : 80;
+  }
   主机名244 = 本地值242.join(":");
+  if (!主机名244) throw new Error(错误_无效代理地址);
   if (主机名244.includes(":") && !/^\[.*\]$/.test(主机名244)) throw new Error(错误_无效代理地址);
   return {
     username: 本地值246,
     password: 密码245,
     hostname: 主机名244,
-    socksPort: 代理端口
+    socksPort: 代理端口,
+    kind: 代理种类
   };
 }
 async function 处理订阅值(请求241, 用户240 = null) {
@@ -5537,19 +5635,11 @@ async function 处理订阅值(请求241, 用户240 = null) {
       specifyRegion: '指定地区 (wk):',
       autoDetect: '自动检测',
       saveRegion: '保存地区配置',
-<<<<<<< local_明文源吗
       protocolSelection: '协议选择:',
       enableVLESS: '启用 VLESS 协议',
       enableTrojan: '启用 Trojan 协议',
       enableXhttp: '启用 xhttp 协议',
       trojanPassword: 'Trojan 密码 (可选):',
-=======
-      protocolSelection: 解码64('5Y2P6K6u6YCJ5oupOg=='),
-      enableProtoV: 解码64('5ZCv55SoIFZMRVNTIOWNj+iurg=='),
-      enableProtoT: 解码64('5ZCv55SoIFRyb2phbiDljY/orq4='),
-      enableXhttp: 解码64('5ZCv55SoIHhodHRwIOWNj+iurg=='),
-      altPassword: 解码64('VHJvamFuIOWvhueggSAo5Y+v6YCJKTo='),
->>>>>>> upstream_明文源吗
       customPath: '自定义路径 (d):',
       customIP: `自定义${特征码字典[0]} (p):`,
       preferredIPs: '优选IP列表 (yx):',
@@ -5578,7 +5668,11 @@ async function 处理订阅值(请求241, 用户240 = null) {
       fetchURLPlaceholder: '输入优选IP的URL地址',
       generateIP: '生成IP',
       fetchIP: '获取IP',
+<<<<<<< local_明文源吗
       socks5Config: 'SOCKS5配置 (s):',
+=======
+      socks5Config: 解码64('5Luj55CG6YWN572uIChzKTo='),
+>>>>>>> upstream_明文源吗
       customHomepage: '自定义首页URL (homepage):',
       customHomepagePlaceholder: '例如: https://example.com',
       customHomepageHint: '设置自定义URL作为首页伪装。访问根路径 / 时将显示该URL的内容。留空则显示内置nginx欢迎页。特殊值: nginx=内置nginx页, 1101=CF 1101错误页。多个URL用竖线(|)分隔，随机抽取。',
@@ -5592,7 +5686,7 @@ async function 处理订阅值(请求241, 用户240 = null) {
       enableGitHubPreferred: '启用自定义优选',
       allowAPIManagement: '允许API管理 (ae):',
       regionMatching: '地区匹配 (rm):',
-      downgradeControl: '降级控制 (qj):',
+      downgradeControl: 解码64('5Ye656uZ5pa55byPIChxaik6'),
       tlsControl: 'TLS控制 (dkby):',
       preferredControl: '优选控制 (yxby):',
       saveAdvanced: '保存高级配置',
@@ -5600,19 +5694,11 @@ async function 处理订阅值(请求241, 用户240 = null) {
       currentConfig: '📍 当前路径配置',
       refreshConfig: '刷新配置',
       resetConfig: '重置配置',
-<<<<<<< local_明文源吗
       subscriptionCopied: '订阅链接已复制',
       autoSubscriptionCopied: '自动识别订阅链接已复制，客户端访问时会根据User-Agent自动识别并返回对应格式',
       trojanPasswordPlaceholder: '留空则自动使用 UUID',
       trojanPasswordHint: '设置自定义 Trojan 密码。留空则使用 UUID。客户端会自动对密码进行 SHA224 哈希。',
       protocolHint: '可以同时启用多个协议。订阅将生成选中协议的节点。<br>• VLESS WS: 基于 WebSocket 的标准协议<br>• Trojan: 使用 SHA224 密码认证<br>• xhttp: 基于 HTTP POST 的伪装协议（需要绑定自定义域名并开启 gRPC）',
-=======
-      subscriptionCopied: 解码64('6K6i6ZiF6ZO+5o6l5bey5aSN5Yi2'),
-      autoSubscriptionCopied: 解码64('6Ieq5Yqo6K+G5Yir6K6i6ZiF6ZO+5o6l5bey5aSN5Yi277yM5a6i5oi356uv6K6/6Zeu5pe25Lya5qC55o2uVXNlci1BZ2VudOiHquWKqOivhuWIq+W5tui/lOWbnuWvueW6lOagvOW8jw=='),
-      altPasswordPlaceholder: '留空则自动使用 UUID',
-      altPasswordHint: 解码64('6K6+572u6Ieq5a6a5LmJIFRyb2phbiDlr4bnoIHjgILnlZnnqbrliJnkvb/nlKggVVVJROOAguWuouaIt+err+S8muiHquWKqOWvueWvhueggei/m+ihjCBTSEEyMjQg5ZOI5biM44CC'),
-      protocolHint: 解码64('5Y+v5Lul5ZCM5pe25ZCv55So5aSa5Liq5Y2P6K6u44CC6K6i6ZiF5bCG55Sf5oiQ6YCJ5Lit5Y2P6K6u55qE6IqC54K544CCPGJyPuKAoiBWTEVTUyBXUzog5Z+65LqOIFdlYlNvY2tldCDnmoTmoIflh4bljY/orq48YnI+4oCiIFRyb2phbjog5L2/55SoIFNIQTIyNCDlr4bnoIHorqTor4E8YnI+4oCiIHhodHRwOiDln7rkuo4gSFRUUCBQT1NUIOeahOS8quijheWNj+iuru+8iOmcgOimgee7keWumuiHquWumuS5ieWfn+WQjeW5tuW8gOWQryBnUlBD77yJ'),
->>>>>>> upstream_明文源吗
       enableECH: '启用 ECH (Encrypted Client Hello)',
       enableECHHint: '启用后，每次刷新订阅时会自动从 DoH 获取最新的 ECH 配置并添加到链接中',
       customDNS: '自定义 DNS 服务器',
@@ -5641,9 +5727,16 @@ async function 处理订阅值(请求241, 用户240 = null) {
       regionMatchingDefault: '默认（启用地区匹配）',
       regionMatchingNo: '关闭地区匹配',
       regionMatchingHint: '设置为"关闭"时不进行地区智能匹配',
+<<<<<<< local_明文源吗
       downgradeControlDefault: '默认（不启用降级）',
       downgradeControlNo: '启用降级模式',
       downgradeControlHint: '设置为"启用"时：CF直连失败→SOCKS5连接→fallback地址',
+=======
+      downgradeControlDefault: 解码64('5LyY5YWI6LWw5Luj55CG77yI6buY6K6k77yJ'),
+      downgradeControlNo: 解码64('5LyY5YWI55u06L+e77yM5aSx6LSl5YaN6LWw5Luj55CG'),
+      downgradeControlOnly: 解码64('5Y+q6LWw5Luj55CG77yM5LiN5Zue6JC9'),
+      downgradeControlHint: 解码64('5rKh5aGr5Luj55CG5pe25LiJ5Liq6YCJ6aG56YO95LiA5qC377yM6YO95piv55u06L+e44CC5Y+q6LWw5Luj55CG5pe26L+e5LiN5LiK5bCx5pat5byA77yM5Ye65Y+jIElQIOS4jeS8mua8jw=='),
+>>>>>>> upstream_明文源吗
       tlsControlDefault: '默认（保留所有节点）',
       tlsControlYes: '仅TLS节点',
       tlsControlHint: '设置为"仅TLS节点"时只生成带TLS的节点，不生成非TLS节点（如80端口）',
@@ -5662,7 +5755,7 @@ async function 处理订阅值(请求241, 用户240 = null) {
         FI: '🇫🇮 芬兰',
         GB: '🇬🇧 英国'
       },
-      terminal: '终端 v2.9.8c',
+      terminal: '终端 v2.9.9',
       githubProject: 'GitHub 项目',
       优选工具: '优选工具',
       autoDetectClient: '自动识别',
@@ -5712,13 +5805,8 @@ async function 处理订阅值(请求241, 用户240 = null) {
       autoDetect: 'تشخیص خودکار',
       saveRegion: 'ذخیره تنظیمات منطقه',
       protocolSelection: 'انتخاب پروتکل:',
-<<<<<<< local_明文源吗
       enableVLESS: 'فعال‌سازی پروتکل VLESS',
       enableTrojan: 'فعال‌سازی پروتکل Trojan',
-=======
-      enableProtoV: 解码64('2YHYudin2YTigIzYs9in2LLbjCDZvtix2YjYqtqp2YQgVkxFU1M='),
-      enableProtoT: 解码64('2YHYudin2YTigIzYs9in2LLbjCDZvtix2YjYqtqp2YQgVHJvamFu'),
->>>>>>> upstream_明文源吗
       enableXhttp: 'فعال‌سازی پروتکل xhttp',
       enableECH: 'فعال‌سازی ECH (Encrypted Client Hello)',
       enableECHHint: 'پس از فعال‌سازی، در هر بار تازه‌سازی اشتراک، پیکربندی ECH به‌روز به‌طور خودکار از DoH دریافت شده و به لینک‌ها اضافه می‌شود',
@@ -5728,15 +5816,11 @@ async function 处理订阅值(请求241, 用户240 = null) {
       customECHDomain: 'دامنه ECH سفارشی',
       customECHDomainPlaceholder: 'مثال: cloudflare-ech.com',
       customECHDomainHint: 'دامنه استفاده شده در پیکربندی ECH، خالی بگذارید تا از مقدار پیش‌فرض استفاده شود',
-<<<<<<< local_明文源吗
       enableRandomPath: 'فعال‌سازی مسیر تصادفی',
       enableRandomPathHint: 'پس از فعال‌سازی، مسیر گره به صورت تصادفی تولید می‌شود تا ابهام بیشتری ایجاد شود',
       customHost: 'هاست سفارشی',
       customHostHint: 'مقدار HOST سفارشی برای گره (اختیاری). مقادیر متعدد با کاما جدا می‌شوند.',
       trojanPassword: 'رمز عبور Trojan (اختیاری):',
-=======
-      altPassword: 解码64('2LHZhdiyINi52KjZiNixIFRyb2phbiAo2KfYrtiq24zYp9ix24wpOg=='),
->>>>>>> upstream_明文源吗
       customPath: 'مسیر سفارشی (d):',
       customIP: `${特征码字典[0]} سفارشی (p):`,
       preferredIPs: 'لیست IP ترجیحی (yx):',
@@ -5765,7 +5849,11 @@ async function 处理订阅值(请求241, 用户240 = null) {
       fetchURLPlaceholder: 'آدرس URL لیست IP را وارد کنید',
       generateIP: 'تولید IP',
       fetchIP: 'دریافت IP',
+<<<<<<< local_明文源吗
       socks5Config: 'تنظیمات SOCKS5 (s):',
+=======
+      socks5Config: 解码64('2KrZhti424zZhdin2Kog2b7YsdmI2qnYs9uMIChzKTo='),
+>>>>>>> upstream_明文源吗
       customHomepage: 'URL صفحه اصلی سفارشی (homepage):',
       customHomepagePlaceholder: 'مثال: https://example.com',
       customHomepageHint: 'تنظیم URL سفارشی به عنوان استتار صفحه اصلی. هنگام دسترسی به مسیر اصلی / محتوای این URL نمایش داده می‌شود. اگر خالی بگذارید صفحه nginx پیش‌فرض نمایش داده می‌شود. مقادیر ویژه: nginx=صفحه nginx داخلی, 1101=صفحه خطای CF 1101. چندین URL با | جدا کنید.',
@@ -5779,7 +5867,7 @@ async function 处理订阅值(请求241, 用户240 = null) {
       enableGitHubPreferred: 'فعال‌سازی ترجیح سفارشی',
       allowAPIManagement: 'اجازه مدیریت API (ae):',
       regionMatching: 'تطبیق منطقه (rm):',
-      downgradeControl: 'کنترل کاهش سطح (qj):',
+      downgradeControl: 解码64('2LHZiNi0INiu2LHZiNisIChxaik6'),
       tlsControl: 'کنترل TLS (dkby):',
       preferredControl: 'کنترل ترجیحی (yxby):',
       saveAdvanced: 'ذخیره تنظیمات پیشرفته',
@@ -5789,15 +5877,9 @@ async function 处理订阅值(请求241, 用户240 = null) {
       resetConfig: 'بازنشانی تنظیمات',
       subscriptionCopied: 'لینک اشتراک کپی شد',
       autoSubscriptionCopied: 'لینک اشتراک تشخیص خودکار کپی شد، کلاینت هنگام دسترسی بر اساس User-Agent به طور خودکار تشخیص داده و قالب مربوطه را برمی‌گرداند',
-<<<<<<< local_明文源吗
       trojanPasswordPlaceholder: 'خالی بگذارید تا از UUID استفاده شود',
       trojanPasswordHint: 'رمز عبور Trojan سفارشی را تنظیم کنید. اگر خالی بگذارید از UUID استفاده می‌شود. کلاینت به طور خودکار رمز عبور را با SHA224 هش می‌کند.',
       protocolHint: 'می‌توانید چندین پروتکل را همزمان فعال کنید. اشتراک گره‌های پروتکل‌های انتخاب شده را تولید می‌کند.<br>• VLESS WS: پروتکل استاندارد مبتنی بر WebSocket<br>• Trojan: احراز هویت با رمز عبور SHA224<br>• xhttp: پروتکل استتار مبتنی بر HTTP POST (نیاز به اتصال دامنه سفارشی و فعال‌سازی gRPC دارد)',
-=======
-      altPasswordPlaceholder: 'خالی بگذارید تا از UUID استفاده شود',
-      altPasswordHint: 解码64('2LHZhdiyINi52KjZiNixIFRyb2phbiDYs9mB2KfYsdi024wg2LHYpyDYqtmG2LjbjNmFINqp2YbbjNivLiDYp9qv2LEg2K7Yp9mE24wg2Kjar9iw2KfYsduM2K8g2KfYsiBVVUlEINin2LPYqtmB2KfYr9mHINmF24zigIzYtNmI2K8uINqp2YTYp9uM2YbYqiDYqNmHINi32YjYsSDYrtmI2K/aqdin2LEg2LHZhdiyINi52KjZiNixINix2Kcg2KjYpyBTSEEyMjQg2YfYtCDZhduM4oCM2qnZhtivLg=='),
-      protocolHint: 解码64('2YXbjOKAjNiq2YjYp9mG24zYryDahtmG2K/bjNmGINm+2LHZiNiq2qnZhCDYsdinINmH2YXYstmF2KfZhiDZgdi52KfZhCDaqdmG24zYry4g2KfYtNiq2LHYp9qpINqv2LHZh+KAjNmH2KfbjCDZvtix2YjYqtqp2YTigIzZh9in24wg2KfZhtiq2K7Yp9ioINi02K/ZhyDYsdinINiq2YjZhNuM2K8g2YXbjOKAjNqp2YbYry48YnI+4oCiIFZMRVNTIFdTOiDZvtix2YjYqtqp2YQg2KfYs9iq2KfZhtiv2KfYsdivINmF2KjYqtmG24wg2KjYsSBXZWJTb2NrZXQ8YnI+4oCiIFRyb2phbjog2KfYrdix2KfYsiDZh9mI24zYqiDYqNinINix2YXYsiDYudio2YjYsSBTSEEyMjQ8YnI+4oCiIHhodHRwOiDZvtix2YjYqtqp2YQg2KfYs9iq2KrYp9ixINmF2KjYqtmG24wg2KjYsSBIVFRQIFBPU1QgKNmG24zYp9iyINio2Ycg2KfYqti12KfZhCDYr9in2YXZhtmHINiz2YHYp9ix2LTbjCDZiCDZgdi52KfZhOKAjNiz2KfYstuMIGdSUEMg2K/Yp9ix2K8p'),
->>>>>>> upstream_明文源吗
       alpn: 'TLS ALPN',
       alpnDefault: 'پیش‌فرض (خالی، مذاکره توسط کلاینت)',
       alpnHint: 'فقط به لینک‌های TLS اضافه می‌شود؛ اگر خالی باشد alpn نوشته نمی‌شود.',
@@ -5814,9 +5896,16 @@ async function 处理订阅值(请求241, 用户240 = null) {
       regionMatchingDefault: 'پیش‌فرض (فعال‌سازی تطبیق منطقه)',
       regionMatchingNo: 'بستن تطبیق منطقه',
       regionMatchingHint: 'وقتی "بستن" تنظیم شود، تطبیق هوشمند منطقه انجام نمی‌شود',
+<<<<<<< local_明文源吗
       downgradeControlDefault: 'پیش‌فرض (عدم فعال‌سازی کاهش سطح)',
       downgradeControlNo: 'فعال‌سازی حالت کاهش سطح',
       downgradeControlHint: 'وقتی "فعال" تنظیم شود: اتصال مستقیم CF ناموفق → اتصال SOCKS5 → آدرس fallback',
+=======
+      downgradeControlDefault: 解码64('2KfZiNmE2YjbjNiqINio2Kcg2b7YsdmI2qnYs9uMICjZvtuM2LTigIzZgdix2LYp'),
+      downgradeControlNo: 解码64('2KfZiNmE2YjbjNiqINio2Kcg2KfYqti12KfZhCDZhdiz2KrZgtuM2YXYjCDYr9ixINi12YjYsdiqINiu2LfYpyDZvtix2Yjaqdiz24w='),
+      downgradeControlOnly: 解码64('2YHZgti3INm+2LHZiNqp2LPbjNiMINio2K/ZiNmGINio2KfYstqv2LTYqg=='),
+      downgradeControlHint: 解码64('2Kfar9ixINm+2LHZiNqp2LPbjCDYqtmG2LjbjNmFINmG2LTYr9mHINio2KfYtNivINmH2LEg2LPZhyDar9iy24zZhtmHINuM2qnYs9in2YYg2Ygg2YXYs9iq2YLbjNmFINmH2LPYqtmG2K8uINiv2LEg2K3Yp9mE2Kog2YHZgti3INm+2LHZiNqp2LPbjNiMINin2KrYtdin2YQg2YbYp9mF2YjZgdmCINmC2LfYuSDZhduM4oCM2LTZiNivINmIIElQINiu2LHZiNis24wg2YHYp9i0INmG2YXbjOKAjNi02YjYrw=='),
+>>>>>>> upstream_明文源吗
       tlsControlDefault: 'پیش‌فرض (حفظ همه گره‌ها)',
       tlsControlYes: 'فقط گره‌های TLS',
       tlsControlHint: 'وقتی "فقط گره‌های TLS" تنظیم شود، فقط گره‌های با TLS تولید می‌شوند، گره‌های غیر TLS (مانند پورت 80) تولید نمی‌شوند',
@@ -5835,7 +5924,7 @@ async function 处理订阅值(请求241, 用户240 = null) {
         FI: '🇫🇮 فنلاند',
         GB: '🇬🇧 بریتانیا'
       },
-      terminal: 'ترمینال v2.9.8c',
+      terminal: 'ترمینال v2.9.9',
       githubProject: 'پروژه GitHub',
       优选工具: 'ابزار ترجیح IP',
       autoDetectClient: 'تشخیص خودکار',
@@ -6888,13 +6977,13 @@ async function 处理订阅值(请求241, 用户240 = null) {
                                 <div style="margin-bottom: 10px;">
                                     <label style="display: inline-flex; align-items: center; cursor: pointer; color: #00f0ff;">
                                         <input type="checkbox" id="ev" checked style="margin-right: 8px; width: 18px; height: 18px; cursor: pointer;">
-                                            <span style="font-size: 1.1rem;">${翻译值.enableProtoV}</span>
+                                            <span style="font-size: 1.1rem;">${翻译值.enableVLESS}</span>
                                     </label>
                                 </div>
                                 <div style="margin-bottom: 10px;">
                                     <label style="display: inline-flex; align-items: center; cursor: pointer; color: #00f0ff;">
                                         <input type="checkbox" id="et" style="margin-right: 8px; width: 18px; height: 18px; cursor: pointer;">
-                                            <span style="font-size: 1.1rem;">${翻译值.enableProtoT}</span>
+                                            <span style="font-size: 1.1rem;">${翻译值.enableTrojan}</span>
                                     </label>
                                 </div>
                                 <div style="margin-bottom: 10px;">
@@ -6943,9 +7032,9 @@ async function 处理订阅值(请求241, 用户240 = null) {
                                     </div>
                                 </div>
                                 <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid rgba(0, 240, 255, 0.3);">
-                                        <label style="display: block; margin-bottom: 8px; color: #00f0ff; font-size: 0.95rem;">${翻译值.altPassword}</label>
-                                        <input type="text" id="tp" placeholder="${翻译值.altPasswordPlaceholder}" style="width: 100%; padding: 10px; background: rgba(0, 0, 0, 0.8); border: 1px solid #00f0ff; color: #00f0ff; font-family: 'Courier New', monospace; font-size: 13px;">
-                                        <small style="color: #7aa9c4; font-size: 0.8rem; display: block; margin-top: 5px;">${翻译值.altPasswordHint}</small>
+                                        <label style="display: block; margin-bottom: 8px; color: #00f0ff; font-size: 0.95rem;">${翻译值.trojanPassword}</label>
+                                        <input type="text" id="tp" placeholder="${翻译值.trojanPasswordPlaceholder}" style="width: 100%; padding: 10px; background: rgba(0, 0, 0, 0.8); border: 1px solid #00f0ff; color: #00f0ff; font-family: 'Courier New', monospace; font-size: 13px;">
+                                        <small style="color: #7aa9c4; font-size: 0.8rem; display: block; margin-top: 5px;">${翻译值.trojanPasswordHint}</small>
                                 </div>
                                     <small style="color: #7aa9c4; font-size: 0.85rem; display: block; margin-top: 10px;">${翻译值.protocolHint}</small>
                             </div>
@@ -7053,8 +7142,13 @@ async function 处理订阅值(请求241, 用户240 = null) {
                         </div>
                         <div style="margin-bottom: 15px;">
                                 <label style="display: block; margin-bottom: 8px; color: #00f0ff; font-weight: bold; text-shadow: 0 0 3px #00f0ff;">${翻译值.socks5Config}</label>
+<<<<<<< local_明文源吗
                                 <input type="text" id="socksConfig" placeholder="${是否值236 ? 'مثال: user:pass@host:port یا host:port' : '例如: user:pass@host:port 或 host:port'}" style="width: 100%; padding: 12px; background: rgba(0, 0, 0, 0.8); border: 2px solid #00f0ff; color: #00f0ff; font-family: 'Courier New', monospace; font-size: 14px;">
                                 <small style="color: #7aa9c4; font-size: 0.85rem;">${是否值236 ? 'آدرس پروکسی SOCKS5، برای انتقال تمام ترافیک خروجی استفاده می‌شود' : 'SOCKS5代理地址，用于转发所有出站流量'}</small>
+=======
+                                <input type="text" id="socksConfig" placeholder="${是否值236 ? 解码64('2YXYq9in2YQ6IHVzZXI6cGFzc0Bob3N0OnBvcnQg24zYpyBodHRwOi8vdXNlcjpwYXNzQGhvc3Q6cG9ydA==') : 解码64('5L6L5aaCOiB1c2VyOnBhc3NAaG9zdDpwb3J0IOaIliBodHRwOi8vdXNlcjpwYXNzQGhvc3Q6cG9ydA==')}" style="width: 100%; padding: 12px; background: rgba(0, 0, 0, 0.8); border: 2px solid #00f0ff; color: #00f0ff; font-family: 'Courier New', monospace; font-size: 14px;">
+                                <small style="color: #7aa9c4; font-size: 0.85rem;">${是否值236 ? 解码64('2KLYr9ix2LMg2b7YsdmI2qnYs9uMINiu2LHZiNis24wg2KjYsdin24wg2KfZhtiq2YLYp9mEINiq2YXYp9mFINiq2LHYp9mB24zaqSDYrtix2YjYrNuMLiDYqNiv2YjZhiDZvtuM2LTZiNmG2K8g2KjZhyDYtdmI2LHYqiBzNSDYr9ixINmG2LjYsSDar9ix2YHYqtmHINmF24zigIzYtNmI2K8=') : 解码64('5Ye656uZ5Luj55CG5Zyw5Z2A77yM55So5LqO6L2s5Y+R5omA5pyJ5Ye656uZ5rWB6YeP44CC5LiN5YaZ5YmN57yA6buY6K6k5oyJIHM1IOWkhOeQhg==')}</small>
+>>>>>>> upstream_明文源吗
                         </div>
                     </form>
                     <h3 style="color: #00f0ff; margin: 20px 0 15px 0; font-size: 1.2rem;">${翻译值.advancedControl}</h3>
@@ -7160,6 +7254,7 @@ async function 处理订阅值(请求241, 用户240 = null) {
                             <select id="downgradeControl" style="width: 100%; padding: 12px; background: rgba(0, 0, 0, 0.8); border: 2px solid #00f0ff; color: #00f0ff; font-family: 'Courier New', monospace; font-size: 14px;">
                                     <option value="">${翻译值.downgradeControlDefault}</option>
                                     <option value="no">${翻译值.downgradeControlNo}</option>
+                                    <option value="only">${翻译值.downgradeControlOnly}</option>
                             </select>
                                 <small style="color: #7aa9c4; font-size: 0.85rem;">${翻译值.downgradeControlHint}</small>
                         </div>
@@ -10391,7 +10486,9 @@ function 更新配置值() {
   自定义加密客户端问候域名 = 有效配置.customECHDomain || 配置默认值.customECHDomain;
   自定义应用层协议协商 = 规范化应用层协议协商(有效配置.alpn || '');
   禁用非传输层安全 = 有效配置.dkby === 'yes' || 启用加密客户端问候;
-  启用代理降级 = !!(有效配置.qj && 有效配置.qj.toLowerCase() === 'no');
+  const 降级控制值 = (有效配置.qj || '').toLowerCase();
+  启用代理降级 = 降级控制值 === 'no';
+  仅走代理 = 降级控制值 === 'only';
   自定义路径 = 有效配置.d || '';
   优选地址源 = 有效配置.yxURL || '';
   回退地址 = 有效配置.p ? 有效配置.p.trim() : '';
@@ -10684,4 +10781,5 @@ async function 是否管理员已验证(请求) {
     return await 验证管理员令牌(授权令牌匹配[1], 管理员密码, 请求);
   }
   return await 验证管理员令牌(令牌匹配[1], 管理员密码, 请求);
-}```
+}
+```
