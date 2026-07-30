@@ -101,6 +101,13 @@ let 启用原生地址 = false; // 原生地址默认关闭
 const 缓存接口 = caches.default;
 // 订阅缓存版本号（在 处理值键值值 中从 KV 加载）
 let configVersion = null;
+// base64 解码（atob → UTF-8，用于中文翻译文本）
+function 解码64(文本) {
+  const 二进制 = atob(文本);
+  const 字节 = new Uint8Array(二进制.length);
+  for (let 索引 = 0; 索引 < 二进制.length; 索引++) 字节[索引] = 二进制.charCodeAt(索引);
+  return new TextDecoder().decode(字节);
+}
 // P3-1: 安全 JSON 解析（解析失败返回默认值）
 function safeJsonParse(字符串值, 默认值 = null) {
   try { return JSON.parse(字符串值); } catch { return 默认值; }
