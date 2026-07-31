@@ -106,6 +106,8 @@ let 上次优选指纹 = {};        // 按来源拆分: { wetest: 指纹串, api
 let 上次优选写入时间 = {};      // 按来源拆分: { wetest: ts, api: ts, url: ts }
 // 配置变更检测（配置未变化时保存键值配置 零写入）
 let 上次保存配置字符串 = '';
+// D-4 自愈: c_ver 是否成功同步过（false 时即使 KV 明文一致也强制重写，重试版本传播）
+let c_ver同步成功 = false;
 // base64 解码（atob → UTF-8，用于中文翻译文本）
 function 解码64(文本) {
   const 二进制 = atob(文本);
@@ -772,8 +774,10 @@ async function 保存键值配置() {
   if (保存进行中) return 保存进行中;
   保存进行中 = (async () => {
     const 当前配置字符串 = JSON.stringify(键值配置);
-    if (当前配置字符串 === 上次保存配置字符串) {
-      return; // 配置未变化，零写入
+    // 跳过决策以 KV 实际明文为准（而非 per-isolate 内存），跨 isolate 或外部改 KV 后重存相同内容必须重新写入
+    const 当前KV明文 = (await withTimeout(键值存储.get('c'), 3000, 'KV c 读取超时').catch(() => '')) || '';
+    if (当前KV明文 === 当前配置字符串 && c_ver同步成功) {
+      return; // KV 明文与待保存内容一致且 c_ver 已同步，零写入
     }
     let 最新写入版本 = Date.now();
     for (let 重试 = 0; 重试 < 3; 重试++) {
@@ -785,6 +789,7 @@ async function 保存键值配置() {
         try {
           await withTimeout(键值存储.put('c_ver', 键值配置版本), 3000, 'KV c_ver 写入超时');
           c_ver成功 = true;
+          c_ver同步成功 = true;
         } catch (忽略值767) {}
         键值配置上次加载 = Date.now();
         // D-4: c_ver 写失败则不提交变更标记，下次相同保存会重试完整写入，保证跨 isolate 版本传播
