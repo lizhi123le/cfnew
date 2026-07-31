@@ -101,6 +101,11 @@ let 启用原生地址 = false; // 原生地址默认关闭
 const 缓存接口 = caches.default;
 // 订阅缓存版本号（在 处理值键值值 中从 KV 加载）
 let configVersion = null;
+// 优选列表指纹去重 + 节流（防止 c_ver 过度写入耗尽 KV 每日配额）
+let 上次优选指纹 = {};        // 按来源拆分: { wetest: 指纹串, api: 指纹串, url: 指纹串 }
+let 上次优选写入时间 = {};      // 按来源拆分: { wetest: ts, api: ts, url: ts }
+// 配置变更检测（配置未变化时保存键值配置 零写入）
+let 上次保存配置字符串 = '';
 // base64 解码（atob → UTF-8，用于中文翻译文本）
 function 解码64(文本) {
   const 二进制 = atob(文本);
@@ -765,22 +770,31 @@ async function 保存键值配置() {
   if (!键值存储) return;
   // 合并进行中的并发写入
   if (保存进行中) return 保存进行中;
-  let 已完成 = false;
   保存进行中 = (async () => {
+    const 当前配置字符串 = JSON.stringify(键值配置);
+    if (当前配置字符串 === 上次保存配置字符串) {
+      return; // 配置未变化，零写入
+    }
     let 最新写入版本 = Date.now();
     for (let 重试 = 0; 重试 < 3; 重试++) {
       try {
-        const 配置字符串 = JSON.stringify(键值配置);
-        await withTimeout(键值存储.put('c', 配置字符串), 3000, 'KV c 写入超时');
+        await withTimeout(键值存储.put('c', 当前配置字符串), 3000, 'KV c 写入超时');
         // 写入版本号，让其它 isolate 在下次请求时能立即看到变更
         键值配置版本 = String(最新写入版本);
+        let c_ver成功 = false;
         try {
           await withTimeout(键值存储.put('c_ver', 键值配置版本), 3000, 'KV c_ver 写入超时');
+          c_ver成功 = true;
         } catch (忽略值767) {}
         键值配置上次加载 = Date.now();
-        已完成 = true;
+        // D-4: c_ver 写失败则不提交变更标记，下次相同保存会重试完整写入，保证跨 isolate 版本传播
+        if (c_ver成功) 上次保存配置字符串 = 当前配置字符串;
         return;
       } catch (错误766) {
+        const 错误消息766 = (错误766 && 错误766.message) ? String(错误766.message).toLowerCase() : '';
+        if (错误消息766.includes('limit exceeded') || 错误消息766.includes('429')) {
+          throw 错误766; // 配额类错误立即放弃，避免重试放大
+        }
         if (重试 < 2) await new Promise(r => setTimeout(r, 100 * (重试 + 1)));
         else throw 错误766;
       }
@@ -789,7 +803,7 @@ async function 保存键值配置() {
   try {
     return await 保存进行中;
   } finally {
-    if (已完成) 保存进行中 = null;
+    保存进行中 = null; // 无条件释放合并锁（成功或失败），下次调用可重新发起保存
   }
 }
 function 获取配置值(键765, 默认值 = '') {
@@ -4365,6 +4379,22 @@ async function 生成木马链接列表来源源(列表455, 用户454, 工作器
   }
   return 链接列表447;
 }
+// c_ver 失效写入去重 + 节流：按来源对"展开前"的原始内容取指纹，未变化零写入，避免耗尽 KV 每日配额
+async function 失效配置缓存(来源键, 原始数组) {
+  if (!原始数组 || 原始数组.length === 0) return; // F-4: 空列表不写
+  // F-2/F-5: 对原始内容（不含随机通配符展开值）排序后直接以字符串为指纹，不哈希 → 无碰撞、去重对通配符列表同样生效
+  const 排序指纹 = 原始数组.map(项 => typeof 项 === 'string' ? 项 : JSON.stringify(项)).sort().join('\n');
+  if (上次优选指纹[来源键] === 排序指纹) return; // 该来源内容未变化 → 永不写入
+  if (Date.now() - (上次优选写入时间[来源键] || 0) < 300000) return; // 内容已变化但 5 分钟内刚写入过 → 节流跳过，不更新指纹（窗口过后该变化可补写）
+  // F-1: 仅在 KV 写入成功后提交指纹/时间/版本；失败则回滚，配额恢复后同一变化可重试
+  const 新版本 = String(parseInt(configVersion || '0') + 1);
+  const 写版本 = 键值存储.put('c_ver', 新版本).then(() => {
+    上次优选指纹[来源键] = 排序指纹;
+    上次优选写入时间[来源键] = Date.now();
+    configVersion = 新版本;
+  }).catch(e => console.warn('[c_ver] write fail:', e?.message || e));
+  if (执行上下文) 执行上下文.waitUntil(写版本);
+}
 async function 获取值地址列表() {
   const 值4网址1 = "https://www.wetest.vip/page/cloudflare/address_v4.html";
   const 值6网址1 = "https://www.wetest.vip/page/cloudflare/address_v6.html";
@@ -4401,13 +4431,7 @@ async function 获取值地址列表() {
       });
     }
     if (结果列表433.length > 0) {
-      // 优选 IP 更新成功 → 异步递增 c_ver 使缓存失效
-      const 当前版本 = configVersion || '0';
-      const 新版本 = String(parseInt(当前版本) + 1);
-      configVersion = 新版本;
-      const cverP1 = 键值存储.put('c_ver', 新版本);
-      cverP1.catch(e => console.warn('[c_ver] write fail:', e?.message || e));
-      if (执行上下文) 执行上下文.waitUntil(cverP1);
+      await 失效配置缓存('wetest', 结果列表433);
       return 结果列表433;
     }
   } catch (事件值427) {}
@@ -10070,13 +10094,7 @@ async function 获取值解析新地址列表() {
           });
         }
       }
-      // 优选 IP 更新成功 → 异步递增 c_ver 使缓存失效
-      const 版本值 = configVersion || '0';
-      const 新版本值 = String(parseInt(版本值) + 1);
-      configVersion = 新版本值;
-      const cverP2 = 键值存储.put('c_ver', 新版本值);
-      cverP2.catch(e => console.warn('[c_ver] write fail:', e?.message || e));
-      if (执行上下文) 执行上下文.waitUntil(cverP2);
+      await 失效配置缓存('api', 接口结果列表);
       return 结果列表110;
     }
     const 响应107 = await fetchWithTimeout(网址113, {}, 10000);
@@ -10098,13 +10116,7 @@ async function 获取值解析新地址列表() {
       }
     }
     if (结果列表105.length > 0) {
-      // 优选 IP 更新成功 → 异步递增 c_ver 使缓存失效
-      const 版本值 = configVersion || '0';
-      const 新版本值 = String(parseInt(版本值) + 1);
-      configVersion = 新版本值;
-      const cverP3 = 键值存储.put('c_ver', 新版本值);
-      cverP3.catch(e => console.warn('[c_ver] write fail:', e?.message || e));
-      if (执行上下文) 执行上下文.waitUntil(cverP3);
+      await 失效配置缓存('url', 行列表104);
     }
     return 结果列表105;
   } catch (错误101) {
