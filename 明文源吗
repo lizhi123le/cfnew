@@ -9675,11 +9675,24 @@ async function 读取扩展超文本头部(本地值180, 唯一标识字符串) 
     mode: 'byob'
   });
   try {
-    let 结果值178 = await 读取器179.readAtLeast(1 + 16 + 1, 获取扩展超文本缓冲());
+    // ★ 兼容性：readAtLeast 为较新 API，运行时缺失时回退到 read
+    const 兼容读取 = (最小字节, 缓冲) => typeof 读取器179.readAtLeast === 'function' ? 读取器179.readAtLeast(最小字节, 缓冲) : 读取器179.read(缓冲);
+    let 结果值178 = await 兼容读取(1 + 16 + 1, 获取扩展超文本缓冲());
     let 本地值177 = 0;
     let 索引 = 0;
-    let 缓存 = 结果值178.value;
+    let 缓存 = 结果值178.value; // 原始累积缓冲：从流起点开始、从不丢弃
     本地值177 += 结果值178.value.length;
+    // ★ 隐私增强：xhttp 首包剥离 0xED7F 魔数+随机填充（与 WS 路径一致），剥离后仍需 ≥ 18 字节
+    let 有效数据 = 智能剥离填充(缓存);
+    while (有效数据.length < 1 + 16 + 1 && !结果值178.done) {
+      结果值178 = await 兼容读取(1 + 16 + 1, 获取扩展超文本缓冲());
+      if (!结果值178.value || 结果值178.value.length === 0) break; // 空读防御，防死循环
+      缓存 = 处理值值值(缓存, 结果值178.value); // 追加到原始累积缓冲
+      本地值177 = 缓存.length;
+      有效数据 = 智能剥离填充(缓存); // 对完整原始缓冲重新整块剥离（魔数在起点，幂等正确）
+    }
+    缓存 = 有效数据; // 后续解析全部基于剥离后数据
+    本地值177 = 缓存.length;
     const 本地值176 = 缓存[0];
     const 标识175 = 缓存.slice(1, 1 + 16);
     const 唯一标识174 = 解析唯一标识扩展超文本(唯一标识字符串);
@@ -9693,7 +9706,7 @@ async function 读取扩展超文本头部(本地值180, 唯一标识字符串) 
         return `header too short`;
       }
       索引 = 地址值1 + 1 - 本地值177;
-      结果值178 = await 读取器179.readAtLeast(索引, 获取扩展超文本缓冲());
+      结果值178 = await 兼容读取(索引, 获取扩展超文本缓冲());
       本地值177 += 结果值178.value.length;
       缓存 = 处理值值值(缓存, 结果值178.value);
     }
@@ -9719,7 +9732,7 @@ async function 读取扩展超文本头部(本地值180, 唯一标识字符串) 
       if (结果值178.done) {
         return `read address failed`;
       }
-      结果值178 = await 读取器179.readAtLeast(索引, 获取扩展超文本缓冲());
+      结果值178 = await 兼容读取(索引, 获取扩展超文本缓冲());
       本地值177 += 结果值178.value.length;
       缓存 = 处理值值值(缓存, 结果值178.value);
     }
@@ -9903,21 +9916,30 @@ async function 连接值远程扩展超文本(本地值135, ...本地值134) {
   let 本地值133 = 0;
   let 值错误;
   const 连接列表 = [本地值135.hostname, ...主机列表.filter(结果值 => 结果值 && 结果值 !== 本地值135.hostname)];
-  for (const 主机名 of 连接列表) {
-    if (!主机名) continue;
+  for (const 候选主机 of 连接列表) {
+    if (!候选主机) continue;
+    // ★ 加固 B：候选主机可能为 host:port 格式（如回退地址），按候选拆分主机与专属端口
+    let 主机名 = 候选主机;
+    let 候选端口 = null;
+    const 端口匹配 = /^(.*):(\d+)$/.exec(候选主机);
+    if (端口匹配 && !端口匹配[1].includes(':')) { // 拆出的主机部分仍含 ':' 视为 IPv6，原样保留不拆分
+      主机名 = 端口匹配[1];
+      候选端口 = parseInt(端口匹配[2], 10);
+    }
     本地值133 = 0;
     while (本地值133 < 上限值196) {
       本地值133++;
       try {
         const 远程 = xhttp代理配置
-          ? await 处理值代理连接(地址类型_网址, 主机名, 本地值135.port, xhttp代理配置)
+          ? await 处理值代理连接(地址类型_网址, 主机名, 候选端口 ?? 本地值135.port, xhttp代理配置)
           : 连接({
               hostname: 主机名,
-              port: 本地值135.port
+              port: 候选端口 ?? 本地值135.port
             });
         const 超时承诺 = 处理扩展超文本值195(连接超时值).then(() => {
           throw new Error(atob('Y29ubmVjdCB0aW1lb3V0'));
         });
+        超时承诺.catch(() => {}); // 挂独立 catch 链吞掉 race 输家的拒绝，不改变 race 语义
         await Promise.race([远程.opened, 超时承诺]);
         const 本地值132 = 创建扩展超文本值159(本地值135, 远程.writable);
         const 本地值131 = 创建扩展超文本值(本地值135.resp, 远程.readable);
@@ -10015,7 +10037,7 @@ async function 处理扩展超文本客户端(主体128, 唯一标识, 代理配
         headers: { 'Content-Type': 'application/octet-stream', 'X-Accel-Buffering': 'no', 'Cache-Control': 'no-store' }
       });
     }
-    const 远程连接 = await 连接值远程扩展超文本(本地值125, 回退地址, '13.230.34.30', 代理配置);
+    const 远程连接 = await 连接值远程扩展超文本(本地值125, 回退地址, 代理配置);
     if (远程连接 === null) {
       return null;
     }
