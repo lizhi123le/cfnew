@@ -679,10 +679,25 @@ function 创建值节点命名器(跳过编号779 = false) {
     return `${基础}-${String(计数器组[基础]).padStart(2, '0')}`;
   };
 }
+// ★ 节点去重键归一化（参照 edgetunnel 提取IP键：IPv6 括号 + 缺省端口归一化）
+// 消除同地址因格式差异（IPv6 是否带括号、是否缺省 443 端口）导致的漏去重
+function 提取节点去重键(节点) {
+  const 无备注IP = String(节点.ip || '').split('#')[0].trim();
+  const 端口 = String(节点.port || '443');
+  const 末冒号 = 无备注IP.lastIndexOf(':');
+  // 无冒号（IPv4 / 域名）→ 补缺省端口
+  if (末冒号 === -1) return `${无备注IP}:${端口}`;
+  // 带括号 IPv6 且冒号全部在括号内（[2606::1] 缺端口）→ 补端口
+  if (无备注IP.includes('[') && 末冒号 < 无备注IP.lastIndexOf(']')) return `${无备注IP}:${端口}`;
+  // 裸 IPv6（纯十六进制+冒号，无括号）→ 补括号 + 端口
+  if (/^[0-9a-fA-F:]+$/.test(无备注IP)) return `[${无备注IP}]:${端口}`;
+  // 已带端口（1.1.1.1:8443 / [2606::1]:8443 / host:port）→ 原样返回
+  return 无备注IP;
+}
 // ★ Phase 2a: 节点名称去重缓存（请求级参数传递，避免并发覆盖）
 function 创建缓存节点命名器(基础命名器, 节点名称缓存) {
   return (节点) => {
-    const 键 = 节点.ip + ':' + (节点.port || '443');
+    const 键 = 提取节点去重键(节点);
     if (节点名称缓存.has(键)) return 节点名称缓存.get(键);
     const 名称 = 基础命名器(节点);
     节点名称缓存.set(键, 名称);
@@ -3992,7 +4007,7 @@ async function 处理订阅请求(请求507, 用户506, 网址505 = null) {
   async function 添加节点列表来源列表(列表498) {
     const 过滤后列表 = 列表498.filter(项目 => {
       if (!允许节点(项目)) return false;
-      const 键 = (项目.ip || '') + ':' + (项目.port || '443');
+      const 键 = 提取节点去重键(项目);
       if (已处理节点IP.has(键)) return false;
       已处理节点IP.add(键);
       return true;
@@ -4094,7 +4109,7 @@ async function 处理订阅请求(请求507, 用户506, 网址505 = null) {
       const 新地址列表 = await 获取值解析新地址列表();
       const 过滤后新地址列表 = 新地址列表.filter(项目 => {
         if (!允许节点({ ip: 项目.ip, name: 项目.name })) return false;
-        const 键 = 项目.ip + ':' + (项目.port || '443');
+        const 键 = 提取节点去重键(项目);
         if (已处理节点IP.has(键)) return false;
         已处理节点IP.add(键);
         return true;
