@@ -9907,7 +9907,7 @@ function 创建扩展超文本值(本地值150, 远程值) {
     }
   };
 }
-async function 连接值远程扩展超文本(本地值135, ...本地值134) {
+async function 连接值远程扩展超文本(本地值135, 请求值fetcher = null, ...本地值134) {
   // 提取末尾的代理配置参数（如果有）
   const 最后参数 = 本地值134.length > 0 ? 本地值134[本地值134.length - 1] : null;
   const 是否代理参数 = 最后参数 && typeof 最后参数 === 'object' && 'socksPort' in 最后参数;
@@ -9932,10 +9932,9 @@ async function 连接值远程扩展超文本(本地值135, ...本地值134) {
       try {
         const 远程 = xhttp代理配置
           ? await 处理值代理连接(地址类型_网址, 主机名, 候选端口 ?? 本地值135.port, xhttp代理配置)
-          : 连接({
-              hostname: 主机名,
-              port: 候选端口 ?? 本地值135.port
-            });
+          : (请求值fetcher && typeof 请求值fetcher.connect === 'function'
+              ? 请求值fetcher.connect({ hostname: 主机名, port: 候选端口 ?? 本地值135.port })
+              : 连接({ hostname: 主机名, port: 候选端口 ?? 本地值135.port }));
         const 超时承诺 = 处理扩展超文本值195(连接超时值).then(() => {
           throw new Error(atob('Y29ubmVjdCB0aW1lb3V0'));
         });
@@ -9962,7 +9961,7 @@ async function 连接值远程扩展超文本(本地值135, ...本地值134) {
   }
   return null;
 }
-async function 处理扩展超文本客户端(主体128, 唯一标识, 代理配置 = null) {
+async function 处理扩展超文本客户端(主体128, 唯一标识, 代理配置 = null, 请求值fetcher = null) {
   if (值值197 >= 上限值) {
     return new Response('Too many connections', {
       status: 429
@@ -10037,7 +10036,7 @@ async function 处理扩展超文本客户端(主体128, 唯一标识, 代理配
         headers: { 'Content-Type': 'application/octet-stream', 'X-Accel-Buffering': 'no', 'Cache-Control': 'no-store' }
       });
     }
-    const 远程连接 = await 连接值远程扩展超文本(本地值125, 回退地址, 代理配置);
+    const 远程连接 = await 连接值远程扩展超文本(本地值125, 请求值fetcher, 回退地址, 代理配置);
     if (远程连接 === null) {
       return null;
     }
@@ -10083,7 +10082,8 @@ async function 处理扩展超文本客户端(主体128, 唯一标识, 代理配
 }
 async function 处理扩展超文本值(请求119, 代理配置 = null) {
   try {
-    return await 处理扩展超文本客户端(请求119.body, 认证令牌, 代理配置);
+    const 请求值fetcher = 请求119?.fetcher;
+    return await 处理扩展超文本客户端(请求119.body, 认证令牌, 代理配置, 请求值fetcher);
   } catch (错误118) {
     return new Response('Internal Server Error', { status: 500 });
   }
