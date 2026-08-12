@@ -172,31 +172,37 @@
 #### API使用
 1. 下载优选软件：https://github.com/byJoey/yx-tools/releases
 2. 开启API：访问 `/{UUID}` 或 `/{自定义路径}`，找到"允许API管理"，开启后保存
-3. 添加单个IP：
+3. 默认需要管理员令牌认证：先 `POST /api/login` 获取令牌（15分钟有效、绑定UA），请求时携带 `Authorization: Bearer <令牌>`；仅对 `/api/preferred-ips` 推送接口生效，其他管理路由始终需要认证
+4. 可选：跳过令牌认证——设置环境变量 `API_NO_AUTH=yes`（或在KV中配置 `api_no_auth=yes`）后，`/api/preferred-ips` 不再校验令牌，方便脚本匿名上传。注意：开启后任何人知道 UUID/自定义路径 即可推送，请权衡风险后使用
+5. 添加单个IP：
 ```bash
-# 使用UUID路径
+# 使用UUID路径（默认需令牌认证）
 curl -X POST "https://your-worker.workers.dev/{UUID}/api/preferred-ips" \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <令牌>" \
   -d '{"ip": "1.2.3.4", "port": 443, "name": "香港节点"}'
 
 # 使用自定义路径（如果设置了d变量）
 curl -X POST "https://your-worker.workers.dev/{自定义路径}/api/preferred-ips" \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <令牌>" \
   -d '{"ip": "1.2.3.4", "port": 443, "name": "香港节点"}'
 ```
-4. 批量添加IP：
+6. 批量添加IP：
 ```bash
 curl -X POST "https://your-worker.workers.dev/{UUID或自定义路径}/api/preferred-ips" \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <令牌>" \
   -d '[
     {"ip": "1.2.3.4", "port": 443, "name": "节点1"},
     {"ip": "5.6.7.8", "port": 8443, "name": "节点2"}
   ]'
 ```
-5. 清空所有IP：
+7. 清空所有IP：
 ```bash
 curl -X DELETE "https://your-worker.workers.dev/{UUID或自定义路径}/api/preferred-ips" \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <令牌>" \
   -d '{"all": true}'
 ```
 

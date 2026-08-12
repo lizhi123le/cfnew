@@ -1644,7 +1644,8 @@ export default {
             是否有效686 = 是否有效格式(路径值687) && 路径值687 === ctxState.认证令牌;
           }
           if (是否有效686) {
-            if (!(await 是否管理员已验证(请求735))) {
+            const 允许匿名推送 = 获取配置值('api_no_auth', 本地值734?.api_no_auth || 本地值734?.API_NO_AUTH || '') === 'yes';
+            if (!允许匿名推送 && !(await 是否管理员已验证(请求735))) {
               return new Response('未授权', { status: 401, headers: { 'Content-Type': 'text/plain' } });
             }
             return await 处理优选地址列表接口(请求735, 本地值734);
