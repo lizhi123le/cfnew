@@ -623,7 +623,7 @@ function 是否有效地址(地址792) {
   if (全局IPv4正则.test(地址792)) return true;
   const 值6正则 = /^(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$/;
   if (值6正则.test(地址792)) return true;
-  const 值6值正则 = /^::1$|^::$|^(?:[0-9a-fA-F]{1,4}:)*::(?:[0-9a-fA-F]{1,4}:)*[0-9a-fA-F]{1,4}$/;
+  const 值6值正则 = /^(?:[0-9a-fA-F]{1,4}(?::[0-9a-fA-F]{1,4}){0,6})?::(?:[0-9a-fA-F]{1,4})?$/;
   if (值6值正则.test(地址792)) return true;
   return false;
 }
@@ -1606,7 +1606,7 @@ export default {
             是否有效692 = 是否有效格式(路径值693) && 路径值693 === ctxState.认证令牌;
           }
           if (是否有效692) {
-            if (管理员密码 && !(await 是否管理员已验证(请求735))) {
+            if (!(await 是否管理员已验证(请求735))) {
               return new Response('未授权', { status: 401, headers: { 'Content-Type': 'text/plain' } });
             }
             return await 处理配置接口(请求735, 本地值734);
@@ -1644,10 +1644,10 @@ export default {
             是否有效686 = 是否有效格式(路径值687) && 路径值687 === ctxState.认证令牌;
           }
           if (是否有效686) {
-            if (管理员密码 && !(await 是否管理员已验证(请求735))) {
+            if (!(await 是否管理员已验证(请求735))) {
               return new Response('未授权', { status: 401, headers: { 'Content-Type': 'text/plain' } });
             }
-            return await 处理优选地址列表接口(请求735);
+            return await 处理优选地址列表接口(请求735, 本地值734);
           } else {
             return new Response(JSON.stringify({
               error: '路径验证失败'
@@ -1770,7 +1770,7 @@ export default {
               是否有效680 = 是否有效格式(路径值681) && 路径值681 === ctxState.认证令牌;
             }
             if (是否有效680) {
-              if (管理员密码 && !(await 是否管理员已验证(请求735))) {
+              if (!(await 是否管理员已验证(请求735))) {
                 return new Response('未授权', { status: 401, headers: { 'Content-Type': 'text/plain' } });
               }
               const 本地值678 = 获取配置值('p', 本地值734.p || 本地值734.P);
@@ -1837,7 +1837,7 @@ export default {
               是否有效 = 是否有效格式(路径值) && 路径值 === ctxState.认证令牌;
             }
             if (是否有效) {
-              if (管理员密码 && !(await 是否管理员已验证(请求735))) {
+              if (!(await 是否管理员已验证(请求735))) {
                 return new Response('未授权', { status: 401, headers: { 'Content-Type': 'text/plain' } });
               }
               try {
@@ -10398,7 +10398,7 @@ async function 处理配置接口(请求54, 环境值 = {}) {
     }
   });
 }
-async function 处理优选地址列表接口(请求) {
+async function 处理优选地址列表接口(请求, 环境值 = {}) {
   if (!键值存储) {
     return new Response(JSON.stringify({
       success: false,
@@ -10411,7 +10411,7 @@ async function 处理优选地址列表接口(请求) {
       }
     });
   }
-  const 本地值52 = 获取配置值('ae', '') === 'yes';
+  const 本地值52 = 获取配置值('ae', 环境值?.ae || 环境值?.AE || '') === 'yes';
   if (!本地值52) {
     return new Response(JSON.stringify({
       success: false,
@@ -10465,8 +10465,16 @@ async function 处理优选地址列表接口(请求) {
           });
           continue;
         }
-        const 端口43 = 项目44.port || 443;
-        const 名称 = 项目44.name || `API优选-${项目44.ip}:${端口43}`;
+        const 原始端口43 = 项目44.port;
+        const 端口43 = 原始端口43 === undefined || 原始端口43 === null || 原始端口43 === '' ? 443 : parseInt(原始端口43, 10);
+        if (isNaN(端口43) || 端口43 < 1 || 端口43 > 65535) {
+          错误列表.push({
+            ip: 项目44.ip || '未知',
+            reason: `无效的端口: ${原始端口43}`
+          });
+          continue;
+        }
+        const 名称 = String(项目44.name || '').replace(/[#,\r\n]/g, ' ').trim() || `API优选-${项目44.ip}:${端口43}`;
         if (!是否有效地址(项目44.ip) && !是否有效域名(项目44.ip)) {
           错误列表.push({
             ip: 项目44.ip,
@@ -10514,7 +10522,12 @@ async function 处理优选地址列表接口(请求) {
         }
       });
     } else if (请求.method === 'DELETE') {
-      const 主体 = await 请求.json();
+      let 主体;
+      try {
+        主体 = await 请求.json();
+      } catch (错误) {
+        return new Response(JSON.stringify({ success: false, error: '请求体格式错误', message: 'DELETE 需要 JSON 请求体,如 {"all": true} 或 {"ip":"1.2.3.4","port":443}' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
+      }
       if (主体.all === true) {
         const 值值40 = 获取配置值('yx', '');
         const 本地值39 = 解析值值数组(值值40);
@@ -10713,14 +10726,16 @@ function 解析值值数组(值值) {
       address: 地址,
       port: 端口18
     } = 解析地址值端口(地址部分);
+    if (!地址 || (!是否有效地址(地址) && !是否有效域名(地址))) {
+      continue;
+    }
     if (!节点名称) {
       节点名称 = 地址 + (端口18 ? ':' + 端口18 : '');
     }
     结果.push({
       ip: 地址,
       port: 端口18 || 443,
-      name: 节点名称,
-      addedAt: new Date().toISOString()
+      name: 节点名称
     });
   }
   return 结果;
@@ -10729,7 +10744,8 @@ function 处理数组值值(数组) {
   if (!数组 || 数组.length === 0) return '';
   return 数组.map(项目 => {
     const 端口17 = 项目.port || 443;
-    return `${项目.ip}:${端口17}#${项目.name}`;
+    const 地址17 = 项目.ip && 项目.ip.includes(':') && !项目.ip.startsWith('[') ? `[${项目.ip}]` : 项目.ip;
+    return `${地址17}:${端口17}#${String(项目.name || '').replace(/[#,\r\n]/g, ' ').trim()}`;
   }).join(',');
 }
 function 是否有效域名(域名) {
