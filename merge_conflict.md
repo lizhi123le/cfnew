@@ -1,11 +1,12 @@
 # 合并冲突报告
-## 冲突时间: Thu Jul 30 10:51:16 UTC 2026
-## 上游更新哈希: 7737d0876cc5e0a085dd013be0791fea6ec549cd58583c450206fca9399deacb
+## 冲突时间: Wed Aug 19 18:13:21 UTC 2026
+## 上游更新哈希: aa0897f6c1fb63e9025147efe3f76cc6091ac8b02814f1b6f99fd5645dc1afbc
 
 以下文件包含冲突标记，需要手动解决：
 
 ```
-// CFnew - 终端 版本: v2.9.8c
+<<<<<<< local_明文源吗
+// CFnew - 终端 版本: v2.9.9
 class RequestContext {
   constructor(env) {
     this.env = env;
@@ -46,11 +47,25 @@ const 智能剥离填充 = (data) => {
 	return data.subarray(4 + padLen); // 跳过 [魔数][长度][填充]
 };
 let 认证令牌 = null;  // 用户必须通过环境变量 u 配置
+=======
+// CFnew - 终端 v3.0
+// 版本: v3.0 
+import { connect as 连接 } from 'cloudflare:sockets';
+const 基础64文本解码器 = new TextDecoder();
+function 解码64(文本) {
+  const 二进制 = atob(文本);
+  const 字节 = new Uint8Array(二进制.length);
+  for (let 索引 = 0; 索引 < 二进制.length; 索引++) 字节[索引] = 二进制.charCodeAt(索引);
+  return 基础64文本解码器.decode(字节);
+}
+let 认证令牌 = '351c9981-04b6-4103-aa4b-864aa9c91469';
+>>>>>>> upstream_明文源吗
 let 回退地址 = '';
 let 代理5配置 = '';
 let 自定义优选地址列表 = [];
 let 自定义优选域名列表 = [];
 let 启用代理降级 = false;
+let 仅走代理 = false;
 let 禁用非传输层安全 = false;
 let 禁用优选 = false;
 let 启用地区匹配 = true;
@@ -107,6 +122,20 @@ let 启用原生地址 = false; // 原生地址默认关闭
 const 缓存接口 = caches.default;
 // 订阅缓存版本号（在 处理值键值值 中从 KV 加载）
 let configVersion = null;
+// 优选列表指纹去重 + 节流（防止 c_ver 过度写入耗尽 KV 每日配额）
+let 上次优选指纹 = {};        // 按来源拆分: { wetest: 指纹串, api: 指纹串, url: 指纹串 }
+let 上次优选写入时间 = {};      // 按来源拆分: { wetest: ts, api: ts, url: ts }
+// 配置变更检测（配置未变化时保存键值配置 零写入）
+let 上次保存配置字符串 = '';
+// D-4 自愈: c_ver 是否成功同步过（false 时即使 KV 明文一致也强制重写，重试版本传播）
+let c_ver同步成功 = false;
+// base64 解码（atob → UTF-8，用于中文翻译文本）
+function 解码64(文本) {
+  const 二进制 = atob(文本);
+  const 字节 = new Uint8Array(二进制.length);
+  for (let 索引 = 0; 索引 < 二进制.length; 索引++) 字节[索引] = 二进制.charCodeAt(索引);
+  return new TextDecoder().decode(字节);
+}
 // P3-1: 安全 JSON 解析（解析失败返回默认值）
 function safeJsonParse(字符串值, 默认值 = null) {
   try { return JSON.parse(字符串值); } catch { return 默认值; }
@@ -469,6 +498,18 @@ const 地区映射 = {
   'Vultr': ['Vultr', 'Vultr'],
   'Multacom': ['Multacom', 'Multacom']
 };
+// 官方直连地址池：内置实测可用地址，不依赖任何第三方域名
+// CF 是任播，同一地址在不同位置落到的机房不同，所以不按地区区分
+const 官方直连地址 = 解码64('MTcyLjcxLjIxOC4xOTAsMTYyLjE1OC4yMjguODcsMTYyLjE1OC4xODkuMTM0LDE2Mi4xNTguMjYuNjMsMTYyLjE1OC4yNS44NiwxNjIuMTU4LjI5LjIxNiwxNjIuMTU4LjIxOC4xNjAsMTYyLjE1OC4yMjcuMjE0LDE3Mi42OS4xMTguMTk4LDE3Mi42OS4xMTkuMTUw').split(',');
+function 取官方直连地址() {
+  const 命中 = 官方直连地址[Math.floor(Math.random() * 官方直连地址.length)];
+  return {
+    domain: 命中,
+    region: 'CF',
+    regionCode: 'CF',
+    port: 443
+  };
+}
 let 备用地址列表 = [{
   domain: `${特征码字典[0]}.HK.${特征码字典[3]}.net`,
   region: 'HK',
@@ -573,6 +614,23 @@ const 错误_代理无可用方法 = atob('bm8gYWNjZXB0YWJsZSBtZXRob2Rz');
 const 错误_代理需要认证 = atob('c29ja3Mgc2VydmVyIG5lZWRzIGF1dGg=');
 const 错误_代理认证失败 = atob('ZmFpbCB0byBhdXRoIHNvY2tzIHNlcnZlcg==');
 const 错误_代理连接失败 = atob('ZmFpbCB0byBvcGVuIHNvY2tzIGNvbm5lY3Rpb24=');
+const 错误_代理隧道失败 = atob('ZmFpbCB0byBvcGVuIHByb3h5IHR1bm5lbA==');
+const 错误_代理响应异常 = atob('aW52YWxpZCBwcm94eSByZXNwb25zZQ==');
+const 前缀_套接字5 = atob('c29ja3M1Oi8v');
+const 前缀_套接字 = atob('c29ja3M6Ly8=');
+const 前缀_超文本 = atob('aHR0cDovLw==');
+const 前缀_安全超文本 = atob('aHR0cHM6Ly8=');
+const 文本_连接方法 = atob('Q09OTkVDVA==');
+const 文本_协议版本 = atob('IEhUVFAvMS4x');
+const 文本_主机头 = atob('SG9zdDog');
+const 文本_代理认证头 = atob('UHJveHktQXV0aG9yaXphdGlvbjogQmFzaWMg');
+const 文本_代理保持 = atob('UHJveHktQ29ubmVjdGlvbjogS2VlcC1BbGl2ZQ==');
+const 文本_用户代理头 = atob('VXNlci1BZ2VudDogTW96aWxsYS81LjA=');
+const 文本_换行 = atob('DQo=');
+const 文本_响应前缀 = atob('SFRUUC8=');
+const 代理种类_套接字5 = 'p5';
+const 代理种类_隧道 = 'pt';
+const 代理种类_安全隧道 = 'pts';
 let 已解析代理5配置 = {};
 let 是否代理已启用 = false;
 const 地址类型_四版 = 1;
@@ -598,7 +656,7 @@ function 是否有效地址(地址792) {
   if (全局IPv4正则.test(地址792)) return true;
   const 值6正则 = /^(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$/;
   if (值6正则.test(地址792)) return true;
-  const 值6值正则 = /^::1$|^::$|^(?:[0-9a-fA-F]{1,4}:)*::(?:[0-9a-fA-F]{1,4}:)*[0-9a-fA-F]{1,4}$/;
+  const 值6值正则 = /^(?:[0-9a-fA-F]{1,4}(?::[0-9a-fA-F]{1,4}){0,6})?::(?:[0-9a-fA-F]{1,4})?$/;
   if (值6值正则.test(地址792)) return true;
   return false;
 }
@@ -654,10 +712,25 @@ function 创建值节点命名器(跳过编号779 = false) {
     return `${基础}-${String(计数器组[基础]).padStart(2, '0')}`;
   };
 }
+// ★ 节点去重键归一化（参照 edgetunnel 提取IP键：IPv6 括号 + 缺省端口归一化）
+// 消除同地址因格式差异（IPv6 是否带括号、是否缺省 443 端口）导致的漏去重
+function 提取节点去重键(节点) {
+  const 无备注IP = String(节点.ip || '').split('#')[0].trim();
+  const 端口 = String(节点.port || '443');
+  const 末冒号 = 无备注IP.lastIndexOf(':');
+  // 无冒号（IPv4 / 域名）→ 补缺省端口
+  if (末冒号 === -1) return `${无备注IP}:${端口}`;
+  // 带括号 IPv6 且冒号全部在括号内（[2606::1] 缺端口）→ 补端口
+  if (无备注IP.includes('[') && 末冒号 < 无备注IP.lastIndexOf(']')) return `${无备注IP}:${端口}`;
+  // 裸 IPv6（纯十六进制+冒号，无括号）→ 补括号 + 端口
+  if (/^[0-9a-fA-F:]+$/.test(无备注IP)) return `[${无备注IP}]:${端口}`;
+  // 已带端口（1.1.1.1:8443 / [2606::1]:8443 / host:port）→ 原样返回
+  return 无备注IP;
+}
 // ★ Phase 2a: 节点名称去重缓存（请求级参数传递，避免并发覆盖）
 function 创建缓存节点命名器(基础命名器, 节点名称缓存) {
   return (节点) => {
-    const 键 = 节点.ip + ':' + (节点.port || '443');
+    const 键 = 提取节点去重键(节点);
     if (节点名称缓存.has(键)) return 节点名称缓存.get(键);
     const 名称 = 基础命名器(节点);
     节点名称缓存.set(键, 名称);
@@ -747,22 +820,34 @@ async function 保存键值配置() {
   if (!键值存储) return;
   // 合并进行中的并发写入
   if (保存进行中) return 保存进行中;
-  let 已完成 = false;
   保存进行中 = (async () => {
+    const 当前配置字符串 = JSON.stringify(键值配置);
+    // 跳过决策以 KV 实际明文为准（而非 per-isolate 内存），跨 isolate 或外部改 KV 后重存相同内容必须重新写入
+    const 当前KV明文 = (await withTimeout(键值存储.get('c'), 3000, 'KV c 读取超时').catch(() => '')) || '';
+    if (当前KV明文 === 当前配置字符串 && c_ver同步成功) {
+      return; // KV 明文与待保存内容一致且 c_ver 已同步，零写入
+    }
     let 最新写入版本 = Date.now();
     for (let 重试 = 0; 重试 < 3; 重试++) {
       try {
-        const 配置字符串 = JSON.stringify(键值配置);
-        await withTimeout(键值存储.put('c', 配置字符串), 3000, 'KV c 写入超时');
+        await withTimeout(键值存储.put('c', 当前配置字符串), 3000, 'KV c 写入超时');
         // 写入版本号，让其它 isolate 在下次请求时能立即看到变更
         键值配置版本 = String(最新写入版本);
+        let c_ver成功 = false;
         try {
           await withTimeout(键值存储.put('c_ver', 键值配置版本), 3000, 'KV c_ver 写入超时');
+          c_ver成功 = true;
+          c_ver同步成功 = true;
         } catch (忽略值767) {}
         键值配置上次加载 = Date.now();
-        已完成 = true;
+        // D-4: c_ver 写失败则不提交变更标记，下次相同保存会重试完整写入，保证跨 isolate 版本传播
+        if (c_ver成功) 上次保存配置字符串 = 当前配置字符串;
         return;
       } catch (错误766) {
+        const 错误消息766 = (错误766 && 错误766.message) ? String(错误766.message).toLowerCase() : '';
+        if (错误消息766.includes('limit exceeded') || 错误消息766.includes('429')) {
+          throw 错误766; // 配额类错误立即放弃，避免重试放大
+        }
         if (重试 < 2) await new Promise(r => setTimeout(r, 100 * (重试 + 1)));
         else throw 错误766;
       }
@@ -771,7 +856,7 @@ async function 保存键值配置() {
   try {
     return await 保存进行中;
   } finally {
-    if (已完成) 保存进行中 = null;
+    保存进行中 = null; // 无条件释放合并锁（成功或失败），下次调用可重新发起保存
   }
 }
 function 获取配置值(键765, 默认值 = '') {
@@ -783,43 +868,6 @@ function 获取配置值(键765, 默认值 = '') {
 async function 设置配置值(键764, 值763) {
   键值配置[键764] = 值763;
   await 保存键值配置();
-}
-async function 检测工作器地区(请求762) {
-  try {
-    const 云墙国家 = 请求762.cf?.country;
-    if (云墙国家) {
-      const 国家值地区 = {
-        'US': 'US',
-        'SG': 'SG',
-        'JP': 'JP',
-        'KR': 'KR',
-        'DE': 'DE',
-        'SE': 'SE',
-        'NL': 'NL',
-        'FI': 'FI',
-        'GB': 'GB',
-        'CN': 'SG',
-        'TW': 'JP',
-        'AU': 'SG',
-        'CA': 'US',
-        'FR': 'DE',
-        'IT': 'DE',
-        'ES': 'DE',
-        'CH': 'DE',
-        'AT': 'DE',
-        'BE': 'NL',
-        'DK': 'SE',
-        'NO': 'SE',
-        'IE': 'GB'
-      };
-      if (国家值地区[云墙国家]) {
-        return 国家值地区[云墙国家];
-      }
-    }
-    return 'SG';
-  } catch (错误761) {
-    return 'SG';
-  }
 }
 async function 检查地址可用性(域名760, 端口759 = 443, 超时758 = 2000) {
   try {
@@ -839,8 +887,12 @@ async function 检查地址可用性(域名760, 端口759 = 443, 超时758 = 200
   }
 }
 async function 获取值备用地址(工作器地区753 = '', 值地区匹配752 = 启用地区匹配) {
+  // 没指定地区（wk 留空=官方直连）时走内置地址，不依赖第三方域名
+  if (!工作器地区753 || 工作器地区753 === 'CF') {
+    return 取官方直连地址();
+  }
   if (备用地址列表.length === 0) {
-    return null;
+    return 取官方直连地址();
   }
   const 可用地址列表751 = 备用地址列表.map(地址750 => ({
     ...地址750,
@@ -1349,7 +1401,7 @@ export default {
     }
     // P0-6: 未设置管理员密码时警告（支持 管理员密码/admin/ADMIN 三种变量名）
     if (!本地值734.管理员密码 && !本地值734.admin && !本地值734.ADMIN) {
-      console.warn('[安全] 未设置管理员密码 — 管理面板将拒绝所有请求');
+      console.info('[安全] 未设置管理员密码 — 使用UUID或自定义路径访问管理面板');
     }
     // P2-1: 查询字符串长度限制（防参数爆炸 DOS）
     if (请求735.url.length > 4096) {
@@ -1408,7 +1460,8 @@ export default {
         值自定义地址 = true;
         当前工作器地区 = 'CUSTOM';
       } else {
-        当前工作器地区 = await 检测工作器地区(请求735);
+        // wk 留空 = 官方直连：直接用内置地址，不再探测地区去匹配第三方域名
+        当前工作器地区 = 'CF';
       }
       const 地区匹配控制724 = 获取配置文本值('rm', 配置默认值.rm, 本地值734.rm || 本地值734.RM);
       启用地区匹配 = !(地区匹配控制724 && 地区匹配控制724.toLowerCase() === 'no');
@@ -1468,7 +1521,9 @@ export default {
         }
       }
       const 值控制711 = 获取配置文本值('qj', 配置默认值.qj, 本地值734.qj || 本地值734.QJ);
-      启用代理降级 = !!(值控制711 && 值控制711.toLowerCase() === 'no');
+      const 值控制711值 = (值控制711 || '').toLowerCase();
+      启用代理降级 = 值控制711值 === 'no';
+      仅走代理 = 值控制711值 === 'only';
       const 值控制710 = 获取配置文本值('dkby', 配置默认值.dkby, 本地值734.dkby || 本地值734.DKBY);
       禁用非传输层安全 = !!(值控制710 && 值控制710.toLowerCase() === 'yes');
       const 值控制709 = 获取配置文本值('yxby', 配置默认值.yxby, 本地值734.yxby || 本地值734.YXBY);
@@ -1590,10 +1645,11 @@ export default {
             是否有效686 = 是否有效格式(路径值687) && 路径值687 === ctxState.认证令牌;
           }
           if (是否有效686) {
-            if (管理员密码 && !(await 是否管理员已验证(请求735))) {
+            const 允许匿名推送 = 获取配置值('api_no_auth', 本地值734?.api_no_auth || 本地值734?.API_NO_AUTH || '') === 'yes';
+            if (!允许匿名推送 && 管理员密码 && !(await 是否管理员已验证(请求735))) {
               return new Response('未授权', { status: 401, headers: { 'Content-Type': 'text/plain' } });
             }
-            return await 处理优选地址列表接口(请求735);
+            return await 处理优选地址列表接口(请求735, 本地值734);
           } else {
             return new Response(JSON.stringify({
               error: '路径验证失败'
@@ -1744,10 +1800,10 @@ export default {
                   }
                 });
               } else {
-                const 值地区 = await 检测工作器地区(请求735);
+                // wk 留空 = 官方直连，用内置地址而不是探测地区
                 return new Response(JSON.stringify({
-                  region: 值地区,
-                  detectionMethod: 'API检测',
+                  region: 'CF',
+                  detectionMethod: 解码64('5a6Y5pa555u06L+e'),
                   timestamp: new Date().toISOString()
                 }), {
                   headers: {
@@ -1787,9 +1843,8 @@ export default {
                 return new Response('未授权', { status: 401, headers: { 'Content-Type': 'text/plain' } });
               }
               try {
-                const 测试地区 = await 检测工作器地区(请求735);
                 return new Response(JSON.stringify({
-                  detectedRegion: 测试地区,
+                  detectedRegion: 'CF',
                   message: 'API测试完成',
                   timestamp: new Date().toISOString()
                 }), {
@@ -1860,8 +1915,13 @@ export default {
           const 语言值661 = 是否值664 ? 'fa-IR' : 'zh-CN';
           const 本地值660 = {
             zh: {
-              title: '终端 v2.9.8c',
-              terminal: '终端 v2.9.8c',
+<<<<<<< local_明文源吗
+              title: '终端 v2.9.9',
+               terminal: '终端 v2.9.9',
+=======
+              title: '终端 v3.0',
+              terminal: '终端 v3.0',
+>>>>>>> upstream_明文源吗
               congratulations: '恭喜你来到这',
               enterU: '请输入你U变量的值',
               enterD: '请输入你D变量的值',
@@ -1877,8 +1937,13 @@ export default {
               reenter: '请重新输入有效的UUID'
             },
             fa: {
-              title: 'ترمینال v2.9.8c',
-              terminal: 'ترمینال v2.9.8c',
+<<<<<<< local_明文源吗
+              title: 'ترمینال v2.9.9',
+               terminal: 'ترمینال v2.9.9',
+=======
+              title: 'ترمینال v3.0',
+              terminal: 'ترمینال v3.0',
+>>>>>>> upstream_明文源吗
               congratulations: 'تبریک می‌گوییم به شما',
               enterU: 'لطفا مقدار متغیر U خود را وارد کنید',
               enterD: 'لطفا مقدار متغیر D خود را وارد کنید',
@@ -3953,7 +4018,7 @@ async function 处理订阅请求(请求507, 用户506, 网址505 = null) {
   async function 添加节点列表来源列表(列表498) {
     const 过滤后列表 = 列表498.filter(项目 => {
       if (!允许节点(项目)) return false;
-      const 键 = (项目.ip || '') + ':' + (项目.port || '443');
+      const 键 = 提取节点去重键(项目);
       if (已处理节点IP.has(键)) return false;
       已处理节点IP.add(键);
       return true;
@@ -3985,7 +4050,7 @@ async function 处理订阅请求(请求507, 用户506, 网址505 = null) {
         await 添加节点列表来源列表(原生列表496);
       } catch (错误495) {
         if (!当前工作器地区) {
-          当前工作器地区 = await 检测工作器地区(请求507);
+          当前工作器地区 = 'CF';
         }
         const 值备用地址494 = await 获取值备用地址(当前工作器地区);
         if (值备用地址494) {
@@ -4034,7 +4099,7 @@ async function 处理订阅请求(请求507, 用户506, 网址505 = null) {
           }
         } catch (错误489) {
           if (!当前工作器地区) {
-            当前工作器地区 = await 检测工作器地区(请求507);
+            当前工作器地区 = 'CF';
           }
           const 值备用地址488 = await 获取值备用地址(当前工作器地区);
           if (值备用地址488) {
@@ -4055,7 +4120,7 @@ async function 处理订阅请求(请求507, 用户506, 网址505 = null) {
       const 新地址列表 = await 获取值解析新地址列表();
       const 过滤后新地址列表 = 新地址列表.filter(项目 => {
         if (!允许节点({ ip: 项目.ip, name: 项目.name })) return false;
-        const 键 = 项目.ip + ':' + (项目.port || '443');
+        const 键 = 提取节点去重键(项目);
         if (已处理节点IP.has(键)) return false;
         已处理节点IP.add(键);
         return true;
@@ -4064,11 +4129,17 @@ async function 处理订阅请求(请求507, 用户506, 网址505 = null) {
         if (启用明文) {
           最终链接列表.push(...生成链接列表来源新地址列表(过滤后新地址列表, 用户506, 工作器域名504, 加密客户端问候配置501, false, 别名命名器502));
         }
+<<<<<<< local_明文源吗
         if (启用木马) {
           最终链接列表.push(...(await 生成木马链接列表来源新地址列表(过滤后新地址列表, 用户506, 工作器域名504, 加密客户端问候配置501, false, 别名命名器502)));
         }
         if (启用扩展传输) {
           最终链接列表.push(...生成扩展超文本链接列表来源源(过滤后新地址列表, 用户506, 工作器域名504, 加密客户端问候配置501, false, 别名命名器502));
+=======
+      } catch (错误486) {
+        if (!当前工作器地区) {
+          当前工作器地区 = 'CF';
+>>>>>>> upstream_明文源吗
         }
       }
     } catch (错误486) {
@@ -4345,6 +4416,22 @@ async function 生成木马链接列表来源源(列表455, 用户454, 工作器
   }
   return 链接列表447;
 }
+// c_ver 失效写入去重 + 节流：按来源对"展开前"的原始内容取指纹，未变化零写入，避免耗尽 KV 每日配额
+async function 失效配置缓存(来源键, 原始数组) {
+  if (!原始数组 || 原始数组.length === 0) return; // F-4: 空列表不写
+  // F-2/F-5: 对原始内容（不含随机通配符展开值）排序后直接以字符串为指纹，不哈希 → 无碰撞、去重对通配符列表同样生效
+  const 排序指纹 = 原始数组.map(项 => typeof 项 === 'string' ? 项 : JSON.stringify(项)).sort().join('\n');
+  if (上次优选指纹[来源键] === 排序指纹) return; // 该来源内容未变化 → 永不写入
+  if (Date.now() - (上次优选写入时间[来源键] || 0) < 300000) return; // 内容已变化但 5 分钟内刚写入过 → 节流跳过，不更新指纹（窗口过后该变化可补写）
+  // F-1: 仅在 KV 写入成功后提交指纹/时间/版本；失败则回滚，配额恢复后同一变化可重试
+  const 新版本 = String(parseInt(configVersion || '0') + 1);
+  const 写版本 = 键值存储.put('c_ver', 新版本).then(() => {
+    上次优选指纹[来源键] = 排序指纹;
+    上次优选写入时间[来源键] = Date.now();
+    configVersion = 新版本;
+  }).catch(e => console.warn('[c_ver] write fail:', e?.message || e));
+  if (执行上下文) 执行上下文.waitUntil(写版本);
+}
 async function 获取值地址列表() {
   const 值4网址1 = "https://www.wetest.vip/page/cloudflare/address_v4.html";
   const 值6网址1 = "https://www.wetest.vip/page/cloudflare/address_v6.html";
@@ -4381,13 +4468,7 @@ async function 获取值地址列表() {
       });
     }
     if (结果列表433.length > 0) {
-      // 优选 IP 更新成功 → 异步递增 c_ver 使缓存失效
-      const 当前版本 = configVersion || '0';
-      const 新版本 = String(parseInt(当前版本) + 1);
-      configVersion = 新版本;
-      const cverP1 = 键值存储.put('c_ver', 新版本);
-      cverP1.catch(e => console.warn('[c_ver] write fail:', e?.message || e));
-      if (执行上下文) 执行上下文.waitUntil(cverP1);
+      await 失效配置缓存('wetest', 结果列表433);
       return 结果列表433;
     }
   } catch (事件值427) {}
@@ -4451,7 +4532,7 @@ async function 处理网页套接字请求(请求417) {
     } else if (手动工作器地区 && 手动工作器地区.trim()) {
       实际地区411 = 手动工作器地区.trim().toUpperCase();
     } else {
-      实际地区411 = await 检测工作器地区(请求417);
+      实际地区411 = 'CF';
     }
   } else if (请求地区415) {
     实际地区411 = 请求地区415;
@@ -4664,7 +4745,6 @@ async function 处理值值384(地址类型383, 主机, 端口数字, 原始数�
   const 实际代理已启用 = 请求代理配置 ? true : 是否代理已启用;
   const 值数据378 = 处理值值8数组(原始数据);
   async function 连接值发送(地址377, 端口376, 值代理 = false) {
-<<<<<<< local_明文源吗
     // ★ P3: 非代理路径 → IP 池遍历 + 黑名单跳过 + failover
     if (!值代理) {
       // P0-4: DNS 解析失败时重试一次，不降级直连
@@ -4718,12 +4798,8 @@ async function 处理值值384(地址类型383, 主机, 端口数字, 原始数�
         throw new Error(`IP池全部连接失败: ${地址377}:${端口376}`);
       }
     }
-    // ★ 代理路径：不改造（外部代理自己做 DNS）
-    const 远程值375 = await 处理值代理连接(地址类型383, 地址377, 端口376, 实际代理配置);
-=======
     // 走代理时首包交给握手函数在释放写入器前发出，避免换写入器导致连接被重置
-    const 远程值375 = 值代理 ? await 处理值代理连接(地址类型383, 地址377, 端口376, 实际代理配置, 请求值379, 值数据378) : await 连接值套接字(地址377, 端口376, 请求值379, 传输连接竞速数);
->>>>>>> upstream_明文源吗
+    const 远程值375 = await 处理值代理连接(地址类型383, 地址377, 端口376, 实际代理配置, 请求值379, 值数据378);
     const 写入器374 = 远程值375.writable.getWriter();
     if (!值代理 && 值数据378.byteLength) await 写入器374.write(值数据378);
     return {
@@ -4761,6 +4837,11 @@ async function 处理值值384(地址类型383, 主机, 端口数字, 原始数�
     });
   }
   async function 处理重试连接() {
+    // 只走代理：不回落到直连或备用地址，避免出现 IP 泄漏
+    if (仅走代理 && 实际代理已启用) {
+      关闭套接字值(网页套接字382);
+      return;
+    }
     if (启用代理降级 && 实际代理已启用) {
       try {
         const {
@@ -4813,10 +4894,12 @@ async function 处理值值384(地址类型383, 主机, 端口数字, 原始数�
     }
   }
   try {
+    // 首跳是否走代理：只走代理 → 必走；优先直连 → 不走；其余按代理是否配置
+    const 首跳走代理 = 仅走代理 && 实际代理已启用 ? true : 启用代理降级 ? false : 实际代理已启用;
     const {
       remoteSock: 值套接字358,
       writer: 值写入器
-    } = await 连接值发送(主机, 端口数字, 启用代理降级 ? false : 实际代理已启用);
+    } = await 连接值发送(主机, 端口数字, 首跳走代理);
     处理值远程(值套接字358, 值写入器, () => {
       处理值值当前(值套接字358, 值写入器);
       处理重试连接();
@@ -5455,15 +5538,11 @@ async function 处理值用户数据报(用户数据报块, 网页套接字, 值
     await 连接值279(包装套接字, 网页套接字, 头部, null);
   } catch (错误263) { console.warn('[DNS] 缓存流处理异常:', 错误263?.message); }
 }
-<<<<<<< local_明文源吗
-async function 处理值代理连接(地址类型, 地址262, 端口261, 代理配置 = 已解析代理5配置) {
-=======
-async function 处理值代理连接(地址类型, 地址262, 端口261, 代理配置 = 已解析代理5配置, 请求值258 = null, 首包数据 = null) {
+async function 处理值代理连接(地址类型, 地址262, 端口261, 代理配置 = 已解析代理5配置, 请求值358 = null, 首包数据 = null) {
   // 按代理种类分派：隧道走建隧请求，其余保持套接字5 握手
   if (代理配置 && (代理配置.kind === 代理种类_隧道 || 代理配置.kind === 代理种类_安全隧道)) {
-    return 处理值隧道连接(地址262, 端口261, 代理配置, 请求值258, 首包数据);
+    return 处理值隧道连接(地址262, 端口261, 代理配置, 请求值358, 首包数据);
   }
->>>>>>> upstream_明文源吗
   const {
     username: 本地值260,
     password: 密码259,
@@ -5471,11 +5550,11 @@ async function 处理值代理连接(地址类型, 地址262, 端口261, 代理�
     socksPort: 代理端口257
   } = 代理配置;
   // 优先用请求自带的 fetcher 建连，回退到全局连接
-  const 套接字256 = 处理打开值套接字(主机名258, 代理端口257, 请求值258);
+  const 套接字256 = 处理打开值套接字(主机名258, 代理端口257, 请求值358);
   const 写入器255 = 套接字256.writable.getWriter();
   await 写入器255.write(new Uint8Array(本地值260 ? [5, 2, 0, 2] : [5, 1, 0]));
   const 读取器254 = 套接字256.readable.getReader();
-  // 响应可能分片到达，按需累积到足够长度再解析；残留字节留给下一步
+  // 响应可能分片到达，按需累积到足够长度再解析；残留字节留给下一段
   let 残留字节 = new Uint8Array(0);
   async function 读满(需要长度) {
     while (残留字节.length < 需要长度) {
@@ -5503,8 +5582,8 @@ async function 处理值代理连接(地址类型, 地址262, 端口261, 代理�
     if (本地值253[0] !== 1 || 本地值253[1] !== 0) throw new Error(错误_代理认证失败);
     取走(2);
   }
-  // 统一用域名型寻址：调用方的地址类型编号在不同协议下含义不一致（值协议 2=域名，
-  // 木马协议 3=域名），按编号分支会把域名当成六版地址编错。交给代理自己解析更稳。
+  // 统一用域名型寻址：调用方的地址类型编号在不同协议下含义不一致（值协议2=域名，
+  // 木马协议3=域名），按编号分支会把域名当成六版地址编错。交给代理自己解析更稳妥
   const 编码器251 = new TextEncoder();
   const 目标字节 = 编码器251.encode(规范化目标地址(地址262));
   const 本地值250 = new Uint8Array([3, 目标字节.length, ...目标字节]);
@@ -5533,14 +5612,12 @@ async function 处理值代理连接(地址类型, 地址262, 端口261, 代理�
   if (残留字节.length) return 包装残留套接字(套接字256, 残留字节);
   return 套接字256;
 }
-<<<<<<< local_明文源吗
-=======
 // 六版地址在域名型寻址里不带方括号
-function 规范化目标地址(地址234值) {
-  const 文本 = String(地址234值 || '');
+function 规范化目标地址(地址值) {
+  const 文本 = String(地址值 || '');
   return /^\[.*\]$/.test(文本) ? 文本.slice(1, -1) : 文本;
 }
-async function 处理值隧道连接(地址238值, 端口237值, 代理配置, 请求值236值 = null, 首包数据235值 = null) {
+async function 处理值隧道连接(地址值, 端口值, 代理配置, 请求值 = null, 首包数据 = null) {
   const {
     username: 隧道用户,
     password: 隧道密码,
@@ -5557,29 +5634,26 @@ async function 处理值隧道连接(地址238值, 端口237值, 代理配置, �
     port: 隧道端口
   };
   // 优先用请求自带的 fetcher 建连，回退到全局连接
-  const 套接字 = 请求值236值 && typeof 请求值236值.connect === 'function' ? (连接选项 === undefined ? 请求值236值.connect(目标参数) : 请求值236值.connect(目标参数, 连接选项)) : 连接(目标参数, 连接选项);
-  if (套接字?.opened) await 套接字.opened;
+  const 套接字 = 请求值 && typeof 请求值.connect === 'function' ? (连接选项 === undefined ? 请求值.connect(目标参数) : 请求值.connect(目标参数, 连接选项)) : 连接(目标参数, 连接选项);
+  if (套接字.opened) await 套接字.opened;
   // IPv6 目标在请求行里要带方括号
-  const 目标主机 = 地址238值.includes(':') && !/^\[.*\]$/.test(地址238值) ? `[${地址238值}]` : 地址238值;
-  const 目标地址 = `${目标主机}:${端口237值}`;
-  let 请求头 = `${文本_连接方法} ${目标地址}${文本_协议版本}${文本_换行}` + `${文本_主机头}${目标地址}${文本_换行}` + `${文本_用户代理头}${文本_换行}` + `${文本_代理保持}${文本_换行}`;
+  const 目标主机 = 地址值.includes(':') && !/^\[.*\]$/.test(地址值) ? `[${地址值}]` : 地址值;
+  const 目标地址 = `${目标主机}:${端口值}`;
+  let 请求文本 = `${文本_连接方法} ${目标地址}${文本_协议版本}${文本_换行}` + `${文本_主机头}${目标地址}${文本_换行}` + `${文本_用户代理头}${文本_换行}` + `${文本_代理保持}${文本_换行}`;
   if (隧道用户) {
-    请求头 += `${文本_代理认证头}${btoa(`${隧道用户}:${隧道密码 || ''}`)}${文本_换行}`;
+    请求文本 += `${文本_代理认证头}${btoa(`${隧道用户}:${隧道密码 || ''}`)}${文本_换行}`;
   }
-  请求头 += 文本_换行;
+  请求文本 += 文本_换行;
   const 写入器 = 套接字.writable.getWriter();
   const 读取器 = 套接字.readable.getReader();
   try {
-    await 写入器.write(new TextEncoder().encode(请求头));
+    await 写入器.write(new TextEncoder().encode(请求文本));
     // 响应可能分片到达，累积到头部结束（空行）为止
     const 分隔 = [13, 10, 13, 10];
     let 缓冲 = new Uint8Array(0);
     let 头部结束 = -1;
     while (头部结束 < 0) {
-      const {
-        value: 分片,
-        done: 已结束
-      } = await 读取器.read();
+      const { value: 分片, done: 已结束 } = await 读取器.read();
       if (已结束 || !分片) throw new Error(错误_代理隧道失败);
       缓冲 = 拼接值8数组(缓冲, 分片);
       for (let 位置 = 0; 位置 + 3 < 缓冲.length; 位置++) {
@@ -5597,21 +5671,15 @@ async function 处理值隧道连接(地址238值, 端口237值, 代理配置, �
     // 代理在头部之后可能已经捎带了目标数据，需要交还给下游
     const 残留数据 = 缓冲.subarray(头部结束);
     // 首包在释放写入器之前发出
-    if (首包数据235值 && 首包数据235值.byteLength) await 写入器.write(首包数据235值);
+    if (首包数据 && 首包数据.byteLength) await 写入器.write(首包数据);
     写入器.releaseLock();
     读取器.releaseLock();
     if (残留数据.byteLength) return 包装残留套接字(套接字, 残留数据);
     return 套接字;
   } catch (隧道错误) {
-    try {
-      写入器.releaseLock();
-    } catch (忽略隧道1) {}
-    try {
-      读取器.releaseLock();
-    } catch (忽略隧道2) {}
-    try {
-      套接字.close();
-    } catch (忽略隧道3) {}
+    try { 写入器.releaseLock(); } catch (忽略隧道1) {}
+    try { 读取器.releaseLock(); } catch (忽略隧道2) {}
+    try { 套接字.close(); } catch (忽略隧道3) {}
     throw 隧道错误;
   }
 }
@@ -5624,20 +5692,12 @@ function 包装残留套接字(套接字, 残留数据) {
       上游读取器 = 套接字.readable.getReader();
     },
     async pull(控制器) {
-      const {
-        value: 分片,
-        done: 已结束
-      } = await 上游读取器.read();
-      if (已结束) {
-        控制器.close();
-        return;
-      }
+      const { value: 分片, done: 已结束 } = await 上游读取器.read();
+      if (已结束) { 控制器.close(); return; }
       控制器.enqueue(分片);
     },
     cancel(原因) {
-      try {
-        上游读取器?.cancel(原因);
-      } catch (忽略取消) {}
+      try { 上游读取器.cancel(原因); } catch (忽略取消) {}
     }
   });
   return {
@@ -5648,9 +5708,27 @@ function 包装残留套接字(套接字, 残留数据) {
     close: () => 套接字.close()
   };
 }
->>>>>>> upstream_明文源吗
 function 解析代理配置(地址249) {
-  let [本地值248, 本地值247] = 地址249.split("@").reverse();
+  let 剩余地址 = String(地址249 || '').trim();
+  // 按前缀识别代理种类，无前缀保持原有行为（套接字5）
+  let 代理种类 = 代理种类_套接字5;
+  const 小写地址 = 剩余地址.toLowerCase();
+  if (小写地址.startsWith(前缀_安全超文本)) {
+    代理种类 = 代理种类_安全隧道;
+    剩余地址 = 剩余地址.slice(前缀_安全超文本.length);
+  } else if (小写地址.startsWith(前缀_超文本)) {
+    代理种类 = 代理种类_隧道;
+    剩余地址 = 剩余地址.slice(前缀_超文本.length);
+  } else if (小写地址.startsWith(前缀_套接字5)) {
+    剩余地址 = 剩余地址.slice(前缀_套接字5.length);
+  } else if (小写地址.startsWith(前缀_套接字)) {
+    剩余地址 = 剩余地址.slice(前缀_套接字.length);
+  }
+  // 去掉可能存在的尾部路径，只留 认证@主机:端口
+  const 路径位置 = 剩余地址.indexOf('/');
+  if (路径位置 >= 0) 剩余地址 = 剩余地址.slice(0, 路径位置);
+  if (!剩余地址) throw new Error(错误_无效代理地址);
+  let [本地值248, 本地值247] = 剩余地址.split("@").reverse();
   let 本地值246, 密码245, 主机名244, 代理端口;
   if (本地值247) {
     const 本地值243 = 本地值247.split(":");
@@ -5658,15 +5736,23 @@ function 解析代理配置(地址249) {
     [本地值246, 密码245] = 本地值243;
   }
   const 本地值242 = 本地值248.split(":");
-  代理端口 = Number(本地值242.pop());
-  if (isNaN(代理端口)) throw new Error(错误_无效代理地址);
+  const 末段值 = 本地值242.pop();
+  代理端口 = Number(末段值);
+  // 隧道模式允许省略端口，按明文 80 / 安全 443 兜底
+  if (isNaN(代理端口)) {
+    if (代理种类 === 代理种类_套接字5) throw new Error(错误_无效代理地址);
+    本地值242.push(末段值);
+    代理端口 = 代理种类 === 代理种类_安全隧道 ? 443 : 80;
+  }
   主机名244 = 本地值242.join(":");
+  if (!主机名244) throw new Error(错误_无效代理地址);
   if (主机名244.includes(":") && !/^\[.*\]$/.test(主机名244)) throw new Error(错误_无效代理地址);
   return {
     username: 本地值246,
     password: 密码245,
     hostname: 主机名244,
-    socksPort: 代理端口
+    socksPort: 代理端口,
+    kind: 代理种类
   };
 }
 async function 处理订阅值(请求241, 用户240 = null) {
@@ -5715,7 +5801,7 @@ async function 处理订阅值(请求241, 用户240 = null) {
       kvEnabled: '✅ KV存储已启用，可以使用配置管理功能',
       kvDisabled: '⚠️ KV存储未启用或未配置',
       specifyRegion: '指定地区 (wk):',
-      autoDetect: '自动检测',
+      autoDetect: 解码64('5a6Y5pa555u06L+e'),
       saveRegion: '保存地区配置',
       protocolSelection: '协议选择:',
       enableVLESS: '启用 VLESS 协议',
@@ -5764,7 +5850,7 @@ async function 处理订阅值(请求241, 用户240 = null) {
       enableGitHubPreferred: '启用自定义优选',
       allowAPIManagement: '允许API管理 (ae):',
       regionMatching: '地区匹配 (rm):',
-      downgradeControl: '降级控制 (qj):',
+      downgradeControl: 解码64('5Ye656uZ5pa55byPIChxaik6'),
       tlsControl: 'TLS控制 (dkby):',
       preferredControl: '优选控制 (yxby):',
       saveAdvanced: '保存高级配置',
@@ -5805,9 +5891,10 @@ async function 处理订阅值(请求241, 用户240 = null) {
       regionMatchingDefault: '默认（启用地区匹配）',
       regionMatchingNo: '关闭地区匹配',
       regionMatchingHint: '设置为"关闭"时不进行地区智能匹配',
-      downgradeControlDefault: '默认（不启用降级）',
-      downgradeControlNo: '启用降级模式',
-      downgradeControlHint: '设置为"启用"时：CF直连失败→SOCKS5连接→fallback地址',
+      downgradeControlDefault: 解码64('5LyY5YWI6LWw5Luj55CG77yI6buY6K6k77yJ'),
+      downgradeControlNo: 解码64('5LyY5YWI55u06L+e77yM5aSx6LSl5YaN6LWw5Luj55CG'),
+      downgradeControlOnly: 解码64('5Y+q6LWw5Luj55CG77yM5LiN5Zue6JC9'),
+      downgradeControlHint: 解码64('6K6+572u5Li6IuWPqui1sOS7o+eQhiLml7bvvJrku4XotbDku6PnkIbvvIzlpLHotKXkuI3lm57okL3vvJsi5LyY5YWI55u06L+eIuaXtu+8muebtOi/nuWksei0peWQjui1sOS7o+eQhg=='),
       tlsControlDefault: '默认（保留所有节点）',
       tlsControlYes: '仅TLS节点',
       tlsControlHint: '设置为"仅TLS节点"时只生成带TLS的节点，不生成非TLS节点（如80端口）',
@@ -5815,6 +5902,7 @@ async function 处理订阅值(请求241, 用户240 = null) {
       preferredControlYes: '关闭优选',
       preferredControlHint: '设置为"关闭优选"时只使用原生地址，不生成优选IP和域名节点',
       regionNames: {
+        CF: 解码64('8J+MkCDlrpjmlrnnm7Tov54='),
         HK: '🇭🇰 香港',
         US: '🇺🇸 美国',
         SG: '🇸🇬 新加坡',
@@ -5826,7 +5914,7 @@ async function 处理订阅值(请求241, 用户240 = null) {
         FI: '🇫🇮 芬兰',
         GB: '🇬🇧 英国'
       },
-      terminal: '终端 v2.9.8c',
+      terminal: '终端 v3.0',
       githubProject: 'GitHub 项目',
       优选工具: '优选工具',
       autoDetectClient: '自动识别',
@@ -5842,7 +5930,7 @@ async function 处理订阅值(请求241, 用户240 = null) {
       [特征码字典[0] + 'Available']: `10/10 可用 (${特征码字典[0]}域名预设可用)`,
       smartSelection: '智能就近选择中',
       sameRegionIP: '同地区IP可用 (1个)',
-      cloudflareDetection: 'Cloudflare内置检测',
+      cloudflareDetection: 解码64('5a6Y5pa555u06L+e'),
       detectionFailed: '检测失败',
       apiTestResult: 'API检测结果: ',
       apiTestTime: '检测时间: ',
@@ -5873,7 +5961,7 @@ async function 处理订阅值(请求241, 用户240 = null) {
       kvEnabled: '✅ ذخیره‌سازی KV فعال است، می‌توانید از مدیریت تنظیمات استفاده کنید',
       kvDisabled: '⚠️ ذخیره‌سازی KV فعال نیست یا پیکربندی نشده است',
       specifyRegion: 'تعیین منطقه (wk):',
-      autoDetect: 'تشخیص خودکار',
+      autoDetect: 'اتصال مستقیم رسمی',
       saveRegion: 'ذخیره تنظیمات منطقه',
       protocolSelection: 'انتخاب پروتکل:',
       enableVLESS: 'فعال‌سازی پروتکل VLESS',
@@ -5965,7 +6053,8 @@ async function 处理订阅值(请求241, 用户240 = null) {
       regionMatchingHint: 'وقتی "بستن" تنظیم شود، تطبیق هوشمند منطقه انجام نمی‌شود',
       downgradeControlDefault: 'پیش‌فرض (عدم فعال‌سازی کاهش سطح)',
       downgradeControlNo: 'فعال‌سازی حالت کاهش سطح',
-      downgradeControlHint: 'وقتی "فعال" تنظیم شود: اتصال مستقیم CF ناموفق → اتصال SOCKS5 → آدرس fallback',
+      downgradeControlOnly: 'فقط پروکسی، بدون بازگشت',
+      downgradeControlHint: 'وقتی "فقط پروکسی" انتخاب شود: فقط از پروکسی استفاده کرده و در صورت شکست بازگشتی ندارد؛ وقتی "کاهش سطح" انتخاب شود: ابتدا مستقیم وصل شده و در صورت شکست به پروکسی برمی‌گردد',
       tlsControlDefault: 'پیش‌فرض (حفظ همه گره‌ها)',
       tlsControlYes: 'فقط گره‌های TLS',
       tlsControlHint: 'وقتی "فقط گره‌های TLS" تنظیم شود، فقط گره‌های با TLS تولید می‌شوند، گره‌های غیر TLS (مانند پورت 80) تولید نمی‌شوند',
@@ -5973,6 +6062,7 @@ async function 处理订阅值(请求241, 用户240 = null) {
       preferredControlYes: 'بستن ترجیح',
       preferredControlHint: 'وقتی "بستن ترجیح" تنظیم شود، فقط از آدرس اصلی استفاده می‌شود، گره‌های IP و دامنه ترجیحی تولید نمی‌شوند',
       regionNames: {
+        CF: '🌐 مستقیم رسمی',
         HK: '🇭🇰 هنگ کنگ',
         US: '🇺🇸 آمریکا',
         SG: '🇸🇬 سنگاپور',
@@ -5984,7 +6074,7 @@ async function 处理订阅值(请求241, 用户240 = null) {
         FI: '🇫🇮 فنلاند',
         GB: '🇬🇧 بریتانیا'
       },
-      terminal: 'ترمینال v2.9.8c',
+      terminal: 'ترمینال v3.0',
       githubProject: 'پروژه GitHub',
       优选工具: 'ابزار ترجیح IP',
       autoDetectClient: 'تشخیص خودکار',
@@ -6000,7 +6090,7 @@ async function 处理订阅值(请求241, 用户240 = null) {
       [特征码字典[0] + 'Available']: `10/10 در دسترس (دامنه پیش‌فرض ${特征码字典[0]} در دسترس است)`,
       smartSelection: 'انتخاب هوشمند نزدیک در حال انجام است',
       sameRegionIP: 'IP هم‌منطقه در دسترس است (1)',
-      cloudflareDetection: 'تشخیص داخلی Cloudflare',
+      cloudflareDetection: 'اتصال مستقیم رسمی',
       detectionFailed: 'تشخیص ناموفق',
       apiTestResult: 'نتیجه تشخیص API: ',
       apiTestTime: 'زمان تشخیص: ',
@@ -7202,7 +7292,7 @@ async function 处理订阅值(请求241, 用户240 = null) {
                         </div>
                         <div style="margin-bottom: 15px;">
                                 <label style="display: block; margin-bottom: 8px; color: #00f0ff; font-weight: bold; text-shadow: 0 0 3px #00f0ff;">${翻译值.socks5Config}</label>
-                                <input type="text" id="socksConfig" placeholder="${是否值236 ? 'مثال: user:pass@host:port یا host:port' : '例如: user:pass@host:port 或 host:port'}" style="width: 100%; padding: 12px; background: rgba(0, 0, 0, 0.8); border: 2px solid #00f0ff; color: #00f0ff; font-family: 'Courier New', monospace; font-size: 14px;">
+                                <input type="text" id="socksConfig" placeholder="${是否值236 ? 'مثال: user:pass@host:port یا http://user:pass@host:port' : '例如: user:pass@host:port 或 http://user:pass@host:port'}" style="width: 100%; padding: 12px; background: rgba(0, 0, 0, 0.8); border: 2px solid #00f0ff; color: #00f0ff; font-family: 'Courier New', monospace; font-size: 14px;">
                                 <small style="color: #7aa9c4; font-size: 0.85rem;">${是否值236 ? 'آدرس پروکسی SOCKS5، برای انتقال تمام ترافیک خروجی استفاده می‌شود' : 'SOCKS5代理地址，用于转发所有出站流量'}</small>
                         </div>
                     </form>
@@ -7309,6 +7399,7 @@ async function 处理订阅值(请求241, 用户240 = null) {
                             <select id="downgradeControl" style="width: 100%; padding: 12px; background: rgba(0, 0, 0, 0.8); border: 2px solid #00f0ff; color: #00f0ff; font-family: 'Courier New', monospace; font-size: 14px;">
                                     <option value="">${翻译值.downgradeControlDefault}</option>
                                     <option value="no">${翻译值.downgradeControlNo}</option>
+                                    <option value="only">${翻译值.downgradeControlOnly}</option>
                             </select>
                                 <small style="color: #7aa9c4; font-size: 0.85rem;">${翻译值.downgradeControlHint}</small>
                         </div>
@@ -7742,6 +7833,7 @@ async function 检查系统状态() {
         currentIP: '当前使用IP: ',
         regionMatch: '地区匹配: ',
         regionNames: {
+          'CF': '${解码64('8J+MkCDlrpjmlrnnm7Tov54=')}',
           'HK': '🇭🇰 香港',
           'US': '🇺🇸 美国',
           'SG': '🇸🇬 新加坡',
@@ -7763,7 +7855,7 @@ async function 检查系统状态() {
         [特征码字典[0] + 'Available']: '10/10 可用 (' + 特征码字典[0] + '域名预设可用)',
         smartSelection: '智能就近选择中',
         sameRegionIP: '同地区IP可用 (1个)',
-        cloudflareDetection: 'Cloudflare内置检测',
+        cloudflareDetection: '${解码64('5a6Y5pa555u06L+e')}',
         detectionFailed: '检测失败',
         unknown: '未知'
       },
@@ -7774,6 +7866,7 @@ async function 检查系统状态() {
         currentIP: 'IP فعلی: ',
         regionMatch: 'تطبیق منطقه: ',
         regionNames: {
+          'CF': '🌐 مستقیم رسمی',
           'HK': '🇭🇰 هنگ کنگ',
           'US': '🇺🇸 آمریکا',
           'SG': '🇸🇬 سنگاپور',
@@ -7795,7 +7888,7 @@ async function 检查系统状态() {
         [特征码字典[0] + 'Available']: '10/10 در دسترس (دامنه پیش‌فرض ' + 特征码字典[0] + ' در دسترس است)',
         smartSelection: 'انتخاب هوشمند نزدیک در حال انجام است',
         sameRegionIP: 'IP هم‌منطقه در دسترس است (1)',
-        cloudflareDetection: 'تشخیص داخلی Cloudflare',
+        cloudflareDetection: 'اتصال مستقیم رسمی',
         detectionFailed: 'تشخیص ناموفق',
         unknown: 'ناشناخته'
       }
@@ -8408,6 +8501,11 @@ document.addEventListener('DOMContentLoaded', function () {
       同步联动界面状态();
     });
   }
+<<<<<<< local_明文源吗
+=======
+
+
+>>>>>>> upstream_明文源吗
   const 自定义路径输入 = document.getElementById('customPath');
   if (自定义路径输入) {
     自定义路径输入.addEventListener('input', function () {
@@ -9603,11 +9701,24 @@ async function 读取扩展超文本头部(本地值180, 唯一标识字符串) 
     mode: 'byob'
   });
   try {
-    let 结果值178 = await 读取器179.readAtLeast(1 + 16 + 1, 获取扩展超文本缓冲());
+    // ★ 兼容性：readAtLeast 为较新 API，运行时缺失时回退到 read
+    const 兼容读取 = (最小字节, 缓冲) => typeof 读取器179.readAtLeast === 'function' ? 读取器179.readAtLeast(最小字节, 缓冲) : 读取器179.read(缓冲);
+    let 结果值178 = await 兼容读取(1 + 16 + 1, 获取扩展超文本缓冲());
     let 本地值177 = 0;
     let 索引 = 0;
-    let 缓存 = 结果值178.value;
+    let 缓存 = 结果值178.value; // 原始累积缓冲：从流起点开始、从不丢弃
     本地值177 += 结果值178.value.length;
+    // ★ 隐私增强：xhttp 首包剥离 0xED7F 魔数+随机填充（与 WS 路径一致），剥离后仍需 ≥ 18 字节
+    let 有效数据 = 智能剥离填充(缓存);
+    while (有效数据.length < 1 + 16 + 1 && !结果值178.done) {
+      结果值178 = await 兼容读取(1 + 16 + 1, 获取扩展超文本缓冲());
+      if (!结果值178.value || 结果值178.value.length === 0) break; // 空读防御，防死循环
+      缓存 = 处理值值值(缓存, 结果值178.value); // 追加到原始累积缓冲
+      本地值177 = 缓存.length;
+      有效数据 = 智能剥离填充(缓存); // 对完整原始缓冲重新整块剥离（魔数在起点，幂等正确）
+    }
+    缓存 = 有效数据; // 后续解析全部基于剥离后数据
+    本地值177 = 缓存.length;
     const 本地值176 = 缓存[0];
     const 标识175 = 缓存.slice(1, 1 + 16);
     const 唯一标识174 = 解析唯一标识扩展超文本(唯一标识字符串);
@@ -9621,7 +9732,7 @@ async function 读取扩展超文本头部(本地值180, 唯一标识字符串) 
         return `header too short`;
       }
       索引 = 地址值1 + 1 - 本地值177;
-      结果值178 = await 读取器179.readAtLeast(索引, 获取扩展超文本缓冲());
+      结果值178 = await 兼容读取(索引, 获取扩展超文本缓冲());
       本地值177 += 结果值178.value.length;
       缓存 = 处理值值值(缓存, 结果值178.value);
     }
@@ -9647,7 +9758,7 @@ async function 读取扩展超文本头部(本地值180, 唯一标识字符串) 
       if (结果值178.done) {
         return `read address failed`;
       }
-      结果值178 = await 读取器179.readAtLeast(索引, 获取扩展超文本缓冲());
+      结果值178 = await 兼容读取(索引, 获取扩展超文本缓冲());
       本地值177 += 结果值178.value.length;
       缓存 = 处理值值值(缓存, 结果值178.value);
     }
@@ -9822,7 +9933,7 @@ function 创建扩展超文本值(本地值150, 远程值) {
     }
   };
 }
-async function 连接值远程扩展超文本(本地值135, ...本地值134) {
+async function 连接值远程扩展超文本(本地值135, 请求值fetcher = null, ...本地值134) {
   // 提取末尾的代理配置参数（如果有）
   const 最后参数 = 本地值134.length > 0 ? 本地值134[本地值134.length - 1] : null;
   const 是否代理参数 = 最后参数 && typeof 最后参数 === 'object' && 'socksPort' in 最后参数;
@@ -9831,21 +9942,29 @@ async function 连接值远程扩展超文本(本地值135, ...本地值134) {
   let 本地值133 = 0;
   let 值错误;
   const 连接列表 = [本地值135.hostname, ...主机列表.filter(结果值 => 结果值 && 结果值 !== 本地值135.hostname)];
-  for (const 主机名 of 连接列表) {
-    if (!主机名) continue;
+  for (const 候选主机 of 连接列表) {
+    if (!候选主机) continue;
+    // ★ 加固 B：候选主机可能为 host:port 格式（如回退地址），按候选拆分主机与专属端口
+    let 主机名 = 候选主机;
+    let 候选端口 = null;
+    const 端口匹配 = /^(.*):(\d+)$/.exec(候选主机);
+    if (端口匹配 && !端口匹配[1].includes(':')) { // 拆出的主机部分仍含 ':' 视为 IPv6，原样保留不拆分
+      主机名 = 端口匹配[1];
+      候选端口 = parseInt(端口匹配[2], 10);
+    }
     本地值133 = 0;
     while (本地值133 < 上限值196) {
       本地值133++;
       try {
         const 远程 = xhttp代理配置
-          ? await 处理值代理连接(地址类型_网址, 主机名, 本地值135.port, xhttp代理配置)
-          : 连接({
-              hostname: 主机名,
-              port: 本地值135.port
-            });
+          ? await 处理值代理连接(地址类型_网址, 主机名, 候选端口 ?? 本地值135.port, xhttp代理配置)
+          : (请求值fetcher && typeof 请求值fetcher.connect === 'function'
+              ? 请求值fetcher.connect({ hostname: 主机名, port: 候选端口 ?? 本地值135.port })
+              : 连接({ hostname: 主机名, port: 候选端口 ?? 本地值135.port }));
         const 超时承诺 = 处理扩展超文本值195(连接超时值).then(() => {
           throw new Error(atob('Y29ubmVjdCB0aW1lb3V0'));
         });
+        超时承诺.catch(() => {}); // 挂独立 catch 链吞掉 race 输家的拒绝，不改变 race 语义
         await Promise.race([远程.opened, 超时承诺]);
         const 本地值132 = 创建扩展超文本值159(本地值135, 远程.writable);
         const 本地值131 = 创建扩展超文本值(本地值135.resp, 远程.readable);
@@ -9868,7 +9987,7 @@ async function 连接值远程扩展超文本(本地值135, ...本地值134) {
   }
   return null;
 }
-async function 处理扩展超文本客户端(主体128, 唯一标识, 代理配置 = null) {
+async function 处理扩展超文本客户端(主体128, 唯一标识, 代理配置 = null, 请求值fetcher = null) {
   if (值值197 >= 上限值) {
     return new Response('Too many connections', {
       status: 429
@@ -9943,7 +10062,7 @@ async function 处理扩展超文本客户端(主体128, 唯一标识, 代理配
         headers: { 'Content-Type': 'application/octet-stream', 'X-Accel-Buffering': 'no', 'Cache-Control': 'no-store' }
       });
     }
-    const 远程连接 = await 连接值远程扩展超文本(本地值125, 回退地址, '13.230.34.30', 代理配置);
+    const 远程连接 = await 连接值远程扩展超文本(本地值125, 请求值fetcher, 回退地址, 代理配置);
     if (远程连接 === null) {
       return null;
     }
@@ -9989,7 +10108,8 @@ async function 处理扩展超文本客户端(主体128, 唯一标识, 代理配
 }
 async function 处理扩展超文本值(请求119, 代理配置 = null) {
   try {
-    return await 处理扩展超文本客户端(请求119.body, 认证令牌, 代理配置);
+    const 请求值fetcher = 请求119?.fetcher;
+    return await 处理扩展超文本客户端(请求119.body, 认证令牌, 代理配置, 请求值fetcher);
   } catch (错误118) {
     return new Response('Internal Server Error', { status: 500 });
   }
@@ -10042,13 +10162,7 @@ async function 获取值解析新地址列表() {
           });
         }
       }
-      // 优选 IP 更新成功 → 异步递增 c_ver 使缓存失效
-      const 版本值 = configVersion || '0';
-      const 新版本值 = String(parseInt(版本值) + 1);
-      configVersion = 新版本值;
-      const cverP2 = 键值存储.put('c_ver', 新版本值);
-      cverP2.catch(e => console.warn('[c_ver] write fail:', e?.message || e));
-      if (执行上下文) 执行上下文.waitUntil(cverP2);
+      await 失效配置缓存('api', 接口结果列表);
       return 结果列表110;
     }
     const 响应107 = await fetchWithTimeout(网址113, {}, 10000);
@@ -10070,13 +10184,7 @@ async function 获取值解析新地址列表() {
       }
     }
     if (结果列表105.length > 0) {
-      // 优选 IP 更新成功 → 异步递增 c_ver 使缓存失效
-      const 版本值 = configVersion || '0';
-      const 新版本值 = String(parseInt(版本值) + 1);
-      configVersion = 新版本值;
-      const cverP3 = 键值存储.put('c_ver', 新版本值);
-      cverP3.catch(e => console.warn('[c_ver] write fail:', e?.message || e));
-      if (执行上下文) 执行上下文.waitUntil(cverP3);
+      await 失效配置缓存('url', 行列表104);
     }
     return 结果列表105;
   } catch (错误101) {
@@ -10316,7 +10424,7 @@ async function 处理配置接口(请求54, 环境值 = {}) {
     }
   });
 }
-async function 处理优选地址列表接口(请求) {
+async function 处理优选地址列表接口(请求, 环境值 = {}) {
   if (!键值存储) {
     return new Response(JSON.stringify({
       success: false,
@@ -10329,7 +10437,7 @@ async function 处理优选地址列表接口(请求) {
       }
     });
   }
-  const 本地值52 = 获取配置值('ae', '') === 'yes';
+  const 本地值52 = 获取配置值('ae', 环境值?.ae || 环境值?.AE || '') === 'yes';
   if (!本地值52) {
     return new Response(JSON.stringify({
       success: false,
@@ -10383,8 +10491,16 @@ async function 处理优选地址列表接口(请求) {
           });
           continue;
         }
-        const 端口43 = 项目44.port || 443;
-        const 名称 = 项目44.name || `API优选-${项目44.ip}:${端口43}`;
+        const 原始端口43 = 项目44.port;
+        const 端口43 = 原始端口43 === undefined || 原始端口43 === null || 原始端口43 === '' ? 443 : parseInt(原始端口43, 10);
+        if (isNaN(端口43) || 端口43 < 1 || 端口43 > 65535) {
+          错误列表.push({
+            ip: 项目44.ip || '未知',
+            reason: `无效的端口: ${原始端口43}`
+          });
+          continue;
+        }
+        const 名称 = String(项目44.name || '').replace(/[#,\r\n]/g, ' ').trim() || `API优选-${项目44.ip}:${端口43}`;
         if (!是否有效地址(项目44.ip) && !是否有效域名(项目44.ip)) {
           错误列表.push({
             ip: 项目44.ip,
@@ -10432,7 +10548,12 @@ async function 处理优选地址列表接口(请求) {
         }
       });
     } else if (请求.method === 'DELETE') {
-      const 主体 = await 请求.json();
+      let 主体;
+      try {
+        主体 = await 请求.json();
+      } catch (错误) {
+        return new Response(JSON.stringify({ success: false, error: '请求体格式错误', message: 'DELETE 需要 JSON 请求体,如 {"all": true} 或 {"ip":"1.2.3.4","port":443}' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
+      }
       if (主体.all === true) {
         const 值值40 = 获取配置值('yx', '');
         const 本地值39 = 解析值值数组(值值40);
@@ -10550,7 +10671,9 @@ function 更新配置值() {
   自定义加密客户端问候域名 = 有效配置.customECHDomain || 配置默认值.customECHDomain;
   自定义应用层协议协商 = 规范化应用层协议协商(有效配置.alpn || '');
   禁用非传输层安全 = 有效配置.dkby === 'yes' || 启用加密客户端问候;
-  启用代理降级 = !!(有效配置.qj && 有效配置.qj.toLowerCase() === 'no');
+  const 降级控制值 = (有效配置.qj || '').toLowerCase();
+  启用代理降级 = 降级控制值 === 'no';
+  仅走代理 = 降级控制值 === 'only';
   自定义路径 = 有效配置.d || '';
   优选地址源 = 有效配置.yxURL || '';
   回退地址 = 有效配置.p ? 有效配置.p.trim() : '';
@@ -10629,14 +10752,16 @@ function 解析值值数组(值值) {
       address: 地址,
       port: 端口18
     } = 解析地址值端口(地址部分);
+    if (!地址 || (!是否有效地址(地址) && !是否有效域名(地址))) {
+      continue;
+    }
     if (!节点名称) {
       节点名称 = 地址 + (端口18 ? ':' + 端口18 : '');
     }
     结果.push({
       ip: 地址,
       port: 端口18 || 443,
-      name: 节点名称,
-      addedAt: new Date().toISOString()
+      name: 节点名称
     });
   }
   return 结果;
@@ -10645,7 +10770,8 @@ function 处理数组值值(数组) {
   if (!数组 || 数组.length === 0) return '';
   return 数组.map(项目 => {
     const 端口17 = 项目.port || 443;
-    return `${项目.ip}:${端口17}#${项目.name}`;
+    const 地址17 = 项目.ip && 项目.ip.includes(':') && !项目.ip.startsWith('[') ? `[${项目.ip}]` : 项目.ip;
+    return `${地址17}:${端口17}#${String(项目.name || '').replace(/[#,\r\n]/g, ' ').trim()}`;
   }).join(',');
 }
 function 是否有效域名(域名) {

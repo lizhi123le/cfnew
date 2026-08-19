@@ -1,4 +1,4 @@
-# CFnew - 终端 v2.9.9
+# CFnew - 终端 v3.0
 
 **语言:** [中文](README.md) | [فارسی](فارسی.md)
 
@@ -16,6 +16,15 @@
 - 应用唤醒：点按钮自动打开对应客户端
 - 自动识别：根据User-Agent自动返回对应格式
 - 多语言：支持中文和波斯语，根据浏览器语言自动切换
+
+## v3.0 更新
+
+- 「指定地区 (wk)」的第一项从「自动检测」改成「官方直连」
+  - 留空时直接用内置的官方地址，不再探测 Worker 所在地区去匹配第三方 ProxyIP 域名
+  - **不占用 `p` 变量**，`p` 仍然留给你手填自己的 ProxyIP
+  - 想指定落地地区，照旧在下拉里选具体国家
+- 删掉了地区自动探测逻辑，少一层不确定性，也少一个外部依赖
+- 说明：CF 是任播，同一个地址在不同位置访问会落到不同机房，所以按地区挑 IP 没意义
 
 ## v2.9.9 更新
 
@@ -172,37 +181,31 @@
 #### API使用
 1. 下载优选软件：https://github.com/byJoey/yx-tools/releases
 2. 开启API：访问 `/{UUID}` 或 `/{自定义路径}`，找到"允许API管理"，开启后保存
-3. 默认需要管理员令牌认证：先 `POST /api/login` 获取令牌（15分钟有效、绑定UA），请求时携带 `Authorization: Bearer <令牌>`；仅对 `/api/preferred-ips` 推送接口生效，其他管理路由始终需要认证
-4. 可选：跳过令牌认证——设置环境变量 `API_NO_AUTH=yes`（或在KV中配置 `api_no_auth=yes`）后，`/api/preferred-ips` 不再校验令牌，方便脚本匿名上传。注意：开启后任何人知道 UUID/自定义路径 即可推送，请权衡风险后使用
-5. 添加单个IP：
+3. 添加单个IP：
 ```bash
-# 使用UUID路径（默认需令牌认证）
+# 使用UUID路径
 curl -X POST "https://your-worker.workers.dev/{UUID}/api/preferred-ips" \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer <令牌>" \
   -d '{"ip": "1.2.3.4", "port": 443, "name": "香港节点"}'
 
 # 使用自定义路径（如果设置了d变量）
 curl -X POST "https://your-worker.workers.dev/{自定义路径}/api/preferred-ips" \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer <令牌>" \
   -d '{"ip": "1.2.3.4", "port": 443, "name": "香港节点"}'
 ```
-6. 批量添加IP：
+4. 批量添加IP：
 ```bash
 curl -X POST "https://your-worker.workers.dev/{UUID或自定义路径}/api/preferred-ips" \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer <令牌>" \
   -d '[
     {"ip": "1.2.3.4", "port": 443, "name": "节点1"},
     {"ip": "5.6.7.8", "port": 8443, "name": "节点2"}
   ]'
 ```
-7. 清空所有IP：
+5. 清空所有IP：
 ```bash
 curl -X DELETE "https://your-worker.workers.dev/{UUID或自定义路径}/api/preferred-ips" \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer <令牌>" \
   -d '{"all": true}'
 ```
 
@@ -225,6 +228,21 @@ v2.7开始提供，v2.9增强了筛选功能
 - 支持按地区筛选
 - 支持只显示最快的10个
 - 支持追加或替换模式
+
+#### 官方直连
+
+v3.0 开始，「指定地区 (wk)」留空就是官方直连，这也是默认值，什么都不用配。
+
+以前留空叫「自动检测」：Worker 先探测自己在哪个国家，再去匹配第三方的 ProxyIP 域名。
+现在留空直接用内置地址，不探测、不联网、不依赖别人的域名。
+
+- 内置 10 个实测可用的 Cloudflare 官方地址，分布在 10 个不同 /24 段，避免整段被墙时全灭
+- 每次连接从里面随机取一个，不是固定某一个
+- **不占用 `p` 变量**。`p` 是留给你手填自己的 ProxyIP 的，填了就以你的为准，内置地址不会覆盖
+- 想指定落地地区，在下拉里选具体国家，那条路径走的还是原来的地区匹配
+
+关于为什么不做「按地区选 IP」：Cloudflare 是任播（anycast），同一个 IP 在不同位置访问，
+落到的机房不一样。挑 IP 决定不了你落地在哪，做成地区列表属于误导。
 
 #### 多协议支持
 
