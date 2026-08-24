@@ -1,4 +1,4 @@
-// CFnew - 终端 版本: v3.0
+// CFnew - 终端 版本: v3.0.0
 class RequestContext {
   constructor(env) {
     this.env = env;
