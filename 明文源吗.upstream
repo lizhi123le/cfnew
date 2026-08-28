@@ -438,9 +438,10 @@ function 处理值应用层协议协商值(参数774) {
   if (应用层协议协商) 参数774.set('alpn', 应用层协议协商);
 }
 async function 处理值键值值(本地值773) {
-  if (本地值773.C) {
+  const 键值绑定 = 本地值773.C || 本地值773.c;
+  if (键值绑定) {
     try {
-      键值存储 = 本地值773.C;
+      键值存储 = 键值绑定;
       await 加载键值配置();
     } catch (错误772) {
       键值存储 = null;
@@ -807,17 +808,29 @@ export default {
         });
       }
       if (请求735.method === 'POST' && 启用扩展传输) {
+        const { 头: 叉填充头, 键: 叉填充键 } = 获取叉HTTP填充标识(认证令牌);
+        if (!校验叉HTTP填充(请求735, 叉填充头, 叉填充键)) {
+          return new Response('Bad Request', {
+            status: 400
+          });
+        }
         const 结果值684 = await 处理扩展超文本值(请求735);
         if (结果值684) {
           本地值733.waitUntil(结果值684.closed);
+          const 响应头684 = {
+            'X-Accel-Buffering': 'no',
+            'Cache-Control': 'no-store',
+            Connection: 'keep-alive',
+            'User-Agent': 'Go-http-client/2.0',
+            'Content-Type': 'application/grpc'
+          };
+          try {
+            const 响应填充 = new URL('https://x.invalid/');
+            响应填充.searchParams.set(叉填充键, 生成叉HTTP填充串(100 + Math.floor(Math.random() * 901)));
+            响应头684[叉填充头] = 响应填充.toString();
+          } catch (忽略684) {}
           return new Response(结果值684.readable, {
-            headers: {
-              'X-Accel-Buffering': 'no',
-              'Cache-Control': 'no-store',
-              Connection: 'keep-alive',
-              'User-Agent': 'Go-http-client/2.0',
-              'Content-Type': 'application/grpc'
-            }
+            headers: 响应头684
           });
         }
         return new Response('Internal Server Error', {
@@ -7901,6 +7914,64 @@ const 连接超时值 = 5000;
 const 值超时值 = 45000;
 const 上限值196 = 2;
 const 上限值 = 32;
+const 叉HTTP霍夫曼码长 = [
+13, 23, 28, 28, 28, 28, 28, 28, 28, 24, 30, 28, 28, 30, 28, 28,
+	28, 28, 28, 28, 28, 28, 30, 28, 28, 28, 28, 28, 28, 28, 28, 28,
+	6, 10, 10, 12, 13, 6, 8, 11, 10, 10, 8, 11, 8, 6, 6, 6,
+	5, 5, 5, 6, 6, 6, 6, 6, 6, 6, 7, 8, 15, 6, 12, 10,
+	13, 6, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
+	7, 7, 7, 7, 7, 7, 7, 7, 8, 7, 8, 13, 19, 13, 14, 6,
+	15, 5, 6, 5, 6, 5, 6, 6, 6, 5, 7, 7, 6, 6, 6, 5,
+	6, 7, 6, 5, 5, 6, 7, 7, 7, 7, 7, 15, 11, 14, 13, 28,
+	20, 22, 20, 20, 22, 22, 22, 23, 22, 23, 23, 23, 23, 23, 24, 23,
+	24, 24, 22, 23, 24, 23, 23, 23, 23, 21, 22, 23, 22, 23, 23, 24,
+	22, 21, 20, 22, 22, 23, 23, 21, 23, 22, 22, 24, 21, 22, 23, 23,
+	21, 21, 22, 21, 23, 22, 23, 23, 20, 22, 22, 22, 23, 22, 22, 23,
+	26, 26, 20, 19, 22, 23, 22, 25, 26, 26, 26, 27, 27, 26, 24, 25,
+	19, 21, 26, 27, 27, 26, 27, 24, 21, 21, 26, 26, 28, 27, 27, 27,
+	20, 24, 20, 21, 22, 21, 21, 23, 22, 22, 25, 25, 24, 24, 26, 23,
+	26, 27, 26, 26, 27, 27, 27, 27, 27, 28, 27, 27, 27, 27, 27, 26,
+	30
+];
+// xhttp 抗指纹填充：从 UUID 派生隐蔽的头名/键名，与订阅侧 extra 约定一致
+function 获取叉HTTP填充标识(标识串) {
+  return { 头: 标识串.slice(1, 7), 键: '_' + 标识串.slice(25, 31) };
+}
+function 计算叉HTTP霍夫曼字节长度(字符串) {
+  const 字节 = new TextEncoder().encode(字符串);
+  let 总位数 = 0;
+  for (let 索引 = 0; 索引 < 字节.length; 索引++) 总位数 += 叉HTTP霍夫曼码长[字节[索引]];
+  return Math.ceil(总位数 / 8);
+}
+function 提取叉HTTP填充值(请求, 填充头, 填充键) {
+  const 头值 = 请求.headers.get(填充头);
+  if (头值) {
+    try {
+      const 解析 = new URL(头值, 'https://x.invalid');
+      const 查询值 = 解析.searchParams.get(填充键);
+      if (查询值) return 查询值;
+    } catch (忽略) {}
+    return 头值;
+  }
+  try {
+    return new URL(请求.url).searchParams.get(填充键) || '';
+  } catch (忽略) {
+    return '';
+  }
+}
+function 校验叉HTTP填充(请求, 填充头, 填充键) {
+  const 填充 = 提取叉HTTP填充值(请求, 填充头, 填充键);
+  if (!填充) return true;
+  const 长度 = 计算叉HTTP霍夫曼字节长度(填充);
+  return 长度 >= 98 && 长度 <= 1002;
+}
+const 叉HTTP填充字符集 = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
+function 生成叉HTTP填充串(长度) {
+  const 字符集长度 = 叉HTTP填充字符集.length;
+  let 结果 = '';
+  for (let 索引 = 0; 索引 < 长度; 索引++) 结果 += 叉HTTP填充字符集[Math.floor(Math.random() * 字符集长度)];
+  return 结果;
+}
 function 处理扩展超文本值195(本地值194) {
   return new Promise(结果值193 => setTimeout(结果值193, 本地值194));
 }
@@ -8167,46 +8238,71 @@ function 创建扩展超文本值(本地值150, 远程值) {
     }
   };
 }
-async function 连接值远程扩展超文本(本地值135, ...本地值134) {
-  let 本地值133 = 0;
-  let 值错误;
-  const 连接列表 = [本地值135.hostname, ...本地值134.filter(结果值 => 结果值 && 结果值 !== 本地值135.hostname)];
-  for (const 主机名 of 连接列表) {
-    if (!主机名) continue;
-    本地值133 = 0;
-    while (本地值133 < 上限值196) {
-      本地值133++;
+// 用一个远程套接字装配上下行器：uploader 负责写 vless 首包与后续上行，downloader 回灌 resp+下行
+function 装配扩展超文本连接(首包, 远程套接字) {
+  const uploader = 创建扩展超文本值159(首包, 远程套接字.writable);
+  const downloader = 创建扩展超文本值(首包.resp, 远程套接字.readable);
+  return {
+    downloader,
+    uploader,
+    close: () => {
       try {
-        const 远程 = 连接({
-          hostname: 主机名,
-          port: 本地值135.port
-        });
-        const 超时承诺 = 处理扩展超文本值195(连接超时值).then(() => {
-          throw new Error(atob('Y29ubmVjdCB0aW1lb3V0'));
-        });
-        await Promise.race([远程.opened, 超时承诺]);
-        const 本地值132 = 创建扩展超文本值159(本地值135, 远程.writable);
-        const 本地值131 = 创建扩展超文本值(本地值135.resp, 远程.readable);
-        return {
-          downloader: 本地值131,
-          uploader: 本地值132,
-          close: () => {
-            try {
-              远程.close();
-            } catch (忽略值130) {}
-          }
-        };
-      } catch (错误129) {
-        值错误 = 错误129;
-        if (本地值133 < 上限值196) {
-          await 处理扩展超文本值195(500 * 本地值133);
+        远程套接字.close();
+      } catch (忽略关闭) {}
+    }
+  };
+}
+// 出站决策与 ws 的 处理值值384 对齐：接入 s（代理）、wk/rm（地区匹配备用地址）、qj（代理降级/仅走代理）
+async function 连接值远程扩展超文本(首包, 请求值扩展 = null) {
+  const 主机 = 首包.hostname;
+  const 端口 = 首包.port;
+  const 直连 = async (地址, 端口值) => 连接值套接字(地址, 端口值, 请求值扩展, 传输连接竞速数);
+  const 走代理 = async (地址, 端口值) => 处理值代理连接(地址类型_网址, 地址, 端口值, 已解析代理5配置, 请求值扩展, null);
+  // 计算回退目标：优先 p（回退地址），否则按 wk/rm 取地区匹配备用地址
+  const 取回退目标 = async () => {
+    if (回退地址 && 回退地址.trim()) {
+      const 已解析 = 解析地址值端口(回退地址);
+      return {
+        address: 已解析.address,
+        port: 已解析.port || 端口
+      };
+    }
+    const 备用 = await 获取值备用地址(当前工作器地区, 启用地区匹配);
+    return 备用 ? {
+      address: 备用.domain,
+      port: 备用.port
+    } : {
+      address: 主机,
+      port: 端口
+    };
+  };
+  const 首跳走代理 = 仅走代理 && 是否代理已启用 ? true : 启用代理降级 ? false : 是否代理已启用;
+  try {
+    const 套接字 = 首跳走代理 ? await 走代理(主机, 端口) : await 直连(主机, 端口);
+    return 装配扩展超文本连接(首包, 套接字);
+  } catch (首跳错误) {
+    // 只走代理：首跳失败不回落直连，避免出口 IP 泄漏
+    if (仅走代理 && 是否代理已启用) return null;
+    try {
+      if (启用代理降级 && 是否代理已启用) {
+        try {
+          const 代理套接字 = await 走代理(主机, 端口);
+          return 装配扩展超文本连接(首包, 代理套接字);
+        } catch (代理错误) {
+          const 回退 = await 取回退目标();
+          const 回退套接字 = await 直连(回退.address, 回退.port);
+          return 装配扩展超文本连接(首包, 回退套接字);
         }
       }
+      const 回退 = await 取回退目标();
+      const 回退套接字 = 是否代理已启用 ? await 走代理(回退.address, 回退.port) : await 直连(回退.address, 回退.port);
+      return 装配扩展超文本连接(首包, 回退套接字);
+    } catch (回退错误) {
+      return null;
     }
   }
-  return null;
 }
-async function 处理扩展超文本客户端(主体128, 唯一标识) {
+async function 处理扩展超文本客户端(主体128, 唯一标识, 请求值扩展 = null) {
   if (值值197 >= 上限值) {
     return new Response('Too many connections', {
       status: 429
@@ -8225,7 +8321,7 @@ async function 处理扩展超文本客户端(主体128, 唯一标识) {
     if (typeof 本地值125 !== 'object' || !本地值125) {
       return null;
     }
-    const 远程连接 = await 连接值远程扩展超文本(本地值125, 回退地址, '13.230.34.30');
+    const 远程连接 = await 连接值远程扩展超文本(本地值125, 请求值扩展);
     if (远程连接 === null) {
       return null;
     }
@@ -8260,7 +8356,7 @@ async function 处理扩展超文本客户端(主体128, 唯一标识) {
 }
 async function 处理扩展超文本值(请求119) {
   try {
-    return await 处理扩展超文本客户端(请求119.body, 认证令牌);
+    return await 处理扩展超文本客户端(请求119.body, 认证令牌, 请求119.fetcher);
   } catch (错误118) {
     return null;
   }
@@ -8306,7 +8402,7 @@ async function 获取值解析新地址列表() {
         const 本地值108 = 项目109.match(正则);
         if (本地值108) {
           结果列表110.push({
-            ip: 本地值108[1],
+            ip: 规范化节点主机(本地值108[1]),
             port: parseInt(本地值108[2] || '443', 10),
             name: 本地值108[3]?.trim() || 本地值108[1]
           });
@@ -8401,6 +8497,14 @@ function 生成扩展超文本链接列表来源源(列表76, 用户75, 工作�
       path: `/${节点路径}`,
       mode: 'stream-one'
     });
+    const { 头: 叉填充头65, 键: 叉填充键65 } = 获取叉HTTP填充标识(用户75);
+    参数.set('extra', JSON.stringify({
+      xPaddingObfsMode: true,
+      xPaddingMethod: 'tokenish',
+      xPaddingPlacement: 'queryInHeader',
+      xPaddingHeader: 叉填充头65,
+      xPaddingKey: 叉填充键65
+    }));
     处理值应用层协议协商值(参数);
     if (启用加密客户端问候) {
       const 域名系统值64 = 自定义域名系统 || 'https://223.5.5.5/dns-query';

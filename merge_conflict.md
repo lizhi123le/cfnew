@@ -1,12 +1,11 @@
 # 合并冲突报告
-## 冲突时间: Wed Aug 19 18:13:21 UTC 2026
-## 上游更新哈希: aa0897f6c1fb63e9025147efe3f76cc6091ac8b02814f1b6f99fd5645dc1afbc
+## 冲突时间: Fri Aug 28 07:10:13 UTC 2026
+## 上游更新哈希: edbee6aa68a418b65bc68f062f50ac1cb9dafa9f13176951c166815e983e871b
 
 以下文件包含冲突标记，需要手动解决：
 
 ```
-<<<<<<< local_明文源吗
-// CFnew - 终端 版本: v2.9.9
+// CFnew - 终端 版本: v3.0
 class RequestContext {
   constructor(env) {
     this.env = env;
@@ -47,19 +46,6 @@ const 智能剥离填充 = (data) => {
 	return data.subarray(4 + padLen); // 跳过 [魔数][长度][填充]
 };
 let 认证令牌 = null;  // 用户必须通过环境变量 u 配置
-=======
-// CFnew - 终端 v3.0
-// 版本: v3.0 
-import { connect as 连接 } from 'cloudflare:sockets';
-const 基础64文本解码器 = new TextDecoder();
-function 解码64(文本) {
-  const 二进制 = atob(文本);
-  const 字节 = new Uint8Array(二进制.length);
-  for (let 索引 = 0; 索引 < 二进制.length; 索引++) 字节[索引] = 二进制.charCodeAt(索引);
-  return 基础64文本解码器.decode(字节);
-}
-let 认证令牌 = '351c9981-04b6-4103-aa4b-864aa9c91469';
->>>>>>> upstream_明文源吗
 let 回退地址 = '';
 let 代理5配置 = '';
 let 自定义优选地址列表 = [];
@@ -747,10 +733,16 @@ function 处理值应用层协议协商值(参数774) {
   const 应用层协议协商 = 规范化应用层协议协商(自定义应用层协议协商);
   if (应用层协议协商) 参数774.set('alpn', 应用层协议协商);
 }
+<<<<<<< local_明文源吗
 async function 处理值键值值(ctxState, 本地值773) {
   if (本地值773.C) {
+=======
+async function 处理值键值值(本地值773) {
+  const 键值绑定 = 本地值773.C || 本地值773.c;
+  if (键值绑定) {
+>>>>>>> upstream_明文源吗
     try {
-      键值存储 = 本地值773.C;
+      键值存储 = 键值绑定;
       await 加载键值配置();
       // 复用 加载键值配置 中已读取的 键值配置版本，避免二次 KV 读取竞态
       configVersion = 键值配置版本 || '';
@@ -1724,6 +1716,7 @@ export default {
       // xhttp 代理参数解析（与 WebSocket 处理一致）
       let xhttp请求代理配置 = null;
       if (请求735.method === 'POST' && 启用扩展传输) {
+<<<<<<< local_明文源吗
         try {
           const xhttp请求网址 = new URL(请求735.url);
           const xhttp代理字符串 = xhttp请求网址.searchParams.get('s') || '';
@@ -1737,9 +1730,31 @@ export default {
         if (结果值684 instanceof Response) {
           return 结果值684;
         }
+=======
+        const { 头: 叉填充头, 键: 叉填充键 } = 获取叉HTTP填充标识(认证令牌);
+        if (!校验叉HTTP填充(请求735, 叉填充头, 叉填充键)) {
+          return new Response('Bad Request', {
+            status: 400
+          });
+        }
+        const 结果值684 = await 处理扩展超文本值(请求735);
+>>>>>>> upstream_明文源吗
         if (结果值684) {
           本地值733.waitUntil(结果值684.closed);
+          const 响应头684 = {
+            'X-Accel-Buffering': 'no',
+            'Cache-Control': 'no-store',
+            Connection: 'keep-alive',
+            'User-Agent': 'Go-http-client/2.0',
+            'Content-Type': 'application/grpc'
+          };
+          try {
+            const 响应填充 = new URL('https://x.invalid/');
+            响应填充.searchParams.set(叉填充键, 生成叉HTTP填充串(100 + Math.floor(Math.random() * 901)));
+            响应头684[叉填充头] = 响应填充.toString();
+          } catch (忽略684) {}
           return new Response(结果值684.readable, {
+<<<<<<< local_明文源吗
             headers: {
               'X-Accel-Buffering': 'no',
               'Cache-Control': 'no-store',
@@ -1747,6 +1762,9 @@ export default {
               'User-Agent': 'Go-http-client/2.0',
               'Content-Type': 'application/octet-stream'
             }
+=======
+            headers: 响应头684
+>>>>>>> upstream_明文源吗
           });
         }
         return new Response('Internal Server Error', {
@@ -1915,13 +1933,8 @@ export default {
           const 语言值661 = 是否值664 ? 'fa-IR' : 'zh-CN';
           const 本地值660 = {
             zh: {
-<<<<<<< local_明文源吗
-              title: '终端 v2.9.9',
-               terminal: '终端 v2.9.9',
-=======
               title: '终端 v3.0',
-              terminal: '终端 v3.0',
->>>>>>> upstream_明文源吗
+               terminal: '终端 v3.0',
               congratulations: '恭喜你来到这',
               enterU: '请输入你U变量的值',
               enterD: '请输入你D变量的值',
@@ -1937,13 +1950,8 @@ export default {
               reenter: '请重新输入有效的UUID'
             },
             fa: {
-<<<<<<< local_明文源吗
-              title: 'ترمینال v2.9.9',
-               terminal: 'ترمینال v2.9.9',
-=======
               title: 'ترمینال v3.0',
-              terminal: 'ترمینال v3.0',
->>>>>>> upstream_明文源吗
+               terminal: 'ترمینال v3.0',
               congratulations: 'تبریک می‌گوییم به شما',
               enterU: 'لطفا مقدار متغیر U خود را وارد کنید',
               enterD: 'لطفا مقدار متغیر D خود را وارد کنید',
@@ -4129,22 +4137,16 @@ async function 处理订阅请求(请求507, 用户506, 网址505 = null) {
         if (启用明文) {
           最终链接列表.push(...生成链接列表来源新地址列表(过滤后新地址列表, 用户506, 工作器域名504, 加密客户端问候配置501, false, 别名命名器502));
         }
-<<<<<<< local_明文源吗
         if (启用木马) {
           最终链接列表.push(...(await 生成木马链接列表来源新地址列表(过滤后新地址列表, 用户506, 工作器域名504, 加密客户端问候配置501, false, 别名命名器502)));
         }
         if (启用扩展传输) {
           最终链接列表.push(...生成扩展超文本链接列表来源源(过滤后新地址列表, 用户506, 工作器域名504, 加密客户端问候配置501, false, 别名命名器502));
-=======
-      } catch (错误486) {
-        if (!当前工作器地区) {
-          当前工作器地区 = 'CF';
->>>>>>> upstream_明文源吗
         }
       }
     } catch (错误486) {
       if (!当前工作器地区) {
-        当前工作器地区 = await 检测工作器地区(请求507);
+        当前工作器地区 = 'CF';
       }
        const 值备用地址485 = await 获取值备用地址(当前工作器地区);
        if (值备用地址485) {
@@ -7866,7 +7868,6 @@ async function 检查系统状态() {
         currentIP: 'IP فعلی: ',
         regionMatch: 'تطبیق منطقه: ',
         regionNames: {
-          'CF': '🌐 مستقیم رسمی',
           'HK': '🇭🇰 هنگ کنگ',
           'US': '🇺🇸 آمریکا',
           'SG': '🇸🇬 سنگاپور',
@@ -8501,11 +8502,6 @@ document.addEventListener('DOMContentLoaded', function () {
       同步联动界面状态();
     });
   }
-<<<<<<< local_明文源吗
-=======
-
-
->>>>>>> upstream_明文源吗
   const 自定义路径输入 = document.getElementById('customPath');
   if (自定义路径输入) {
     自定义路径输入.addEventListener('input', function () {
@@ -9647,6 +9643,64 @@ const 连接超时值 = 5000;
 const 值超时值 = 30000;
 const 上限值196 = 2;
 const 上限值 = 32;
+const 叉HTTP霍夫曼码长 = [
+13, 23, 28, 28, 28, 28, 28, 28, 28, 24, 30, 28, 28, 30, 28, 28,
+	28, 28, 28, 28, 28, 28, 30, 28, 28, 28, 28, 28, 28, 28, 28, 28,
+	6, 10, 10, 12, 13, 6, 8, 11, 10, 10, 8, 11, 8, 6, 6, 6,
+	5, 5, 5, 6, 6, 6, 6, 6, 6, 6, 7, 8, 15, 6, 12, 10,
+	13, 6, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
+	7, 7, 7, 7, 7, 7, 7, 7, 8, 7, 8, 13, 19, 13, 14, 6,
+	15, 5, 6, 5, 6, 5, 6, 6, 6, 5, 7, 7, 6, 6, 6, 5,
+	6, 7, 6, 5, 5, 6, 7, 7, 7, 7, 7, 15, 11, 14, 13, 28,
+	20, 22, 20, 20, 22, 22, 22, 23, 22, 23, 23, 23, 23, 23, 24, 23,
+	24, 24, 22, 23, 24, 23, 23, 23, 23, 21, 22, 23, 22, 23, 23, 24,
+	22, 21, 20, 22, 22, 23, 23, 21, 23, 22, 22, 24, 21, 22, 23, 23,
+	21, 21, 22, 21, 23, 22, 23, 23, 20, 22, 22, 22, 23, 22, 22, 23,
+	26, 26, 20, 19, 22, 23, 22, 25, 26, 26, 26, 27, 27, 26, 24, 25,
+	19, 21, 26, 27, 27, 26, 27, 24, 21, 21, 26, 26, 28, 27, 27, 27,
+	20, 24, 20, 21, 22, 21, 21, 23, 22, 22, 25, 25, 24, 24, 26, 23,
+	26, 27, 26, 26, 27, 27, 27, 27, 27, 28, 27, 27, 27, 27, 27, 26,
+	30
+];
+// xhttp 抗指纹填充：从 UUID 派生隐蔽的头名/键名，与订阅侧 extra 约定一致
+function 获取叉HTTP填充标识(标识串) {
+  return { 头: 标识串.slice(1, 7), 键: '_' + 标识串.slice(25, 31) };
+}
+function 计算叉HTTP霍夫曼字节长度(字符串) {
+  const 字节 = new TextEncoder().encode(字符串);
+  let 总位数 = 0;
+  for (let 索引 = 0; 索引 < 字节.length; 索引++) 总位数 += 叉HTTP霍夫曼码长[字节[索引]];
+  return Math.ceil(总位数 / 8);
+}
+function 提取叉HTTP填充值(请求, 填充头, 填充键) {
+  const 头值 = 请求.headers.get(填充头);
+  if (头值) {
+    try {
+      const 解析 = new URL(头值, 'https://x.invalid');
+      const 查询值 = 解析.searchParams.get(填充键);
+      if (查询值) return 查询值;
+    } catch (忽略) {}
+    return 头值;
+  }
+  try {
+    return new URL(请求.url).searchParams.get(填充键) || '';
+  } catch (忽略) {
+    return '';
+  }
+}
+function 校验叉HTTP填充(请求, 填充头, 填充键) {
+  const 填充 = 提取叉HTTP填充值(请求, 填充头, 填充键);
+  if (!填充) return true;
+  const 长度 = 计算叉HTTP霍夫曼字节长度(填充);
+  return 长度 >= 98 && 长度 <= 1002;
+}
+const 叉HTTP填充字符集 = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
+function 生成叉HTTP填充串(长度) {
+  const 字符集长度 = 叉HTTP填充字符集.length;
+  let 结果 = '';
+  for (let 索引 = 0; 索引 < 长度; 索引++) 结果 += 叉HTTP填充字符集[Math.floor(Math.random() * 字符集长度)];
+  return 结果;
+}
 function 处理扩展超文本值195(本地值194) {
   return new Promise(结果值193 => setTimeout(结果值193, 本地值194));
 }
@@ -9933,6 +9987,7 @@ function 创建扩展超文本值(本地值150, 远程值) {
     }
   };
 }
+<<<<<<< local_明文源吗
 async function 连接值远程扩展超文本(本地值135, 请求值fetcher = null, ...本地值134) {
   // 提取末尾的代理配置参数（如果有）
   const 最后参数 = 本地值134.length > 0 ? 本地值134[本地值134.length - 1] : null;
@@ -9981,13 +10036,77 @@ async function 连接值远程扩展超文本(本地值135, 请求值fetcher = n
         值错误 = 错误129;
         if (本地值133 < 上限值196) {
           await 处理扩展超文本值195(500 * 本地值133);
+=======
+// 用一个远程套接字装配上下行器：uploader 负责写 vless 首包与后续上行，downloader 回灌 resp+下行
+function 装配扩展超文本连接(首包, 远程套接字) {
+  const uploader = 创建扩展超文本值159(首包, 远程套接字.writable);
+  const downloader = 创建扩展超文本值(首包.resp, 远程套接字.readable);
+  return {
+    downloader,
+    uploader,
+    close: () => {
+      try {
+        远程套接字.close();
+      } catch (忽略关闭) {}
+    }
+  };
+}
+// 出站决策与 ws 的 处理值值384 对齐：接入 s（代理）、wk/rm（地区匹配备用地址）、qj（代理降级/仅走代理）
+async function 连接值远程扩展超文本(首包, 请求值扩展 = null) {
+  const 主机 = 首包.hostname;
+  const 端口 = 首包.port;
+  const 直连 = async (地址, 端口值) => 连接值套接字(地址, 端口值, 请求值扩展, 传输连接竞速数);
+  const 走代理 = async (地址, 端口值) => 处理值代理连接(地址类型_网址, 地址, 端口值, 已解析代理5配置, 请求值扩展, null);
+  // 计算回退目标：优先 p（回退地址），否则按 wk/rm 取地区匹配备用地址
+  const 取回退目标 = async () => {
+    if (回退地址 && 回退地址.trim()) {
+      const 已解析 = 解析地址值端口(回退地址);
+      return {
+        address: 已解析.address,
+        port: 已解析.port || 端口
+      };
+    }
+    const 备用 = await 获取值备用地址(当前工作器地区, 启用地区匹配);
+    return 备用 ? {
+      address: 备用.domain,
+      port: 备用.port
+    } : {
+      address: 主机,
+      port: 端口
+    };
+  };
+  const 首跳走代理 = 仅走代理 && 是否代理已启用 ? true : 启用代理降级 ? false : 是否代理已启用;
+  try {
+    const 套接字 = 首跳走代理 ? await 走代理(主机, 端口) : await 直连(主机, 端口);
+    return 装配扩展超文本连接(首包, 套接字);
+  } catch (首跳错误) {
+    // 只走代理：首跳失败不回落直连，避免出口 IP 泄漏
+    if (仅走代理 && 是否代理已启用) return null;
+    try {
+      if (启用代理降级 && 是否代理已启用) {
+        try {
+          const 代理套接字 = await 走代理(主机, 端口);
+          return 装配扩展超文本连接(首包, 代理套接字);
+        } catch (代理错误) {
+          const 回退 = await 取回退目标();
+          const 回退套接字 = await 直连(回退.address, 回退.port);
+          return 装配扩展超文本连接(首包, 回退套接字);
+>>>>>>> upstream_明文源吗
         }
       }
+      const 回退 = await 取回退目标();
+      const 回退套接字 = 是否代理已启用 ? await 走代理(回退.address, 回退.port) : await 直连(回退.address, 回退.port);
+      return 装配扩展超文本连接(首包, 回退套接字);
+    } catch (回退错误) {
+      return null;
     }
   }
-  return null;
 }
+<<<<<<< local_明文源吗
 async function 处理扩展超文本客户端(主体128, 唯一标识, 代理配置 = null, 请求值fetcher = null) {
+=======
+async function 处理扩展超文本客户端(主体128, 唯一标识, 请求值扩展 = null) {
+>>>>>>> upstream_明文源吗
   if (值值197 >= 上限值) {
     return new Response('Too many connections', {
       status: 429
@@ -10062,7 +10181,11 @@ async function 处理扩展超文本客户端(主体128, 唯一标识, 代理配
         headers: { 'Content-Type': 'application/octet-stream', 'X-Accel-Buffering': 'no', 'Cache-Control': 'no-store' }
       });
     }
+<<<<<<< local_明文源吗
     const 远程连接 = await 连接值远程扩展超文本(本地值125, 请求值fetcher, 回退地址, 代理配置);
+=======
+    const 远程连接 = await 连接值远程扩展超文本(本地值125, 请求值扩展);
+>>>>>>> upstream_明文源吗
     if (远程连接 === null) {
       return null;
     }
@@ -10108,8 +10231,12 @@ async function 处理扩展超文本客户端(主体128, 唯一标识, 代理配
 }
 async function 处理扩展超文本值(请求119, 代理配置 = null) {
   try {
+<<<<<<< local_明文源吗
     const 请求值fetcher = 请求119?.fetcher;
     return await 处理扩展超文本客户端(请求119.body, 认证令牌, 代理配置, 请求值fetcher);
+=======
+    return await 处理扩展超文本客户端(请求119.body, 认证令牌, 请求119.fetcher);
+>>>>>>> upstream_明文源吗
   } catch (错误118) {
     return new Response('Internal Server Error', { status: 500 });
   }
@@ -10156,7 +10283,7 @@ async function 获取值解析新地址列表() {
         const 本地值108 = 通配替换项109.match(正则);
         if (本地值108) {
           结果列表110.push({
-            ip: 本地值108[1],
+            ip: 规范化节点主机(本地值108[1]),
             port: parseInt(本地值108[2] || '443', 10),
             name: 本地值108[3]?.trim() || 本地值108[1]
           });
@@ -10275,6 +10402,14 @@ function 生成扩展超文本链接列表来源源(列表76, 用户75, 工作�
       path: 启用随机路径 ? 随机路径('/?ed=2048') : `/${节点路径}`,
       mode: 'stream-one'
     });
+    const { 头: 叉填充头65, 键: 叉填充键65 } = 获取叉HTTP填充标识(用户75);
+    参数.set('extra', JSON.stringify({
+      xPaddingObfsMode: true,
+      xPaddingMethod: 'tokenish',
+      xPaddingPlacement: 'queryInHeader',
+      xPaddingHeader: 叉填充头65,
+      xPaddingKey: 叉填充键65
+    }));
     处理值应用层协议协商值(参数);
     if (启用加密客户端问候) {
       const 域名系统值64 = 自定义域名系统 || 'https://cloudflare-dns.com/dns-query';

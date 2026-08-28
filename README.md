@@ -1,4 +1,4 @@
-# CFnew - 终端 v3.0.0
+# CFnew - 终端 v3.0
 
 **语言:** [中文](README.md) | [فارسی](فارسی.md)
 
@@ -437,4 +437,4 @@ path 示例：
 
 ## Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=byJoey/cfnew&type=Timeline)](https://www.star-history.com/#byJoey/cfnew&Timeline&LogScale)
+[![Star History Chart](https://star-history.dera.page/svg?repos=byJoey/cfnew&type=Timeline)](https://star-history.dera.page/#byJoey/cfnew&Timeline&LogScale)
