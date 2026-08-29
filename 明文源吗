@@ -3009,80 +3009,60 @@ async function 生成木马链接列表来源源(列表455, 用户454, 工作器
   }
   return 链接列表447;
 }
+async function 计算值摘要(文本434) {
+  const 缓冲区434 = await crypto.subtle.digest('MD5', new TextEncoder().encode(文本434));
+  return Array.from(new Uint8Array(缓冲区434)).map(字节434 => 字节434.toString(16).padStart(2, '0')).join('');
+}
 async function 获取值地址列表() {
-  const 值4网址1 = "https://www.wetest.vip/page/cloudflare/address_v4.html";
-  const 值6网址1 = "https://www.wetest.vip/page/cloudflare/address_v6.html";
-  let 结果列表433 = [];
-
-  // 读取筛选配置（默认全部启用）
+  const 分组线路映射 = {
+    ctcc: '电信',
+    cucc: '联通',
+    cmcc: '移动',
+    bgp: '多线',
+    ipv6: 'IPv6'
+  };
   const 值4已启用 = 获取配置值('ipv4', '') === '' || 获取配置值('ipv4', 'yes') !== 'no';
   const 值6已启用 = 获取配置值('ipv6', '') === '' || 获取配置值('ipv6', 'yes') !== 'no';
   const 值值432 = 获取配置值('ispMobile', '') === '' || 获取配置值('ispMobile', 'yes') !== 'no';
   const 值值431 = 获取配置值('ispUnicom', '') === '' || 获取配置值('ispUnicom', 'yes') !== 'no';
   const 值值430 = 获取配置值('ispTelecom', '') === '' || 获取配置值('ispTelecom', 'yes') !== 'no';
   try {
-    const 获取承诺列表 = [];
-    if (值4已启用) {
-      获取承诺列表.push(获取值解析值(值4网址1));
-    } else {
-      获取承诺列表.push(Promise.resolve([]));
-    }
-    if (值6已启用) {
-      获取承诺列表.push(获取值解析值(值6网址1));
-    } else {
-      获取承诺列表.push(Promise.resolve([]));
-    }
-    const [值4列表, 值6列表] = await Promise.all(获取承诺列表);
-    结果列表433 = [...值4列表, ...值6列表];
-
-    // 按运营商筛选
-    if (结果列表433.length > 0) {
-      结果列表433 = 结果列表433.filter(项目429 => {
-        const 本地值428 = 项目429.isp || '';
-        if (本地值428.includes('移动') && !值值432) return false;
-        if (本地值428.includes('联通') && !值值431) return false;
-        if (本地值428.includes('电信') && !值值430) return false;
-        return true;
-      });
-    }
-    if (结果列表433.length > 0) {
-      return 结果列表433;
-    }
-  } catch (事件值427) {}
-  return [];
-}
-async function 获取值解析值(网址426) {
-  try {
-    const 响应425 = await fetch(网址426, {
+    const 时间戳434 = String(Date.now());
+    const 内层摘要434 = await 计算值摘要(解码64('RGRsVHh0TjBzVU91'));
+    const 请求密钥434 = await 计算值摘要(内层摘要434 + 解码64('NzBjbG91ZGZsYXJlYXBpa2V5') + 时间戳434);
+    const 响应434 = await fetch(`${解码64('aHR0cHM6Ly9hcGkudW91aW4uY29tL2luZGV4LnBocC9pbmRleC9DbG91ZGZsYXJl')}?key=${请求密钥434}&time=${时间戳434}`, {
       headers: {
         'User-Agent': 'Mozilla/5.0'
       }
     });
-    if (!响应425.ok) {
-      return [];
-    }
-    const 页面 = await 响应425.text();
-    const 结果列表424 = [];
-    const 值正则423 = /<tr[\s\S]*?<\/tr>/g;
-    const 值正则422 = /<td data-label="线路名称">(.+?)<\/td>[\s\S]*?<td data-label="优选地址">([\d.:a-fA-F]+)<\/td>[\s\S]*?<td data-label="数据中心">(.+?)<\/td>/;
-    let 本地值421;
-    while ((本地值421 = 值正则423.exec(页面)) !== null) {
-      const 值页面420 = 本地值421[0];
-      const 值值419 = 值页面420.match(值正则422);
-      if (值值419 && 值值419[1] && 值值419[2]) {
-        const 机房 = 值值419[3] ? 值值419[3].trim().replace(/<.*?>/g, '') : '';
-        结果列表424.push({
-          isp: 值值419[1].trim().replace(/<.*?>/g, ''),
-          ip: 值值419[2].trim(),
-          colo: 机房
+    if (!响应434.ok) return [];
+    const 数据434 = await 响应434.json();
+    const 分组集合434 = 数据434 && 数据434.data;
+    if (!分组集合434) return [];
+    const 结果列表433 = [];
+    for (const 分组名434 of Object.keys(分组线路映射)) {
+      const 是否值6434 = 分组名434 === 'ipv6';
+      if (是否值6434 && !值6已启用) continue;
+      if (!是否值6434 && !值4已启用) continue;
+      const 线路名434 = 分组线路映射[分组名434];
+      if (线路名434 === '移动' && !值值432) continue;
+      if (线路名434 === '联通' && !值值431) continue;
+      if (线路名434 === '电信' && !值值430) continue;
+      const 分组434 = 分组集合434[分组名434];
+      const 条目列表434 = 分组434 && Array.isArray(分组434.info) ? 分组434.info : [];
+      for (const 条目434 of 条目列表434) {
+        const 地址434 = 规范化节点主机(条目434 && 条目434.ip);
+        if (!地址434) continue;
+        结果列表433.push({
+          isp: 线路名434,
+          ip: 地址434,
+          colo: ''
         });
       }
     }
-    if (结果列表424.length === 0) {}
-    return 结果列表424;
-  } catch (错误418) {
-    return [];
-  }
+    return 结果列表433;
+  } catch (事件值427) {}
+  return [];
 }
 async function 处理网页套接字请求(请求417) {
   // 从请求URL的path query中读取客户端自定义参数
