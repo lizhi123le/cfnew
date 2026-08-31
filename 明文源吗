@@ -4282,7 +4282,7 @@ function 生成链接列表来源源(列表482, 用户481, 工作器域名480, �
           encryption: 'none',
           security: 'tls',
           sni: 节点主机,
-          fp: 启用加密客户端问候 ? 'chrome' : 'randomized',
+          fp: 启用加密客户端问候 ? 'chrome' : 'chrome',
           type: 'ws',
           host: 节点主机,
           path: 当前节点路径457
@@ -10250,7 +10250,7 @@ function 生成链接列表来源新地址列表(列表100, 用户99, 工作器�
         encryption: 'none',
         security: 'tls',
         sni: 节点主机,
-        fp: 启用加密客户端问候 ? 'chrome' : 'randomized',
+        fp: 启用加密客户端问候 ? 'chrome' : 'chrome',
         type: 'ws',
         host: 节点主机,
         path: 当前节点路径91
@@ -10281,7 +10281,7 @@ function 生成链接列表来源新地址列表(列表100, 用户99, 工作器�
         encryption: 'none',
         security: 'tls',
         sni: 节点主机,
-        fp: 启用加密客户端问候 ? 'chrome' : 'randomized',
+        fp: 启用加密客户端问候 ? 'chrome' : 'chrome',
         type: 'ws',
         host: 节点主机,
         path: 当前节点路径91
