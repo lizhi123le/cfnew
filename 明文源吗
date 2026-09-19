@@ -1412,14 +1412,14 @@ export default {
             const hsts头 = ['1', 'true'].includes(本地值734.HSTS_ENABLE) ? { 'Strict-Transport-Security': 'max-age=31536000; includeSubDomains; preload' } : {};
             if (await 检查永久黑名单(客户端IP)) {
               console.warn(`[永久黑名单] IP ${客户端IP} 命中永久黑名单，直接拦截`);
-              return new Response(await nginx(), { status: 429, headers: { 'Content-Type': 'text/html; charset=UTF-8', 'Retry-After': '3600', ...hsts头 } });
+              return new Response(await html1101(请求网址731.host, 客户端IP), { status: 200, headers: { 'Content-Type': 'text/html; charset=UTF-8', ...hsts头 } });
             }
             if (!检查速率限制(客户端IP)) {
               console.warn(`[速率限制] IP ${客户端IP} 超过非管理员路径请求限制`);
               // 将触限 IP 写入 KV（ttl 与限流窗口一致），便于 Dashboard 查看
               if (键值存储) withTimeout(键值存储.put('ratelimit:' + 客户端IP, new Date().toISOString(), { expirationTtl: 3600 }), 2000, 'KV 速率限制写入超时').catch(() => {});
               本地值733.waitUntil(记录违规并检查拉黑(客户端IP, 本地值733));
-              return new Response(await nginx(), { status: 429, headers: { 'Content-Type': 'text/html; charset=UTF-8', 'Retry-After': '3600', ...hsts头 } });
+              return new Response(await html1101(请求网址731.host, 客户端IP), { status: 200, headers: { 'Content-Type': 'text/html; charset=UTF-8', ...hsts头 } });
             }
             记录速率限制请求(客户端IP);
           }
