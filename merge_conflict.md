@@ -1,6 +1,6 @@
 # 合并冲突报告
-## 冲突时间: Fri Aug 28 07:10:13 UTC 2026
-## 上游更新哈希: edbee6aa68a418b65bc68f062f50ac1cb9dafa9f13176951c166815e983e871b
+## 冲突时间: Sun Sep 20 19:51:16 UTC 2026
+## 上游更新哈希: ae4cb83c25b92c5666a8bb874c6647c74092d150ca3d1f6df6f891fc3214c76a
 
 以下文件包含冲突标记，需要手动解决：
 
@@ -733,16 +733,10 @@ function 处理值应用层协议协商值(参数774) {
   const 应用层协议协商 = 规范化应用层协议协商(自定义应用层协议协商);
   if (应用层协议协商) 参数774.set('alpn', 应用层协议协商);
 }
-<<<<<<< local_明文源吗
 async function 处理值键值值(ctxState, 本地值773) {
   if (本地值773.C) {
-=======
-async function 处理值键值值(本地值773) {
-  const 键值绑定 = 本地值773.C || 本地值773.c;
-  if (键值绑定) {
->>>>>>> upstream_明文源吗
     try {
-      键值存储 = 键值绑定;
+      键值存储 = 本地值773.C;
       await 加载键值配置();
       // 复用 加载键值配置 中已读取的 键值配置版本，避免二次 KV 读取竞态
       configVersion = 键值配置版本 || '';
@@ -1425,14 +1419,14 @@ export default {
             const hsts头 = ['1', 'true'].includes(本地值734.HSTS_ENABLE) ? { 'Strict-Transport-Security': 'max-age=31536000; includeSubDomains; preload' } : {};
             if (await 检查永久黑名单(客户端IP)) {
               console.warn(`[永久黑名单] IP ${客户端IP} 命中永久黑名单，直接拦截`);
-              return new Response(await nginx(), { status: 429, headers: { 'Content-Type': 'text/html; charset=UTF-8', 'Retry-After': '3600', ...hsts头 } });
+              return new Response(await html1101(请求网址731.host, 客户端IP), { status: 200, headers: { 'Content-Type': 'text/html; charset=UTF-8', ...hsts头 } });
             }
             if (!检查速率限制(客户端IP)) {
               console.warn(`[速率限制] IP ${客户端IP} 超过非管理员路径请求限制`);
               // 将触限 IP 写入 KV（ttl 与限流窗口一致），便于 Dashboard 查看
               if (键值存储) withTimeout(键值存储.put('ratelimit:' + 客户端IP, new Date().toISOString(), { expirationTtl: 3600 }), 2000, 'KV 速率限制写入超时').catch(() => {});
               本地值733.waitUntil(记录违规并检查拉黑(客户端IP, 本地值733));
-              return new Response(await nginx(), { status: 429, headers: { 'Content-Type': 'text/html; charset=UTF-8', 'Retry-After': '3600', ...hsts头 } });
+              return new Response(await html1101(请求网址731.host, 客户端IP), { status: 200, headers: { 'Content-Type': 'text/html; charset=UTF-8', ...hsts头 } });
             }
             记录速率限制请求(客户端IP);
           }
@@ -1716,7 +1710,6 @@ export default {
       // xhttp 代理参数解析（与 WebSocket 处理一致）
       let xhttp请求代理配置 = null;
       if (请求735.method === 'POST' && 启用扩展传输) {
-<<<<<<< local_明文源吗
         try {
           const xhttp请求网址 = new URL(请求735.url);
           const xhttp代理字符串 = xhttp请求网址.searchParams.get('s') || '';
@@ -1726,19 +1719,16 @@ export default {
         } catch (忽略值) {}
       }
       if (请求735.method === 'POST' && 启用扩展传输) {
-        const 结果值684 = await 处理扩展超文本值(请求735, xhttp请求代理配置);
-        if (结果值684 instanceof Response) {
-          return 结果值684;
-        }
-=======
         const { 头: 叉填充头, 键: 叉填充键 } = 获取叉HTTP填充标识(认证令牌);
         if (!校验叉HTTP填充(请求735, 叉填充头, 叉填充键)) {
           return new Response('Bad Request', {
             status: 400
           });
         }
-        const 结果值684 = await 处理扩展超文本值(请求735);
->>>>>>> upstream_明文源吗
+        const 结果值684 = await 处理扩展超文本值(请求735, xhttp请求代理配置);
+        if (结果值684 instanceof Response) {
+          return 结果值684;
+        }
         if (结果值684) {
           本地值733.waitUntil(结果值684.closed);
           const 响应头684 = {
@@ -1746,7 +1736,7 @@ export default {
             'Cache-Control': 'no-store',
             Connection: 'keep-alive',
             'User-Agent': 'Go-http-client/2.0',
-            'Content-Type': 'application/grpc'
+            'Content-Type': 'application/octet-stream'
           };
           try {
             const 响应填充 = new URL('https://x.invalid/');
@@ -1754,17 +1744,7 @@ export default {
             响应头684[叉填充头] = 响应填充.toString();
           } catch (忽略684) {}
           return new Response(结果值684.readable, {
-<<<<<<< local_明文源吗
-            headers: {
-              'X-Accel-Buffering': 'no',
-              'Cache-Control': 'no-store',
-              Connection: 'keep-alive',
-              'User-Agent': 'Go-http-client/2.0',
-              'Content-Type': 'application/octet-stream'
-            }
-=======
             headers: 响应头684
->>>>>>> upstream_明文源吗
           });
         }
         return new Response('Internal Server Error', {
@@ -4308,8 +4288,15 @@ function 生成链接列表来源源(列表482, 用户481, 工作器域名480, �
         const 网页套接字参数459 = new URLSearchParams({
           encryption: 'none',
           security: 'tls',
+<<<<<<< local_明文源吗
           sni: 节点主机,
-          fp: 启用加密客户端问候 ? 'chrome' : 'randomized',
+          fp: 启用加密客户端问候 ? 'chrome' : 'chrome',
+=======
+          sni: 工作器域名480,
+          // randomized fingerprint may cause TLS compatibility issues with some Xray/uTLS clients.
+          // Use chrome as default for better compatibility (chrome is also required when ECH is enabled).
+          fp: 'chrome',
+>>>>>>> upstream_明文源吗
           type: 'ws',
           host: 节点主机,
           path: 当前节点路径457
@@ -9644,23 +9631,23 @@ const 值超时值 = 30000;
 const 上限值196 = 2;
 const 上限值 = 32;
 const 叉HTTP霍夫曼码长 = [
-13, 23, 28, 28, 28, 28, 28, 28, 28, 24, 30, 28, 28, 30, 28, 28,
-	28, 28, 28, 28, 28, 28, 30, 28, 28, 28, 28, 28, 28, 28, 28, 28,
-	6, 10, 10, 12, 13, 6, 8, 11, 10, 10, 8, 11, 8, 6, 6, 6,
-	5, 5, 5, 6, 6, 6, 6, 6, 6, 6, 7, 8, 15, 6, 12, 10,
-	13, 6, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
-	7, 7, 7, 7, 7, 7, 7, 7, 8, 7, 8, 13, 19, 13, 14, 6,
-	15, 5, 6, 5, 6, 5, 6, 6, 6, 5, 7, 7, 6, 6, 6, 5,
-	6, 7, 6, 5, 5, 6, 7, 7, 7, 7, 7, 15, 11, 14, 13, 28,
-	20, 22, 20, 20, 22, 22, 22, 23, 22, 23, 23, 23, 23, 23, 24, 23,
-	24, 24, 22, 23, 24, 23, 23, 23, 23, 21, 22, 23, 22, 23, 23, 24,
-	22, 21, 20, 22, 22, 23, 23, 21, 23, 22, 22, 24, 21, 22, 23, 23,
-	21, 21, 22, 21, 23, 22, 23, 23, 20, 22, 22, 22, 23, 22, 22, 23,
-	26, 26, 20, 19, 22, 23, 22, 25, 26, 26, 26, 27, 27, 26, 24, 25,
-	19, 21, 26, 27, 27, 26, 27, 24, 21, 21, 26, 26, 28, 27, 27, 27,
-	20, 24, 20, 21, 22, 21, 21, 23, 22, 22, 25, 25, 24, 24, 26, 23,
-	26, 27, 26, 26, 27, 27, 27, 27, 27, 28, 27, 27, 27, 27, 27, 26,
-	30
+  13, 23, 28, 28, 28, 28, 28, 28, 28, 24, 30, 28, 28, 30, 28, 28,
+  28, 28, 28, 28, 28, 28, 30, 28, 28, 28, 28, 28, 28, 28, 28, 28,
+  6, 10, 10, 12, 13, 6, 8, 11, 10, 10, 8, 11, 8, 6, 6, 6,
+  5, 5, 5, 6, 6, 6, 6, 6, 6, 6, 7, 8, 15, 6, 12, 10,
+  13, 6, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
+  7, 7, 7, 7, 7, 7, 7, 7, 8, 7, 8, 13, 19, 13, 14, 6,
+  15, 5, 6, 5, 6, 5, 6, 6, 6, 5, 7, 7, 6, 6, 6, 5,
+  6, 7, 6, 5, 5, 6, 7, 7, 7, 7, 7, 15, 11, 14, 13, 28,
+  20, 22, 20, 20, 22, 22, 22, 23, 22, 23, 23, 23, 23, 23, 24, 23,
+  24, 24, 22, 23, 24, 23, 23, 23, 23, 21, 22, 23, 22, 23, 23, 24,
+  22, 21, 20, 22, 22, 23, 23, 21, 23, 22, 22, 24, 21, 22, 23, 23,
+  21, 21, 22, 21, 23, 22, 23, 23, 20, 22, 22, 22, 23, 22, 22, 23,
+  26, 26, 20, 19, 22, 23, 22, 25, 26, 26, 26, 27, 27, 26, 24, 25,
+  19, 21, 26, 27, 27, 26, 27, 24, 21, 21, 26, 26, 28, 27, 27, 27,
+  20, 24, 20, 21, 22, 21, 21, 23, 22, 22, 25, 25, 24, 24, 26, 23,
+  26, 27, 26, 26, 27, 27, 27, 27, 27, 28, 27, 27, 27, 27, 27, 26,
+  30
 ];
 // xhttp 抗指纹填充：从 UUID 派生隐蔽的头名/键名，与订阅侧 extra 约定一致
 function 获取叉HTTP填充标识(标识串) {
@@ -9987,56 +9974,6 @@ function 创建扩展超文本值(本地值150, 远程值) {
     }
   };
 }
-<<<<<<< local_明文源吗
-async function 连接值远程扩展超文本(本地值135, 请求值fetcher = null, ...本地值134) {
-  // 提取末尾的代理配置参数（如果有）
-  const 最后参数 = 本地值134.length > 0 ? 本地值134[本地值134.length - 1] : null;
-  const 是否代理参数 = 最后参数 && typeof 最后参数 === 'object' && 'socksPort' in 最后参数;
-  const xhttp代理配置 = 是否代理参数 ? 最后参数 : null;
-  const 主机列表 = 是否代理参数 ? 本地值134.slice(0, -1) : 本地值134;
-  let 本地值133 = 0;
-  let 值错误;
-  const 连接列表 = [本地值135.hostname, ...主机列表.filter(结果值 => 结果值 && 结果值 !== 本地值135.hostname)];
-  for (const 候选主机 of 连接列表) {
-    if (!候选主机) continue;
-    // ★ 加固 B：候选主机可能为 host:port 格式（如回退地址），按候选拆分主机与专属端口
-    let 主机名 = 候选主机;
-    let 候选端口 = null;
-    const 端口匹配 = /^(.*):(\d+)$/.exec(候选主机);
-    if (端口匹配 && !端口匹配[1].includes(':')) { // 拆出的主机部分仍含 ':' 视为 IPv6，原样保留不拆分
-      主机名 = 端口匹配[1];
-      候选端口 = parseInt(端口匹配[2], 10);
-    }
-    本地值133 = 0;
-    while (本地值133 < 上限值196) {
-      本地值133++;
-      try {
-        const 远程 = xhttp代理配置
-          ? await 处理值代理连接(地址类型_网址, 主机名, 候选端口 ?? 本地值135.port, xhttp代理配置)
-          : (请求值fetcher && typeof 请求值fetcher.connect === 'function'
-              ? 请求值fetcher.connect({ hostname: 主机名, port: 候选端口 ?? 本地值135.port })
-              : 连接({ hostname: 主机名, port: 候选端口 ?? 本地值135.port }));
-        const 超时承诺 = 处理扩展超文本值195(连接超时值).then(() => {
-          throw new Error(atob('Y29ubmVjdCB0aW1lb3V0'));
-        });
-        超时承诺.catch(() => {}); // 挂独立 catch 链吞掉 race 输家的拒绝，不改变 race 语义
-        await Promise.race([远程.opened, 超时承诺]);
-        const 本地值132 = 创建扩展超文本值159(本地值135, 远程.writable);
-        const 本地值131 = 创建扩展超文本值(本地值135.resp, 远程.readable);
-        return {
-          downloader: 本地值131,
-          uploader: 本地值132,
-          close: () => {
-            try {
-              远程.close();
-            } catch (忽略值130) {}
-          }
-        };
-      } catch (错误129) {
-        值错误 = 错误129;
-        if (本地值133 < 上限值196) {
-          await 处理扩展超文本值195(500 * 本地值133);
-=======
 // 用一个远程套接字装配上下行器：uploader 负责写 vless 首包与后续上行，downloader 回灌 resp+下行
 function 装配扩展超文本连接(首包, 远程套接字) {
   const uploader = 创建扩展超文本值159(首包, 远程套接字.writable);
@@ -10051,12 +9988,17 @@ function 装配扩展超文本连接(首包, 远程套接字) {
     }
   };
 }
-// 出站决策与 ws 的 处理值值384 对齐：接入 s（代理）、wk/rm（地区匹配备用地址）、qj（代理降级/仅走代理）
-async function 连接值远程扩展超文本(首包, 请求值扩展 = null) {
+// 出站决策与 ws 的 处理值值384 对齐：接入 s（代理）、wk/rm（地区匹配备用地址）、qj（代理降级/仅走代理）、p（回退地址），并透传 fetcher 优选建连
+async function 连接值远程扩展超文本(首包, 请求值扩展 = null, ...本地值134) {
+  // 提取末尾的代理配置参数（如果有）——s 参数按请求代理
+  const 最后参数 = 本地值134.length > 0 ? 本地值134[本地值134.length - 1] : null;
+  const 是否代理参数 = 最后参数 && typeof 最后参数 === 'object' && 'socksPort' in 最后参数;
+  const xhttp代理配置 = 是否代理参数 ? 最后参数 : null;
   const 主机 = 首包.hostname;
   const 端口 = 首包.port;
+  // 直连：连接值套接字 内部优先 fetcher.connect（透传优选建连），失败回落 连接()，并按 传输连接竞速数 并发竞速
   const 直连 = async (地址, 端口值) => 连接值套接字(地址, 端口值, 请求值扩展, 传输连接竞速数);
-  const 走代理 = async (地址, 端口值) => 处理值代理连接(地址类型_网址, 地址, 端口值, 已解析代理5配置, 请求值扩展, null);
+  const 走代理 = async (地址, 端口值) => 处理值代理连接(地址类型_网址, 地址, 端口值, xhttp代理配置 || 已解析代理5配置, 请求值扩展, null);
   // 计算回退目标：优先 p（回退地址），否则按 wk/rm 取地区匹配备用地址
   const 取回退目标 = async () => {
     if (回退地址 && 回退地址.trim()) {
@@ -10091,7 +10033,6 @@ async function 连接值远程扩展超文本(首包, 请求值扩展 = null) {
           const 回退 = await 取回退目标();
           const 回退套接字 = await 直连(回退.address, 回退.port);
           return 装配扩展超文本连接(首包, 回退套接字);
->>>>>>> upstream_明文源吗
         }
       }
       const 回退 = await 取回退目标();
@@ -10102,11 +10043,7 @@ async function 连接值远程扩展超文本(首包, 请求值扩展 = null) {
     }
   }
 }
-<<<<<<< local_明文源吗
 async function 处理扩展超文本客户端(主体128, 唯一标识, 代理配置 = null, 请求值fetcher = null) {
-=======
-async function 处理扩展超文本客户端(主体128, 唯一标识, 请求值扩展 = null) {
->>>>>>> upstream_明文源吗
   if (值值197 >= 上限值) {
     return new Response('Too many connections', {
       status: 429
@@ -10181,11 +10118,7 @@ async function 处理扩展超文本客户端(主体128, 唯一标识, 请求值
         headers: { 'Content-Type': 'application/octet-stream', 'X-Accel-Buffering': 'no', 'Cache-Control': 'no-store' }
       });
     }
-<<<<<<< local_明文源吗
     const 远程连接 = await 连接值远程扩展超文本(本地值125, 请求值fetcher, 回退地址, 代理配置);
-=======
-    const 远程连接 = await 连接值远程扩展超文本(本地值125, 请求值扩展);
->>>>>>> upstream_明文源吗
     if (远程连接 === null) {
       return null;
     }
@@ -10231,12 +10164,8 @@ async function 处理扩展超文本客户端(主体128, 唯一标识, 请求值
 }
 async function 处理扩展超文本值(请求119, 代理配置 = null) {
   try {
-<<<<<<< local_明文源吗
     const 请求值fetcher = 请求119?.fetcher;
     return await 处理扩展超文本客户端(请求119.body, 认证令牌, 代理配置, 请求值fetcher);
-=======
-    return await 处理扩展超文本客户端(请求119.body, 认证令牌, 请求119.fetcher);
->>>>>>> upstream_明文源吗
   } catch (错误118) {
     return new Response('Internal Server Error', { status: 500 });
   }
@@ -10283,7 +10212,7 @@ async function 获取值解析新地址列表() {
         const 本地值108 = 通配替换项109.match(正则);
         if (本地值108) {
           结果列表110.push({
-            ip: 规范化节点主机(本地值108[1]),
+            ip: 本地值108[1],
             port: parseInt(本地值108[2] || '443', 10),
             name: 本地值108[3]?.trim() || 本地值108[1]
           });
@@ -10331,16 +10260,22 @@ function 生成链接列表来源新地址列表(列表100, 用户99, 工作器�
     const 当前节点路径91 = 启用随机路径 ? 随机路径('/?ed=2048') : '/?ed=2048';
     if (云墙安全超文本端口93.includes(端口88)) {
       const 网页套接字节点名称86 = 制作节点名称90(项目89);
+<<<<<<< local_明文源吗
       const 网页套接字参数85 = new URLSearchParams({
         encryption: 'none',
         security: 'tls',
         sni: 节点主机,
-        fp: 启用加密客户端问候 ? 'chrome' : 'randomized',
+        fp: 启用加密客户端问候 ? 'chrome' : 'chrome',
         type: 'ws',
         host: 节点主机,
         path: 当前节点路径91
       });
       const 应用层协议协商值85 = 规范化应用层协议协商(自定义应用层协议协商); if (应用层协议协商值85) 网页套接字参数85.set('alpn', 应用层协议协商值85);
+=======
+      let 链接85 = `${协议}://${用户99}@${安全地址87}:${端口88}?encryption=none&security=tls&sni=${工作器域名98}&fp=chrome&type=ws&host=${工作器域名98}&path=${网页套接字路径91}`;
+      if (自定义应用层协议协商) 链接85 += `&alpn=${encodeURIComponent(自定义应用层协议协商)}`;
+
+>>>>>>> upstream_明文源吗
       // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
       if (启用加密客户端问候) {
         const 域名系统值84 = 自定义域名系统 || 'https://cloudflare-dns.com/dns-query';
@@ -10362,16 +10297,22 @@ function 生成链接列表来源新地址列表(列表100, 用户99, 工作器�
       }
     } else {
       const 网页套接字节点名称80 = 制作节点名称90(项目89);
+<<<<<<< local_明文源吗
       const 网页套接字参数79 = new URLSearchParams({
         encryption: 'none',
         security: 'tls',
         sni: 节点主机,
-        fp: 启用加密客户端问候 ? 'chrome' : 'randomized',
+        fp: 启用加密客户端问候 ? 'chrome' : 'chrome',
         type: 'ws',
         host: 节点主机,
         path: 当前节点路径91
       });
       const 应用层协议协商值79 = 规范化应用层协议协商(自定义应用层协议协商); if (应用层协议协商值79) 网页套接字参数79.set('alpn', 应用层协议协商值79);
+=======
+      let 链接79 = `${协议}://${用户99}@${安全地址87}:${端口88}?encryption=none&security=tls&sni=${工作器域名98}&fp=chrome&type=ws&host=${工作器域名98}&path=${网页套接字路径91}`;
+      if (自定义应用层协议协商) 链接79 += `&alpn=${encodeURIComponent(自定义应用层协议协商)}`;
+
+>>>>>>> upstream_明文源吗
       // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
       if (启用加密客户端问候) {
         const 域名系统值78 = 自定义域名系统 || 'https://cloudflare-dns.com/dns-query';

@@ -2899,7 +2899,9 @@ function 生成链接列表来源源(列表482, 用户481, 工作器域名480, �
           encryption: 'none',
           security: 'tls',
           sni: 工作器域名480,
-          fp: 启用加密客户端问候 ? 'chrome' : 'randomized',
+          // randomized fingerprint may cause TLS compatibility issues with some Xray/uTLS clients.
+          // Use chrome as default for better compatibility (chrome is also required when ECH is enabled).
+          fp: 'chrome',
           type: 'ws',
           host: 工作器域名480,
           path: 网页套接字路径471
@@ -8425,7 +8427,7 @@ function 生成链接列表来源新地址列表(列表100, 用户99, 工作器�
     const 安全地址87 = 项目89.ip.includes(':') ? `[${项目89.ip}]` : 项目89.ip;
     if (云墙安全超文本端口93.includes(端口88)) {
       const 网页套接字节点名称86 = 制作节点名称90(项目89);
-      let 链接85 = `${协议}://${用户99}@${安全地址87}:${端口88}?encryption=none&security=tls&sni=${工作器域名98}&fp=${启用加密客户端问候 ? 'chrome' : 'randomized'}&type=ws&host=${工作器域名98}&path=${网页套接字路径91}`;
+      let 链接85 = `${协议}://${用户99}@${安全地址87}:${端口88}?encryption=none&security=tls&sni=${工作器域名98}&fp=chrome&type=ws&host=${工作器域名98}&path=${网页套接字路径91}`;
       if (自定义应用层协议协商) 链接85 += `&alpn=${encodeURIComponent(自定义应用层协议协商)}`;
 
       // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
@@ -8444,7 +8446,7 @@ function 生成链接列表来源新地址列表(列表100, 用户99, 工作器�
       }
     } else {
       const 网页套接字节点名称80 = 制作节点名称90(项目89);
-      let 链接79 = `${协议}://${用户99}@${安全地址87}:${端口88}?encryption=none&security=tls&sni=${工作器域名98}&fp=${启用加密客户端问候 ? 'chrome' : 'randomized'}&type=ws&host=${工作器域名98}&path=${网页套接字路径91}`;
+      let 链接79 = `${协议}://${用户99}@${安全地址87}:${端口88}?encryption=none&security=tls&sni=${工作器域名98}&fp=chrome&type=ws&host=${工作器域名98}&path=${网页套接字路径91}`;
       if (自定义应用层协议协商) 链接79 += `&alpn=${encodeURIComponent(自定义应用层协议协商)}`;
 
       // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
