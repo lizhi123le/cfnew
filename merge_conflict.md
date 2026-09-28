@@ -1,10 +1,11 @@
 # 合并冲突报告
-## 冲突时间: Sun Sep 20 19:51:16 UTC 2026
-## 上游更新哈希: ae4cb83c25b92c5666a8bb874c6647c74092d150ca3d1f6df6f891fc3214c76a
+## 冲突时间: Mon Sep 28 17:04:03 UTC 2026
+## 上游更新哈希: 3063f650b1337d3e689cae5fb7b4b7a18b4a3c0a8e7ac5a17b16156edcb4e92c
 
 以下文件包含冲突标记，需要手动解决：
 
 ```
+<<<<<<< local_明文源吗
 // CFnew - 终端 版本: v3.0
 class RequestContext {
   constructor(env) {
@@ -46,6 +47,19 @@ const 智能剥离填充 = (data) => {
 	return data.subarray(4 + padLen); // 跳过 [魔数][长度][填充]
 };
 let 认证令牌 = null;  // 用户必须通过环境变量 u 配置
+=======
+// CFnew - 终端 v3.1
+// 版本: v3.1 
+import { connect as 连接 } from 'cloudflare:sockets';
+const 基础64文本解码器 = new TextDecoder();
+function 解码64(文本) {
+  const 二进制 = atob(文本);
+  const 字节 = new Uint8Array(二进制.length);
+  for (let 索引 = 0; 索引 < 二进制.length; 索引++) 字节[索引] = 二进制.charCodeAt(索引);
+  return 基础64文本解码器.decode(字节);
+}
+let 认证令牌 = '351c9981-04b6-4103-aa4b-864aa9c91469';
+>>>>>>> upstream_明文源吗
 let 回退地址 = '';
 let 代理5配置 = '';
 let 自定义优选地址列表 = [];
@@ -103,6 +117,7 @@ let 远程配置网址 = 'https://raw.githubusercontent.com/lizhi123le/ACL4SSR/m
 let 启用优选域名 = true; // 优选域名默认关闭
 let 启用优选地址 = true;
 let 启用仓库优选 = true;
+<<<<<<< local_明文源吗
 let 启用原生地址 = false; // 原生地址默认关闭
 // Cache API 引用
 const 缓存接口 = caches.default;
@@ -302,6 +317,12 @@ function 字节转HTML图片(字节, 内容类型) {
 function 生成图片HTML(数据URI) {
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>CFnew</title><style>body{margin:0;padding:0;overflow:hidden;background:#000;display:flex;align-items:center;justify-content:center;height:100vh}img{width:100vw;height:100vh;object-fit:fill}</style></head><body><img src="${数据URI}" alt="homepage"></body></html>`;
 }
+=======
+let 启用原生地址 = false; // 原生地址默认关闭          
+// 家宽链式：cfnew 自己的节点当前置，落地换成住宅宽带
+let 启用家宽链式 = false;
+
+>>>>>>> upstream_明文源吗
 let 键值存储 = null;
 let 键值配置 = {};
 let 键值配置上次加载 = 0;
@@ -340,9 +361,13 @@ const 配置默认值 = {
   ispMobile: 'yes',
   ispUnicom: 'yes',
   ispTelecom: 'yes',
+<<<<<<< local_明文源吗
   randomPath: '',
   host: '',
   admin: ''
+=======
+  jk: 'no'
+>>>>>>> upstream_明文源吗
 };
 function 是否开启值(值, 默认启用 = false) {
   if (值 === undefined || 值 === null || 值 === '') return 默认启用;
@@ -397,7 +422,11 @@ function 整理有效配置(配置) {
     ...配置默认值,
     ...配置
   };
+<<<<<<< local_明文源吗
   ['ev', 'et', 'ex', 'ech', 'ena', 'epd', 'epi', 'egi', 'domain', 'ipv4', 'ipv6', 'ispMobile', 'ispUnicom', 'ispTelecom'].forEach(键 => {
+=======
+  ['ev', 'et', 'ex', 'ech', 'ena', 'epd', 'epi', 'egi', 'ipv4', 'ipv6', 'ispMobile', 'ispUnicom', 'ispTelecom', 'jk'].forEach(键 => {
+>>>>>>> upstream_明文源吗
     快照[键] = 归一配置开关(快照[键], 是否开启值(配置默认值[键]));
   });
   if (快照.ev === 'no' && 快照.et === 'no' && 快照.ex === 'no') {
@@ -451,9 +480,13 @@ function 获取环境配置快照(环境值 = {}) {
     ispMobile: ['ispMobile', 'ISPMOBILE', 'ISP_MOBILE'],
     ispUnicom: ['ispUnicom', 'ISPUNICOM', 'ISP_UNICOM'],
     ispTelecom: ['ispTelecom', 'ISPTELECOM', 'ISP_TELECOM'],
+<<<<<<< local_明文源吗
     admin: ['admin', 'ADMIN'],
     randomPath: ['randomPath', 'RANDOMPATH'],
     host: ['host', 'HOST']
+=======
+    jk: ['jk', 'JK']
+>>>>>>> upstream_明文源吗
   };
   const 快照 = {};
   for (const [键, 名称列表] of Object.entries(映射)) {
@@ -1524,6 +1557,7 @@ export default {
       启用优选地址 = 获取配置开关值('epi', true, 本地值734.epi || 本地值734.EPI);
       启用仓库优选 = 获取配置开关值('egi', true, 本地值734.egi || 本地值734.EGI);
       启用原生地址 = 获取配置开关值('ena', false, 本地值734.ena || 本地值734.ENA);
+      启用家宽链式 = 获取配置开关值('jk', false, 本地值734.jk || 本地值734.JK);
       启用加密客户端问候 = 获取配置开关值('ech', false, 本地值734.ech || 本地值734.ECH);
       // 加载自定义DNS和ECH域名配置
       自定义域名系统 = 获取配置文本值('customDNS', 配置默认值.customDNS).trim() || 配置默认值.customDNS;
@@ -1913,8 +1947,13 @@ export default {
           const 语言值661 = 是否值664 ? 'fa-IR' : 'zh-CN';
           const 本地值660 = {
             zh: {
+<<<<<<< local_明文源吗
               title: '终端 v3.0',
                terminal: '终端 v3.0',
+=======
+              title: '终端 v3.1',
+              terminal: '终端 v3.1',
+>>>>>>> upstream_明文源吗
               congratulations: '恭喜你来到这',
               enterU: '请输入你U变量的值',
               enterD: '请输入你D变量的值',
@@ -1930,8 +1969,13 @@ export default {
               reenter: '请重新输入有效的UUID'
             },
             fa: {
+<<<<<<< local_明文源吗
               title: 'ترمینال v3.0',
                terminal: 'ترمینال v3.0',
+=======
+              title: 'ترمینال v3.1',
+              terminal: 'ترمینال v3.1',
+>>>>>>> upstream_明文源吗
               congratulations: 'تبریک می‌گوییم به شما',
               enterU: 'لطفا مقدار متغیر U خود را وارد کنید',
               enterD: 'لطفا مقدار متغیر D خود را وارد کنید',
@@ -3326,6 +3370,7 @@ async function 生成值值589(链接列表588, 指定配置网址 = null) {
   await yieldToEventLoop();
   return [头部581.join('\n'), 值值580.join('\n'), '', 值值577.join('\n'), 规则列表.join('\n'), ''].join('\n');
 }
+<<<<<<< local_明文源吗
 // 服务端获取规则集内容并返回解析后的行列表（自动缓存 / 容错降级）
 async function 获取规则集内容(url) {
   try {
@@ -3345,6 +3390,32 @@ async function 获取规则集内容(url) {
 async function 生成值值数据对象(链接列表573) {
   const 节点列表572 = 链接列表573.map(解析值链接).filter(数量值571 => 数量值571 && (数量值571.proto === 'vless' || 数量值571.proto === 'trojan'));
   const 域名系统值570 = 自定义域名系统 || 'https://cloudflare-dns.com/dns-query';
+=======
+
+// 内部生成 JSON 客户端配置（完整规则集：远端镜像）
+// 新版内核要把 DNS 地址拆成 type + server + path，这里按 URL 协议归一
+function 拆域名系统地址(地址) {
+  const 文本 = String(地址 || '').trim();
+  try {
+    const 网址 = new URL(文本);
+    const 协议 = 网址.protocol.replace(':', '').toLowerCase();
+    if (协议 === 'https' || 协议 === 'http3' || 协议 === 'h3') {
+      const 输出 = { type: 'https', server: 网址.hostname };
+      if (网址.port) 输出.server_port = Number(网址.port);
+      if (网址.pathname && 网址.pathname !== '/' && 网址.pathname !== '/dns-query') 输出.path = 网址.pathname;
+      return 输出;
+    }
+    if (协议 === 'tls') return { type: 'tls', server: 网址.hostname };
+    if (协议 === 'quic') return { type: 'quic', server: 网址.hostname };
+    if (协议 === 'udp' || 协议 === 'dns') return { type: 'udp', server: 网址.hostname };
+  } catch (错误) {}
+  return { type: 'udp', server: 文本.replace(/^[a-z0-9]+:\/\//i, '').split('/')[0] || '223.5.5.5' };
+}
+
+function 生成值值数据对象(链接列表573) {
+  const 节点列表572 = 链接列表573.map(解析值链接).filter(数量值571 => 数量值571 && (数量值571.proto === 解码64('dmxlc3M=') || 数量值571.proto === 解码64('dHJvamFu')));
+  const 域名系统值570 = 自定义域名系统 || 'https://223.5.5.5/dns-query';
+>>>>>>> upstream_明文源吗
   const 出站值 = 节点列表572.map(数量值569 => 数量值569.name);
   function 处理节点值出站(数量值568) {
     const 输出567 = {
@@ -3497,27 +3568,31 @@ async function 生成值值数据对象(链接列表573) {
       timestamp: true
     },
     dns: {
+      // 新版内核 1.12 起 DNS 服务器改成按 type 写，旧的 address 字符串写法 1.14 已经删掉了
       servers: [{
+        ...拆域名系统地址(域名系统值570),
         tag: 'remote',
+<<<<<<< local_明文源吗
         address: 域名系统值570,
         detour: 代理组列表[0]?.name || 'select'
+=======
+        detour: 'select'
+>>>>>>> upstream_明文源吗
       }, {
+        type: 'udp',
         tag: 'local',
-        address: '223.5.5.5',
+        server: '223.5.5.5',
         detour: 'direct'
       }, {
+        type: 'fakeip',
         tag: 'fakeip',
-        address: 'fakeip'
-      }, {
-        tag: 'block',
-        address: 'rcode://success'
+        inet4_range: '198.18.0.0/15',
+        inet6_range: 'fc00::/18'
       }],
+      // 拦广告不再靠 rcode://success 的假服务器，直接用 action: reject
       rules: [{
-        outbound: 'any',
-        server: 'local'
-      }, {
         rule_set: 'geosite-category-ads-all',
-        server: 'block'
+        action: 'reject'
       }, {
         rule_set: 'geosite-cn',
         server: 'local'
@@ -3525,21 +3600,13 @@ async function 生成值值数据对象(链接列表573) {
         query_type: ['A', 'AAAA'],
         server: 'fakeip'
       }],
-      fakeip: {
-        enabled: true,
-        inet4_range: '198.18.0.0/15',
-        inet6_range: 'fc00::/18'
-      },
-      independent_cache: true,
       strategy: 'ipv4_only'
     },
     inbounds: [{
       type: 'mixed',
       tag: 'mixed-in',
       listen: '127.0.0.1',
-      listen_port: 2080,
-      sniff: true,
-      sniff_override_destination: true
+      listen_port: 2080
     }, {
       type: 'tun',
       tag: 'tun-in',
@@ -3548,9 +3615,7 @@ async function 生成值值数据对象(链接列表573) {
       mtu: 9000,
       auto_route: true,
       strict_route: true,
-      stack: 'mixed',
-      sniff: true,
-      sniff_override_destination: true
+      stack: 'mixed'
     }],
     outbounds: [...代理组列表.map(pg => {
       const outbound = { tag: pg.name };
@@ -3578,17 +3643,98 @@ async function 生成值值数据对象(链接列表573) {
     }), ...节点列表572.map(处理节点值出站), {
       type: 'direct',
       tag: 'direct'
-    }, {
-      type: 'block',
-      tag: 'block'
-    }, {
-      type: 'dns',
-      tag: 'dns-out'
     }],
     route: {
+<<<<<<< local_明文源吗
       rule_set: iniRouteRuleSet,
       rules: iniRouteRules,
       final: finalGroup,
+=======
+      rule_set: [值规则566('cn'), 值规则566('private'), 值规则566('apple'), 值规则566('apple-cn'), 值规则566('microsoft'), 值规则566('microsoft@cn'), 值规则566('google'), 值规则566('telegram'), 值规则566('openai'), 值规则566('anthropic'), 值规则566('youtube'), 值规则566('netflix'), 值规则566('disney'), 值规则566('spotify'), 值规则566('tiktok'), 值规则566('twitter'), 值规则566('facebook'), 值规则566('github'), 值规则566('geolocation-!cn'), 值规则566('category-ads-all'), 地址规则('cn'), 地址规则('private'), 地址规则('telegram')],
+      rules: [{
+        action: 'sniff'
+      }, {
+        protocol: 'dns',
+        action: 'hijack-dns'
+      }, {
+        ip_is_private: true,
+        outbound: 'direct'
+      }, {
+        rule_set: 'geosite-category-ads-all',
+        action: 'reject'
+      }, {
+        rule_set: 'geosite-private',
+        outbound: 'direct'
+      }, {
+        rule_set: 'geosite-apple-cn',
+        outbound: 'direct'
+      }, {
+        rule_set: 'geosite-microsoft@cn',
+        outbound: 'direct'
+      }, {
+        rule_set: 'geosite-apple',
+        outbound: '🍎 苹果服务'
+      }, {
+        rule_set: 'geosite-microsoft',
+        outbound: 'Ⓜ️ 微软服务'
+      }, {
+        rule_set: 'geosite-openai',
+        outbound: '🤖 OpenAI'
+      }, {
+        rule_set: 'geosite-anthropic',
+        outbound: '🤖 OpenAI'
+      }, {
+        rule_set: 'geosite-telegram',
+        outbound: '📲 电报信息'
+      }, {
+        rule_set: 'geoip-telegram',
+        outbound: '📲 电报信息'
+      }, {
+        rule_set: 'geosite-google',
+        outbound: '🌐 谷歌服务'
+      }, {
+        rule_set: 'geosite-youtube',
+        outbound: '🌍 国外媒体'
+      }, {
+        rule_set: 'geosite-netflix',
+        outbound: '🌍 国外媒体'
+      }, {
+        rule_set: 'geosite-disney',
+        outbound: '🌍 国外媒体'
+      }, {
+        rule_set: 'geosite-spotify',
+        outbound: '🌍 国外媒体'
+      }, {
+        rule_set: 'geosite-tiktok',
+        outbound: '🌍 国外媒体'
+      }, {
+        rule_set: 'geosite-twitter',
+        outbound: '🌍 国外媒体'
+      }, {
+        rule_set: 'geosite-facebook',
+        outbound: '🌍 国外媒体'
+      }, {
+        rule_set: 'geosite-github',
+        outbound: 'select'
+      }, {
+        rule_set: 'geosite-geolocation-!cn',
+        outbound: 'select'
+      }, {
+        rule_set: 'geosite-cn',
+        outbound: 'direct'
+      }, {
+        rule_set: 'geoip-cn',
+        outbound: 'direct'
+      }, {
+        ip_is_private: true,
+        outbound: 'direct'
+      }],
+      final: '🐟 漏网之鱼',
+      // 1.12 起出站解析域名必须显式指定用哪个 DNS，不写 1.14 会直接拒绝启动
+      default_domain_resolver: {
+        server: 'local'
+      },
+>>>>>>> upstream_明文源吗
       auto_detect_interface: true
     },
     experimental: {
@@ -3943,11 +4089,233 @@ async function 获取加密客户端问候配置(域名522) {
     return null;
   }
 }
+// ======================= 家宽链式（住宅宽带当落地） =======================
+// 跟之前的套娃一个思路：cfnew 自己的节点在前面带路，落地换成网友共享出来的家庭宽带。
+// 客户端会把落地节点的整条隧道塞进前置节点里走，握手走 CF 边缘，出网是住宅 IP。
+// 内核要 1.19.25 以上才认这类节点，老内核导入会报类型不认识。
+const 家宽节点源 = 解码64('aHR0cHM6Ly93d3cudnBuZ2F0ZS5uZXQvYXBpL2lwaG9uZS8=');
+const 家宽节点类型 = 解码64('b3BlbnZwbg==');
+const 家宽前置字段 = 解码64('ZGlhbGVyLXByb3h5');
+const 家宽机房前缀 = 解码64('cHVibGljLXZwbg==');
+const 家宽机房网段 = '219.100.37.';
+const 家宽缓存期限 = 30 * 60 * 1000;
+let 家宽缓存 = null;
+let 家宽缓存时间 = 0;
+const 家宽指令正则 = {};
+
+function 取家宽指令(配置文本, 指令名) {
+  if (!家宽指令正则[指令名]) 家宽指令正则[指令名] = new RegExp('^[ \\t]*' + 指令名 + '[ \\t]+(.+?)[ \\t]*$', 'm');
+  const 命中 = 配置文本.match(家宽指令正则[指令名]);
+  return 命中 ? 命中[1].trim() : '';
+}
+
+function 取家宽内联块(配置文本, 标签) {
+  const 命中 = 配置文本.match(new RegExp('<' + 标签 + '>([\\s\\S]*?)<\\/' + 标签 + '>'));
+  return 命中 ? 命中[1].trim() : '';
+}
+
+function 缩进证书文本(文本, 空白) {
+  return 文本.split('\n').map(行 => 行.trim()).filter(行 => 行).map(行 => 空白 + 行).join('\n');
+}
+
+// 每条配置解出来约 10KB，但要的几行指令都在前 4KB 里，证书从 4.7KB 往后才开始。
+// 所以只解开头一段，全量 60 多个节点的解析开销能压一半多；开头没找到 remote 再整条解。
+const 家宽前段长度 = 6000;
+function 解家宽配置(配置64, 整条 = false) {
+  const 干净 = 配置64.replace(/\s/g, '');
+  if (整条 || 干净.length <= 家宽前段长度) return 解码64(干净);
+  return 解码64(干净.slice(0, 家宽前段长度));
+}
+
+// 清单里 Operator/Message 两列可能自带逗号，所以只从行首按下标取前几列，
+// 配置固定是最后一列，多出来的逗号不会把解析冲歪。
+function 解析家宽清单(原文) {
+  const 候选 = [];
+  for (const 原始行 of 原文.split('\n')) {
+    const 行 = 原始行.trim();
+    if (!行 || 行.charAt(0) === '*' || 行.charAt(0) === '#') continue;
+    const 字段 = 行.split(',');
+    if (字段.length < 15) continue;
+    // 只要住宅宽带：官方自己架的机房服务器剔掉，而且那批容易满员握手失败
+    if ((字段[0] || '').indexOf(家宽机房前缀) === 0) continue;
+    if ((字段[1] || '').indexOf(家宽机房网段) === 0) continue;
+    const 配置64 = 字段[字段.length - 1];
+    if (!配置64 || 配置64.length < 100) continue;
+    候选.push({ 国家: (字段[6] || '').toUpperCase() || 'XX', 速度: parseInt(字段[4], 10) || 0, 配置64 });
+  }
+  // 按速度倒序。试过挑会话数最少的，结果更差（6/12 对 2/12）：
+  // 会话少多半是这台根本连不上，不是空闲，别按会话数挑。
+  候选.sort((甲, 乙) => 乙.速度 - 甲.速度);
+  const 节点列表 = [];
+  let 证书 = null;
+  for (const 项 of 候选) {
+    let 配置文本 = '';
+    try {
+      配置文本 = 解家宽配置(项.配置64);
+      if (!取家宽指令(配置文本, 'remote')) 配置文本 = 解家宽配置(项.配置64, true);
+    } catch (错误) {
+      continue;
+    }
+    // 前置只能承载 TCP，UDP 的节点丢掉
+    if ((取家宽指令(配置文本, 'proto') || 'tcp').toLowerCase() !== 'tcp') continue;
+    const 远端 = 取家宽指令(配置文本, 'remote').split(/\s+/);
+    if (!远端[0]) continue;
+    if (!证书) {
+      // 证书全站共用一份，找第一个完整的就够了
+      try {
+        const 全文 = 解家宽配置(项.配置64, true);
+        const 本次证书 = { ca: 取家宽内联块(全文, 'ca'), cert: 取家宽内联块(全文, 'cert'), key: 取家宽内联块(全文, 'key') };
+        if (本次证书.ca && 本次证书.cert && 本次证书.key) 证书 = 本次证书;
+      } catch (错误) {}
+      if (!证书) continue;
+    }
+    节点列表.push({
+      国家: 项.国家,
+      地址: 远端[0],
+      端口: parseInt(远端[1], 10) || 443,
+      加密: 取家宽指令(配置文本, 'cipher') || 'AES-128-CBC',
+      摘要: 取家宽指令(配置文本, 'auth') || 'SHA1'
+    });
+  }
+  return { 节点列表, 证书 };
+}
+
+async function 获取家宽节点() {
+  const 现在 = Date.now();
+  if (家宽缓存 && 现在 - 家宽缓存时间 < 家宽缓存期限) return 家宽缓存;
+  // 节点源的 TLS 很老（没有 TLS1.3，ECDHE 只有 CBC 套件），有的运行环境握不上，
+  // 握不上就退回明文再拉一次。清单本身是公开数据。
+  let 原文 = '';
+  let 最后错误 = null;
+  for (const 源 of [家宽节点源, 家宽节点源.replace(/^https:/, 'http:')]) {
+    try {
+      const 响应 = await fetch(源, {
+        headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': 'text/plain' },
+        cf: { cacheTtl: 1800, cacheEverything: true }
+      });
+      if (!响应.ok) {
+        最后错误 = new Error('节点源返回 ' + 响应.status);
+        continue;
+      }
+      原文 = await 响应.text();
+      break;
+    } catch (错误) {
+      最后错误 = 错误;
+    }
+  }
+  if (!原文) throw 最后错误 || new Error('节点源没有返回内容');
+  const 结果 = 解析家宽清单(原文);
+  if (!结果.节点列表.length || !结果.证书) throw new Error('没解析出能用的节点');
+  家宽缓存 = 结果;
+  家宽缓存时间 = 现在;
+  return 结果;
+}
+
+// 拉不到节点直接抛错，由调用方回 503，客户端会继续用上一份，不会被空配置覆盖
+async function 生成家宽链式值(链接列表) {
+  const 前置组名 = '\u26a1 CF前置';
+  const 家宽自动 = '\ud83c\udfe0 家宽自动';
+  const 家宽手选 = '\ud83c\udfe0 家宽节点';
+  const 节点选择 = '\ud83d\ude80 节点选择';
+  const 全部前置 = 链接列表.map(解析值链接)
+    .filter(项 => 项 && (项.proto === 解码64('dmxlc3M=') || 项.proto === 解码64('dHJvamFu')));
+  // 落地隧道的握手特征很明显，前置用明文会被一眼认出来，有 TLS 节点就只用 TLS 的
+  const 加密前置 = 全部前置.filter(项 => 项.tls);
+  const 前置节点 = 加密前置.length ? 加密前置 : 全部前置;
+  const 前置名称 = 前置节点.map(项 => 项.name);
+  const 域名系统 = 自定义域名系统 || 'https://223.5.5.5/dns-query';
+  const { 节点列表, 证书 } = await 获取家宽节点();
+  const 国家计数 = {};
+  const 家宽项 = 节点列表.map(节点 => {
+    国家计数[节点.国家] = (国家计数[节点.国家] || 0) + 1;
+    return { ...节点, 名称: '\ud83c\udfe0 ' + 节点.国家 + '-家宽-' + String(国家计数[节点.国家]).padStart(2, '0') };
+  });
+  const 头部 = [
+    '# cfnew 家宽订阅：CF 节点带路，落地是住宅宽带',
+    '# 内核要 1.19.25 以上，老内核不认这类节点',
+    '# 节点是网友共享的，掉线很正常，家宽自动会自己往下换',
+    'mixed-port: 7890',
+    'allow-lan: false',
+    'mode: rule',
+    'log-level: info',
+    'ipv6: false',
+    'unified-delay: true',
+    'tcp-concurrent: true',
+    'external-controller: 127.0.0.1:9090',
+    'dns:',
+    '  enable: true',
+    '  ipv6: false',
+    '  enhanced-mode: fake-ip',
+    '  fake-ip-range: 198.18.0.1/16',
+    '  nameserver:',
+    '    - ' + 域名系统,
+    '    - https://1.1.1.1/dns-query',
+    ''
+  ];
+  const 节点段 = ['proxies:'];
+  for (const 项 of 前置节点) 节点段.push(构建值节点行(项));
+  家宽项.forEach((节点, 下标) => {
+    const 行 = [
+      '  - name: "' + 节点.名称 + '"',
+      '    type: ' + 家宽节点类型,
+      '    server: ' + 节点.地址,
+      '    port: ' + 节点.端口,
+      '    proto: tcp',
+      '    username: vpn',
+      '    password: vpn',
+      '    cipher: ' + 节点.加密,
+      '    auth: ' + 节点.摘要,
+      '    udp: false',
+      '    handshake-timeout: 30',
+      '    remote-dns-resolve: true',
+      '    dns: [ 8.8.8.8, 1.1.1.1 ]'
+    ];
+    // 一个前置都没有就退化成直连落地，订阅至少还能用
+    if (前置名称.length) 行.push('    ' + 家宽前置字段 + ': "' + 前置组名 + '"');
+    // 证书全站同一份，第一个节点定锚点，后面引用，全量几十个节点能省下几百 KB
+    if (下标 === 0) {
+      行.push('    ca: &jkca |-', 缩进证书文本(证书.ca, '      '));
+      行.push('    cert: &jkcert |-', 缩进证书文本(证书.cert, '      '));
+      行.push('    key: &jkkey |-', 缩进证书文本(证书.key, '      '));
+    } else {
+      行.push('    ca: *jkca', '    cert: *jkcert', '    key: *jkkey');
+    }
+    节点段.push(行.join('\n'));
+  });
+  const 列出 = 名称列表 => 名称列表.map(名称 => '      - "' + 名称 + '"').join('\n');
+  // 自动组按速度排，决定回落顺序；手选组按国家排，翻起来好找
+  const 按速度 = 家宽项.map(项 => 项.名称);
+  const 按国家 = 家宽项.slice().sort((甲, 乙) => 甲.国家 === 乙.国家 ? 0 : (甲.国家 < 乙.国家 ? -1 : 1)).map(项 => 项.名称);
+  const 分组段 = [解码64('cHJveHktZ3JvdXBzOg==')];
+  if (前置名称.length) {
+    分组段.push('  - name: "' + 前置组名 + '"', '    type: url-test',
+      '    url: https://www.gstatic.com/generate_204', '    interval: 300', '    tolerance: 50',
+      '    proxies:', 列出(前置名称));
+  }
+  // 全量几十个节点，测一轮就是几十次握手，所以间隔拉长、用到才测
+  分组段.push('  - name: "' + 家宽自动 + '"', '    type: fallback',
+    '    url: https://www.gstatic.com/generate_204', '    interval: 1800', '    lazy: true',
+    '    proxies:', 列出(按速度));
+  分组段.push('  - name: "' + 家宽手选 + '"', '    type: select', '    proxies:', 列出(按国家));
+  const 主选列表 = ['      - "' + 家宽自动 + '"', '      - "' + 家宽手选 + '"'];
+  if (前置名称.length) 主选列表.push('      - "' + 前置组名 + '"');
+  主选列表.push('      - DIRECT');
+  分组段.push('  - name: "' + 节点选择 + '"', '    type: select', '    proxies:', 主选列表.join('\n'));
+  const 规则段 = [
+    'rules:',
+    '  - GEOIP,LAN,DIRECT,no-resolve',
+    '  - GEOIP,CN,DIRECT,no-resolve',
+    '  - MATCH,' + 节点选择
+  ];
+  return 头部.concat(节点段, [''], 分组段, [''], 规则段, ['']).join('\n');
+}
+
 async function 处理订阅请求(请求507, 用户506, 网址505 = null) {
   if (!网址505) 网址505 = new URL(请求507.url);
   const 最终链接列表 = [];
   const 工作器域名504 = 网址505.hostname;
   const 目标503 = 网址505.searchParams.get('target') || 'base64';
+<<<<<<< local_明文源吗
   // ★ Phase 2a: 节点名称去重缓存（请求级 Map，避免生成器间重复计算节点名称）
   const 请求节点名称缓存 = new Map();
   const 别名命名器502 = 创建缓存节点命名器(创建值节点命名器(false), 请求节点名称缓存);
@@ -3996,6 +4364,17 @@ async function 处理订阅请求(请求507, 用户506, 网址505 = null) {
     if (值服务.includes('电信') || 值服务.includes('telecom')) { if (!值值430) return false; }
     return true;
   };
+=======
+  const 家宽目标 = ['vg', 'jk', 解码64('amlha3Vhbg==')].includes(目标503.toLowerCase());
+  if (家宽目标 && !启用家宽链式) {
+    return new Response('家宽链式没开。去配置管理勾上「开启家宽链式」，或者加环境变量 jk=yes。', {
+      status: 403,
+      headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' }
+    });
+  }
+  const 别名命名器502 = 创建值节点命名器(false);
+
+>>>>>>> upstream_明文源吗
   // 如果启用了ECH，使用自定义值
   let 加密客户端问候配置501 = null;
   if (启用加密客户端问候) {
@@ -4163,6 +4542,7 @@ async function 处理订阅请求(请求507, 用户506, 网址505 = null) {
     case 'clashr': // clashr
     case 'stash':
     case 'meta':
+<<<<<<< local_明文源吗
     case 'clashmeta':
   订阅内容 = await 生成值值589(最终链接列表, 网址505.searchParams.get('config') || 远程配置网址);
   内容类型483 = 'text/yaml; charset=utf-8';
@@ -4195,6 +4575,53 @@ case 'singbox': // singbox
 case 'sing-box':
 case 'singbox':
   订阅内容 = await 生成值值数据对象(最终链接列表);
+=======
+    case 解码64('Y2xhc2htZXRh'):
+      订阅内容 = 生成值值589(最终链接列表);
+      内容类型483 = 'text/yaml; charset=utf-8';
+      break;
+    case 'vg':
+    case 'jk':
+    case 解码64('amlha3Vhbg=='):
+      try {
+        订阅内容 = await 生成家宽链式值(最终链接列表);
+      } catch (错误) {
+        return new Response('家宽节点暂时拉不到：' + (错误 && 错误.message ? 错误.message : 错误) + '\n过几分钟再更新，客户端会先用着上一份。', {
+          status: 503,
+          headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' }
+        });
+      }
+      内容类型483 = 'text/yaml; charset=utf-8';
+      break;
+    case atob('c3VyZ2U='):
+    case atob('c3VyZ2Uy'):
+    case atob('c3VyZ2Uz'):
+    case atob('c3VyZ2U0'):
+      订阅内容 = 生成值值562(最终链接列表);
+      内容类型483 = 'text/plain; charset=utf-8';
+      break;
+    case atob('cXVhbnR1bXVsdA=='):
+    case atob('cXVhbng='):
+    case 解码64('cXVhbng='):
+      订阅内容 = 生成值值(最终链接列表);
+      内容类型483 = 'text/plain; charset=utf-8';
+      break;
+    case atob('c3M='):
+    case atob('c3Ny'):
+      订阅内容 = btoa(最终链接列表.join('\n'));
+      break;
+    case atob('djJyYXk='):
+      订阅内容 = btoa(最终链接列表.join('\n'));
+      break;
+    case atob('bG9vbg=='):
+      订阅内容 = 生成值值552(最终链接列表);
+      内容类型483 = 'text/plain; charset=utf-8';
+      break;
+    case atob('c2luZ2JveA=='):
+    case 解码64('c2luZy1ib3g='):
+    case 解码64('c2luZ2JveA=='):
+      订阅内容 = 生成值值数据对象(最终链接列表);
+>>>>>>> upstream_明文源吗
       内容类型483 = 'application/json; charset=utf-8';
       break;
     default:
@@ -4288,15 +4715,8 @@ function 生成链接列表来源源(列表482, 用户481, 工作器域名480, �
         const 网页套接字参数459 = new URLSearchParams({
           encryption: 'none',
           security: 'tls',
-<<<<<<< local_明文源吗
           sni: 节点主机,
           fp: 启用加密客户端问候 ? 'chrome' : 'chrome',
-=======
-          sni: 工作器域名480,
-          // randomized fingerprint may cause TLS compatibility issues with some Xray/uTLS clients.
-          // Use chrome as default for better compatibility (chrome is also required when ECH is enabled).
-          fp: 'chrome',
->>>>>>> upstream_明文源吗
           type: 'ws',
           host: 节点主机,
           path: 当前节点路径457
@@ -5837,6 +6257,10 @@ async function 处理订阅值(请求241, 用户240 = null) {
       enablePreferredIP: '启用优选 IP',
       enableNativeAddress: '启用原生地址',
       enableGitHubPreferred: '启用自定义优选',
+      jkSection: '家宽链式',
+      jkEnable: '开启家宽链式',
+      jkHint: 解码64('5byA5LqG5LmL5ZCO5a6i5oi356uv5YiX6KGo5aSa5LiA5Liq44CMQ0xBU0gg5a625a6944CN44CCQ0Yg6IqC54K55bim6Lev77yM5Ye65Y+j5o2i5oiQ5pel5pys44CB6Z+p5Zu9562J5Zyw55qE5a625bqt5a695bim44CC6KaBIENsYXNoIE1ldGEg5YaF5qC4IDEuMTkuMjUg5Lul5LiK5omN6K6k77yMQ2xhc2ggVmVyZ2UgUmV244CBRmxDbGFzaOOAgUNNRkEg6YO96KGM44CC6IqC54K55piv572R5Y+L5YWx5Lqr55qE77yM5pe25LiN5pe25Lya5o6J77yM6K6i6ZiF6YeM5Lya6Ieq5bex5o2i44CC'),
+      jkClient: 'CLASH 家宽',
       allowAPIManagement: '允许API管理 (ae):',
       regionMatching: '地区匹配 (rm):',
       downgradeControl: 解码64('5Ye656uZ5pa55byPIChxaik6'),
@@ -5903,7 +6327,7 @@ async function 处理订阅值(请求241, 用户240 = null) {
         FI: '🇫🇮 芬兰',
         GB: '🇬🇧 英国'
       },
-      terminal: '终端 v3.0',
+      terminal: '终端 v3.1',
       githubProject: 'GitHub 项目',
       优选工具: '优选工具',
       autoDetectClient: '自动识别',
@@ -6009,6 +6433,10 @@ async function 处理订阅值(请求241, 用户240 = null) {
       enablePreferredIP: 'فعال‌سازی IP ترجیحی',
       enableNativeAddress: 'فعال‌سازی آدرس اصلی',
       enableGitHubPreferred: 'فعال‌سازی ترجیح سفارشی',
+      jkSection: 'زنجیره اینترنت خانگی',
+      jkEnable: 'فعال‌سازی زنجیره اینترنت خانگی',
+      jkHint: 解码64('2b7YsyDYp9iyINmB2LnYp9mE4oCM2LPYp9iy24zYjCDar9iy24zZhtmHIMKrQ0xBU0gg2K7Yp9mG2q/bjMK7INio2Ycg2YHZh9ix2LPYqiDaqdmE2KfbjNmG2KrigIzZh9inINin2LbYp9mB2Ycg2YXbjOKAjNi02YjYry4g2q/YsdmH4oCM2YfYp9uMIENGINmF2LPbjNixINix2Kcg2KjYp9iyINmF24zigIzaqdmG2YbYryDZiCDYrtix2YjYrNuMINin2LIg2KfbjNmG2KrYsdmG2Kog2K7Yp9mG2q/bjCDamNin2b7ZhtiMINqp2LHZhyDZiCDaqdi02YjYsdmH2KfbjCDYr9uM2q/YsSDYp9iz2KouINmB2YLYtyDZh9iz2KrZhyBDbGFzaCBNZXRhINmG2LPYrtmHIDEuMTkuMjUg2KjZhyDYqNin2YTYpyDYotmGINix2Kcg2YXbjOKAjNi02YbYp9iz2K/YmyBDbGFzaCBWZXJnZSBSZXbYjCBGbENsYXNoINmIIENNRkEg2qnYp9ixINmF24zigIzaqdmG2YbYry4g2q/YsdmH4oCM2YfYpyDYp9i02KrYsdin2qnbjCDZh9iz2KrZhtivINmIINqv2KfZh9uMINmC2LfYuSDZhduM4oCM2LTZiNmG2K/YjCDYp9i02KrYsdin2qkg2K7ZiNiv2LQg2q/YsdmHINiv24zar9ix24wg2LHYpyDYp9mG2KrYrtin2Kgg2YXbjOKAjNqp2YbYry4='),
+      jkClient: 'CLASH خانگی',
       allowAPIManagement: 'اجازه مدیریت API (ae):',
       regionMatching: 'تطبیق منطقه (rm):',
       downgradeControl: 'کنترل کاهش سطح (qj):',
@@ -6063,7 +6491,7 @@ async function 处理订阅值(请求241, 用户240 = null) {
         FI: '🇫🇮 فنلاند',
         GB: '🇬🇧 بریتانیا'
       },
-      terminal: 'ترمینال v3.0',
+      terminal: 'ترمینال v3.1',
       githubProject: 'پروژه GitHub',
       优选工具: 'ابزار ترجیح IP',
       autoDetectClient: 'تشخیص خودکار',
@@ -7058,6 +7486,7 @@ async function 处理订阅值(请求241, 用户240 = null) {
             <div class="card">
                     <h2 class="card-title">${翻译值.selectClient}</h2>
                 <div class="client-grid">
+<<<<<<< local_明文源吗
                     <button class="client-btn" onclick="生成客户端链接('clash', 'CLASH')">CLASH</button>
                     <button class="client-btn" onclick="生成客户端链接('clash', 'STASH')">STASH</button>
                     <button class="client-btn" onclick="生成客户端链接('surge', 'SURGE')">SURGE</button>
@@ -7068,6 +7497,19 @@ async function 处理订阅值(请求241, 用户240 = null) {
                     <button class="client-btn" onclick="生成客户端链接('v2ray', 'V2RAYNG')">V2RAYNG</button>
                     <button class="client-btn" onclick="生成客户端链接('v2ray', 'NEKORAY')">NEKORAY</button>
                     <button class="client-btn" onclick="生成客户端链接('v2ray', 'Shadowrocket')">Shadowrocket</button>
+=======
+                    <button class="client-btn" onclick="生成客户端链接(atob('Y2xhc2g='), 'CLASH')">CLASH</button>
+                    <button class="client-btn" onclick="生成客户端链接(atob('Y2xhc2g='), 'STASH')">STASH</button>
+                    <button class="client-btn" onclick="生成客户端链接(atob('c3VyZ2U='), 'SURGE')">SURGE</button>
+                    <button class="client-btn" onclick="生成客户端链接(atob('c2luZ2JveA=='), 'SING-BOX')">SING-BOX</button>
+                    <button class="client-btn" onclick="生成客户端链接(atob('bG9vbg=='), 'LOON')">LOON</button>
+                    <button class="client-btn" onclick="生成客户端链接(atob('cXVhbng='), 'QUANTUMULT X')">QUANTUMULT X</button>
+                    <button class="client-btn" onclick="生成客户端链接(atob('djJyYXk='), 'V2RAY')">V2RAY</button>
+                    <button class="client-btn" onclick="生成客户端链接(atob('djJyYXk='), 'V2RAYNG')">V2RAYNG</button>
+                    <button class="client-btn" onclick="生成客户端链接(atob('djJyYXk='), 'NEKORAY')">NEKORAY</button>
+                    <button class="client-btn" onclick="生成客户端链接(atob('djJyYXk='), 'Shadowrocket')">Shadowrocket</button>
+                    <button class="client-btn" id="jkClientBtn" style="${启用家宽链式 ? '' : 'display: none;'}" onclick="生成客户端链接('vg', '${翻译值.jkClient}')">${翻译值.jkClient}</button>
+>>>>>>> upstream_明文源吗
                 </div>
                 <div class="subscription-url" id="clientSubscriptionUrl"></div>
             </div>
@@ -7325,6 +7767,16 @@ async function 处理订阅值(请求241, 用户240 = null) {
                                     </label>
                                 </div>
                                     <small style="color: #7aa9c4; font-size: 0.85rem; display: block; margin-top: 10px;">${翻译值.builtinPreferredHint}</small>
+                            </div>
+                        </div>
+                        <div style="margin-bottom: 15px;">
+                                <label style="display: block; margin-bottom: 8px; color: #00f0ff; font-weight: bold; text-shadow: 0 0 3px #00f0ff;">${翻译值.jkSection}</label>
+                            <div style="padding: 15px; background: rgba(15, 3, 40, 0.6); border: 1px solid #00f0ff; border-radius: 5px;">
+                                <label style="display: inline-flex; align-items: center; cursor: pointer; color: #00f0ff;">
+                                    <input type="checkbox" id="jk" style="margin-right: 8px; width: 18px; height: 18px; cursor: pointer;">
+                                        <span style="font-size: 1.1rem;">${翻译值.jkEnable}</span>
+                                </label>
+                                    <small style="color: #7aa9c4; font-size: 0.85rem; display: block; margin-top: 10px;">${翻译值.jkHint}</small>
                             </div>
                         </div>
                         <div style="margin-bottom: 15px;">
@@ -7682,7 +8134,13 @@ function 生成客户端链接(客户端类型, 客户端名称) {
     网址值20190.style.overflowX = "auto";
     网址值20190.style.maxWidth = "100%";
     网址值20190.style.boxSizing = "border-box";
+<<<<<<< local_明文源吗
     if (客户端类型 === 'clash') {
+=======
+    if (客户端类型 === 'vg') {
+      方案网址 = '${解码64('Y2xhc2g6Ly9pbnN0YWxsLWNvbmZpZz91cmw9')}' + encodeURIComponent(最终网址);
+    } else if (客户端类型 === atob('Y2xhc2g=')) {
+>>>>>>> upstream_明文源吗
       if (客户端名称 === 'STASH') {
         方案网址 = 'stash://install?url=' + encodeURIComponent(最终网址);
         显示名称 = 'STASH';
@@ -8115,6 +8573,7 @@ function 同步联动界面状态() {
   更新工作器地区状态();
 }
 function 应用配置到界面(配置) {
+<<<<<<< local_明文源吗
  写入字段值('wkRegion', 配置.wk);
  写入开关值('ev', 配置.ev, true);
  写入开关值('et', 配置.et, false);
@@ -8172,6 +8631,42 @@ function 更新加密客户端问候锁定状态() {
     下拉框.disabled = false;
     下拉框.style.opacity = '1';
   }
+=======
+  写入字段值('wkRegion', 配置.wk);
+  写入开关值('ev', 配置.ev, true);
+  写入开关值('et', 配置.et, false);
+  写入开关值('ex', 配置.ex, false);
+  写入开关值('ech', 配置.ech, false);
+  写入字段值('tp', 配置.tp);
+  写入字段值('customDNS', 配置.customDNS);
+  写入字段值('customECHDomain', 配置.customECHDomain);
+  写入字段值('alpn', 配置.alpn);
+  写入字段值('scu', 配置.scu);
+  写入开关值('ena', 配置.ena, false);
+  写入开关值('jk', 配置.jk, false);
+  const 家宽按钮 = document.getElementById('jkClientBtn');
+  if (家宽按钮) 家宽按钮.style.display = 是否开关启用(配置.jk, false) ? '' : 'none';
+  写入开关值('epd', 配置.epd, true);
+  写入开关值('epi', 配置.epi, true);
+  写入开关值('egi', 配置.egi, true);
+  写入开关值('ipv4Enabled', 配置.ipv4, true);
+  写入开关值('ipv6Enabled', 配置.ipv6, true);
+  写入开关值('ispMobile', 配置.ispMobile, true);
+  写入开关值('ispUnicom', 配置.ispUnicom, true);
+  写入开关值('ispTelecom', 配置.ispTelecom, true);
+  写入字段值('customPath', 配置.d);
+  写入字段值('customIP', 配置.p);
+  写入字段值('yx', 配置.yx);
+  写入字段值('yxURL', 配置.yxURL);
+  写入字段值('socksConfig', 配置.s);
+  写入字段值('customHomepage', 配置.homepage);
+  写入字段值('apiEnabled', 配置.ae);
+  写入字段值('regionMatching', 配置.rm);
+  写入字段值('downgradeControl', 配置.qj);
+  写入字段值('portControl', 配置.dkby);
+  写入字段值('preferredControl', 配置.yxby);
+  同步联动界面状态();
+>>>>>>> upstream_明文源吗
 }
 function 收集界面配置() {
   const 配置 = {
@@ -8195,6 +8690,7 @@ function 收集界面配置() {
     scu: 读取字段值('scu'),
     scc: 读取字段值('scc'),
     ena: 读取开关值('ena', false),
+    jk: 读取开关值('jk', false),
     epd: 读取开关值('epd', true),
     epi: 读取开关值('epi', true),
     egi: 读取开关值('egi', true),
@@ -10260,7 +10756,6 @@ function 生成链接列表来源新地址列表(列表100, 用户99, 工作器�
     const 当前节点路径91 = 启用随机路径 ? 随机路径('/?ed=2048') : '/?ed=2048';
     if (云墙安全超文本端口93.includes(端口88)) {
       const 网页套接字节点名称86 = 制作节点名称90(项目89);
-<<<<<<< local_明文源吗
       const 网页套接字参数85 = new URLSearchParams({
         encryption: 'none',
         security: 'tls',
@@ -10271,11 +10766,6 @@ function 生成链接列表来源新地址列表(列表100, 用户99, 工作器�
         path: 当前节点路径91
       });
       const 应用层协议协商值85 = 规范化应用层协议协商(自定义应用层协议协商); if (应用层协议协商值85) 网页套接字参数85.set('alpn', 应用层协议协商值85);
-=======
-      let 链接85 = `${协议}://${用户99}@${安全地址87}:${端口88}?encryption=none&security=tls&sni=${工作器域名98}&fp=chrome&type=ws&host=${工作器域名98}&path=${网页套接字路径91}`;
-      if (自定义应用层协议协商) 链接85 += `&alpn=${encodeURIComponent(自定义应用层协议协商)}`;
-
->>>>>>> upstream_明文源吗
       // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
       if (启用加密客户端问候) {
         const 域名系统值84 = 自定义域名系统 || 'https://cloudflare-dns.com/dns-query';
@@ -10297,7 +10787,6 @@ function 生成链接列表来源新地址列表(列表100, 用户99, 工作器�
       }
     } else {
       const 网页套接字节点名称80 = 制作节点名称90(项目89);
-<<<<<<< local_明文源吗
       const 网页套接字参数79 = new URLSearchParams({
         encryption: 'none',
         security: 'tls',
@@ -10308,11 +10797,6 @@ function 生成链接列表来源新地址列表(列表100, 用户99, 工作器�
         path: 当前节点路径91
       });
       const 应用层协议协商值79 = 规范化应用层协议协商(自定义应用层协议协商); if (应用层协议协商值79) 网页套接字参数79.set('alpn', 应用层协议协商值79);
-=======
-      let 链接79 = `${协议}://${用户99}@${安全地址87}:${端口88}?encryption=none&security=tls&sni=${工作器域名98}&fp=chrome&type=ws&host=${工作器域名98}&path=${网页套接字路径91}`;
-      if (自定义应用层协议协商) 链接79 += `&alpn=${encodeURIComponent(自定义应用层协议协商)}`;
-
->>>>>>> upstream_明文源吗
       // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
       if (启用加密客户端问候) {
         const 域名系统值78 = 自定义域名系统 || 'https://cloudflare-dns.com/dns-query';
@@ -10741,6 +11225,7 @@ function 更新配置值() {
   启用优选地址 = 有效配置.epi === 'yes';
   启用仓库优选 = 有效配置.egi === 'yes';
   启用原生地址 = 有效配置.ena === 'yes';
+  启用家宽链式 = 有效配置.jk === 'yes';
   启用加密客户端问候 = 有效配置.ech === 'yes';
   启用随机路径 = 有效配置.randomPath === 'yes';
   自定义域名系统 = 有效配置.customDNS || 配置默认值.customDNS;
