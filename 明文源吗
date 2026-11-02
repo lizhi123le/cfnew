@@ -4382,7 +4382,7 @@ function 解析网页套接字值头部(块297, 令牌) {
   let 是否用户数据报 = false;
   if (命令293 === 2) {
     是否用户数据报 = true;
-  } else {
+  } else if (命令293 !== 1) {
     return { hasError: true, message: 错误_不支持命令 };
   }
   const 端口索引292 = 19 + 值长度294;
