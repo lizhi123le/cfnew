@@ -1,11 +1,11 @@
 // CFnew - 终端 版本: v3.0
+import { connect as 连接 } from 'cloudflare:sockets';
 class RequestContext {
   constructor(env) {
     this.env = env;
     this.认证令牌 = env.u || null;
   }
 }
-const 连接 = (选项) => (typeof TCP拨号 !== 'undefined' ? TCP拨号 : connect)(选项);
 // ★ 隐私增强：模块级函数 — 智能剥离随机填充前缀（所有协议路径共用）
 const PRIVACY_MAGIC = 0xED7F;
 const 智能剥离填充 = (data) => {
@@ -248,12 +248,163 @@ let 自定义主机 = ''; // 用户手动指定的固定 host
 // ★ 伪装首页内存缓存（避免重复 fetch + text()）
 const 伪装首页缓存 = new Map();
 const 伪装首页缓存TTL = 300000; // 5 分钟
+const 伪装首页缓存最大条目 = 100;
+// 总字节预算：isolate 内存只有 128MB，而单条正文最长可达 改写预算字节（1MB）。
+// 只按「条目数」限流时 100 条 × 1MB ≈ 100MB，缓存本身就是内存炸弹 ——
+// 逼近上限后 V8 会持续高强度 GC，而 GC 消耗的是 CPU 时间，
+// 表现为「CPU 超限规律性复发」，而不是可读的内存报错。因此必须按字节封顶。
+const 伪装首页缓存最大字节 = 4 * 1024 * 1024;
+let 伪装首页缓存字节 = 0;
+// 改写预算：累计处理超过它的部分停止改写、原样流出。
+// 旧实现是「content-length===0 || <2MB」全量 clone().text()，把「上游不报长度(chunked)」
+// 当成了「很小」，这是单次请求烧穿 CPU 预算的主因。
+const 改写预算字节 = 1 * 1024 * 1024;
+
 function 清理伪装首页缓存() {
   const now = Date.now();
   for (const [k, v] of 伪装首页缓存) {
-    if (now - v.time >= 伪装首页缓存TTL) 伪装首页缓存.delete(k);
+    if (now - v.time >= 伪装首页缓存TTL) {
+      伪装首页缓存字节 -= v.bytes || 0;
+      伪装首页缓存.delete(k);
+    }
   }
-  if (伪装首页缓存.size > 100) 伪装首页缓存.clear();
+}
+
+/**
+ * 写入首页缓存：同时维持「总字节」与「条目数」两道天花板。
+ * Map 的插入顺序即淘汰顺序，命中后重新 set 会把该键挪到队尾（最近使用），
+ * 因此逐条从头淘汰删到的就是最久未使用的条目。
+ * 单条超出总预算的正文直接不入缓存（一条就能吃光预算，只会把热点键挤走）。
+ */
+function 写入伪装首页缓存(键, 条目) {
+  const 大小 = 条目.bytes || 0;
+  const 已有 = 伪装首页缓存.get(键);
+  if (已有) {
+    伪装首页缓存字节 -= 已有.bytes || 0;
+    伪装首页缓存.delete(键);
+  }
+  if (大小 > 伪装首页缓存最大字节) return;
+  while (伪装首页缓存.size && (伪装首页缓存.size >= 伪装首页缓存最大条目
+    || 伪装首页缓存字节 + 大小 > 伪装首页缓存最大字节)) {
+    const 最旧 = 伪装首页缓存.keys().next();
+    if (最旧.done) break;
+    const 旧条目 = 伪装首页缓存.get(最旧.value);
+    if (旧条目) 伪装首页缓存字节 -= 旧条目.bytes || 0;
+    伪装首页缓存.delete(最旧.value);
+  }
+  伪装首页缓存.set(键, 条目);
+  伪装首页缓存字节 += 大小;
+}
+
+// ★ CPU 熔断：每 isolate 每窗口最多 N 次真实反代（覆盖全部伪装路径，含图片目标）。
+// 单次反代的 CPU 与上游响应体大小线性相关；批量扫描会把同一个 isolate 打成一串
+// exceededCpu。超限后改为返回内建 1101 页（0 次 fetch、0 次字符串改写）。
+const 熔断窗口毫秒 = 60000;
+const 熔断窗口最大次数 = 60;
+let 熔断窗口起点 = 0;
+let 熔断计数 = 0;
+
+/** 熔断闸门：true = 本窗口额度已用尽。必须放在「缓存查询之后、任何真实出站之前」。 */
+function 熔断已耗尽() {
+  const now = Date.now();
+  if (now - 熔断窗口起点 >= 熔断窗口毫秒) {
+    熔断窗口起点 = now;
+    熔断计数 = 0;
+  }
+  if (熔断计数 >= 熔断窗口最大次数) return true;
+  熔断计数++;
+  return false;
+}
+
+// ★ 噪声查询参数：只影响上游统计与归因，不改变返回的页面内容。
+// 纳入缓存键会让真实站点首页常见的 ?utm_source=…&_=17… 把命中率打到接近 0，
+// 每个请求都重走一遍「clone + text + replaceAll」的 CPU 密集路径。
+const 噪声查询键 = new Set(['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content',
+  'gclid', 'fbclid', 'msclkid', 'dclid', 'spm', '_ga', '_gl', '_']);
+
+/**
+ * 缓存键归一化：按原出现顺序保留非噪声参数、值原样保留。
+ * 刻意不用 searchParams 序列化 —— 它会重新编码并重排，
+ * 那样「缓存键」与「实际转发给上游的 URL」会变成两个东西，排查时极易误判。
+ */
+function 归一化查询(search) {
+  if (!search || search === '?') return '';
+  const 保留 = [];
+  for (const 段 of search.slice(1).split('&')) {
+    if (!段) continue;
+    const 等号 = 段.indexOf('=');
+    const 键名 = (等号 === -1 ? 段 : 段.slice(0, 等号)).toLowerCase();
+    if (噪声查询键.has(键名)) continue;
+    保留.push(段);
+  }
+  return 保留.length ? '?' + 保留.join('&') : '';
+}
+
+/**
+ * 复制上游响应头：只放行 SAFE_PROXY_HEADERS。
+ * 已改写=true 时额外剥掉 content-length / content-encoding / transfer-encoding ——
+ * 改写会改变长度、且 body 已被 fetch 解压，沿用这些头会让客户端按旧长度读取
+ * 或二次解压失败，表现为页面坏掉 + 不断重试（每次重试都是缓存未命中的昂贵反代）。
+ * 用 k.toLowerCase() 比较：Headers 迭代产出的头名大小写不保证。
+ */
+function 复制响应头(源, 已改写) {
+  const 结果 = {};
+  for (const [k, v] of 源) {
+    const 小写 = k.toLowerCase();
+    if (!SAFE_PROXY_HEADERS.has(小写)) continue;
+    if (已改写 && (小写 === 'content-length' || 小写 === 'content-encoding' || 小写 === 'transfer-encoding')) continue;
+    结果[k] = v;
+  }
+  return 结果;
+}
+
+/**
+ * 边流边改写：把上游 body 的每个 chunk 解码、替换 host、再编码流出。
+ * 累计处理字节超过 改写预算字节 后停止改写，余下原样流出且**不缓存半成品**
+ * （半成品是「前半段已改写、后半段原文」的混合体，缓存它会把错误结果固化 5 分钟）。
+ * 不在 chunk 之间拼接再替换：替换目标是 host，replaceAll 是纯字符串替换、无正则状态；
+ * chunk 边界恰好切断 host 时那一处会被漏掉（概率极低，只影响页面里对上游域名的引用），
+ * 换来的收益是不必在多 MB 文本上做跨 chunk 拼接。
+ */
+function 预算流式改写(反代响应, 反代URL, 网址, 缓存键, 内容类型, 环境变量, hsts头) {
+  const 来源 = 反代响应.body;
+  const 过滤后头 = 复制响应头(反代响应.headers, true);
+  过滤后头['Cache-Control'] = 'no-store';
+  if (含HSTS(环境变量)) 过滤后头['Strict-Transport-Security'] = HSTS值;
+  if (!来源) return new Response(null, { status: 反代响应.status, statusText: 反代响应.statusText, headers: 过滤后头 });
+  const 解码器 = new TextDecoder('utf-8');
+  const 编码器 = new TextEncoder();
+  let 已处理 = 0;
+  let 可改写 = true;
+  let 已收集 = '';
+  const 变换 = new TransformStream({
+    transform(块, 控制器) {
+      if (!可改写) { 控制器.enqueue(块); return; }
+      if (已处理 + 块.byteLength > 改写预算字节) {
+        可改写 = false;
+        已收集 = '';
+        console.warn('伪装页超过 ' + 改写预算字节 + 'B 改写预算，余下部分原样流出');
+        控制器.enqueue(块);
+        return;
+      }
+      已处理 += 块.byteLength;
+      const 改写 = 解码器.decode(块, { stream: true }).replaceAll(反代URL.host, 网址.host);
+      已收集 += 改写;
+      控制器.enqueue(编码器.encode(改写));
+    },
+    flush(控制器) {
+      const 尾巴 = 解码器.decode();
+      if (尾巴) {
+        const 改写尾 = 尾巴.replaceAll(反代URL.host, 网址.host);
+        if (可改写) 已收集 += 改写尾;
+        控制器.enqueue(编码器.encode(改写尾));
+      }
+      if (可改写 && 已收集) {
+        写入伪装首页缓存(缓存键, { body: 已收集, contentType: 内容类型, status: 反代响应.status, time: Date.now(), bytes: 已收集.length });
+      }
+    }
+  });
+  return new Response(来源.pipeThrough(变换), { status: 反代响应.status, statusText: 反代响应.statusText, headers: 过滤后头 });
 }
 // 图片代理缓存（最多12张，每张不超过2048KB，FIFO淘汰）
 const 伪装图片缓存 = new Map();
@@ -271,6 +422,63 @@ function 字节转HTML图片(字节, 内容类型) {
 }
 function 生成图片HTML(数据URI) {
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>CFnew</title><style>body{margin:0;padding:0;overflow:hidden;background:#000;display:flex;align-items:center;justify-content:center;height:100vh}img{width:100vw;height:100vh;object-fit:fill}</style></head><body><img src="${数据URI}" alt="homepage"></body></html>`;
+}
+/**
+ * 图片缓存命中则返回包装页，否则 null（不产生任何网络请求）。
+ * 抽出来是为了让 处理伪装反代 能在**扣熔断额度之前**先判命中 ——
+ * 缓存命中是廉价路径，不该消耗保护真实出站的额度。
+ */
+function 窥探图片缓存(伪装地址, hsts头) {
+  const 命中 = 伪装图片缓存.get(伪装地址);
+  if (!命中) return null;
+  return new Response(生成图片HTML(字节转HTML图片(命中.body, 命中.contentType)), {
+    status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8', ...hsts头 }
+  });
+}
+/** 取图并包装为内联 data URI 页；失败返回 null → 降级普通伪装反代。 */
+async function 取图片伪装(伪装地址, hsts头) {
+  const 缓存命中 = 窥探图片缓存(伪装地址, hsts头);
+  if (缓存命中) return 缓存命中;
+  try {
+    const 图片源 = new URL(伪装地址);
+    const 图片反代响应 = await fetchWithTimeout(伪装地址, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36',
+        'Referer': 图片源.origin + '/',
+      }
+    }, 10000);
+    const 内容类型 = 图片反代响应.headers.get('content-type') || 'image/jpeg';
+    // 假阳性保护：服务器返回 HTML 说明不是图片，降级到普通反代
+    if (内容类型.startsWith('text/html')) throw new Error('非图片响应(' + 内容类型 + ')，跳过图片伪装');
+    const 图片长度 = parseInt(图片反代响应.headers.get('content-length') || '0', 10);
+    // P2-1: 已知 <2MB → 缓冲 + 缓存 + HTML 包装
+    if (图片长度 > 0 && 图片长度 < 2 * 1024 * 1024) {
+      const 图片字节 = await withTimeout(图片反代响应.arrayBuffer(), 5000, '图片代理响应体读取超时');
+      if (图片字节.byteLength < 2 * 1024 * 1024) {
+        if (伪装图片缓存.size >= 伪装图片缓存最大) {
+          const 最旧键 = 伪装图片缓存.keys().next().value;
+          if (最旧键) 伪装图片缓存.delete(最旧键);
+        }
+        伪装图片缓存.set(伪装地址, { body: 图片字节, status: 图片反代响应.status, contentType: 内容类型, time: Date.now() });
+        return new Response(生成图片HTML(字节转HTML图片(图片字节, 内容类型)), {
+          status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8', ...hsts头 }
+        });
+      }
+      // content-length 虚标（实际 >2MB）：用已读字节流式
+      return new Response(图片字节, {
+        status: 图片反代响应.status,
+        headers: { 'Content-Type': 内容类型, 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'public, max-age=86400', ...hsts头 }
+      });
+    }
+    // 未知长度或无头部/≥2MB：直接流式（不缓冲、不缓存、不包装HTML）
+    return new Response(图片反代响应.body, {
+      status: 图片反代响应.status,
+      headers: { 'Content-Type': 内容类型, 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'public, max-age=86400', ...hsts头 }
+    });
+  } catch (e) {
+    console.error('伪装图片代理失败:', e.message);
+    return null; // fallthrough 到普通伪装页逻辑
+  }
 }
 let 键值存储 = null;
 let 键值配置 = {};
@@ -587,9 +795,6 @@ const CF_INBOUND_HEADERS = ['CF-Connecting-IP', 'CF-IPCountry', 'CF-Ray', 'CF-Vi
 const SAFE_PROXY_HEADERS = new Set(['content-type', 'content-length', 'content-encoding', 'transfer-encoding', 'accept-ranges', 'content-range', 'content-language', 'cache-control', 'expires', 'last-modified', 'age', 'vary', 'date', 'content-disposition', 'connection']);
 const HSTS值 = 'max-age=31536000; includeSubDomains; preload';
 const 含HSTS = (环境) => ['1', 'true'].includes(环境?.HSTS_ENABLE);
-const 云墙明文端口 = [80, 8080, 8880, 2052, 2082, 2086, 2095];
-const 云墙TLS端口 = [443, 2053, 2083, 2087, 2096, 8443];
-const 默认TLS端口 = [443];
 const 共享解码器 = new TextDecoder();
 const 唯一标识字节缓存 = new Map();
 function 是否有效格式(字符串) {
@@ -888,47 +1093,16 @@ async function 处理伪装反代(请求, 网址, 环境变量) {
   if (伪装地址.toLowerCase().startsWith('http://')) 伪装地址 = 'https://' + 伪装地址.substring(7);
   // ★ 图片URL检测：代理图片并嵌入HTML全屏拉伸显示
   // 无论请求路径是什么（/ 或 /随机路径），都返回同一张样式化图片
-  if (/\.(jpg|jpeg|png|gif|webp|bmp|svg|ico)(\?|$)|[?&]f=(jpg|jpeg|png|gif|webp|bmp|svg|ico)\b|\/image\/|\/img\/|\/photo\/|\/thumb\/|\/photo-|[?&](auto|fm|format)=(jpg|jpeg|png|gif|webp|bmp|svg|ico)\b/i.test(伪装地址)) {
-    try {
-      const 缓存命中 = 伪装图片缓存.get(伪装地址);
-      if (缓存命中) {
-        const 数据URI = 字节转HTML图片(缓存命中.body, 缓存命中.contentType);
-        return new Response(生成图片HTML(数据URI), { status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8', ...hsts头 } });
-      }
-      const 图片源 = new URL(伪装地址);
-      const 图片反代响应 = await fetchWithTimeout(伪装地址, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36',
-          'Referer': 图片源.origin + '/',
-        }
-      }, 10000);
-      const 内容类型 = 图片反代响应.headers.get('content-type') || 'image/jpeg';
-      // 假阳性保护：服务器返回 HTML 说明不是图片，降级到普通反代
-      if (内容类型.startsWith('text/html')) throw new Error('非图片响应(' + 内容类型 + ')，跳过图片伪装');
-      const 图片长度 = parseInt(图片反代响应.headers.get('content-length') || '0', 10);
-      // P2-1: 已知 <2MB → 缓冲 + 缓存 + HTML 包装
-      if (图片长度 > 0 && 图片长度 < 2 * 1024 * 1024) {
-        const 图片字节 = await withTimeout(图片反代响应.arrayBuffer(), 5000, '图片代理响应体读取超时');
-        if (图片字节.byteLength < 2 * 1024 * 1024) {
-          if (伪装图片缓存.size >= 伪装图片缓存最大) {
-            const 最旧键 = 伪装图片缓存.keys().next().value;
-            if (最旧键) 伪装图片缓存.delete(最旧键);
-          }
-          伪装图片缓存.set(伪装地址, { body: 图片字节, status: 图片反代响应.status, contentType: 内容类型, time: Date.now() });
-          const 数据URI = 字节转HTML图片(图片字节, 内容类型);
-          return new Response(生成图片HTML(数据URI), { status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8', ...hsts头 } });
-        }
-        // content-length 虚标（实际 >2MB）：用已读字节流式（body 已被 arrayBuffer 消费）
-        const 图片头 = { 'Content-Type': 内容类型, 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'public, max-age=86400', ...hsts头 };
-        return new Response(图片字节, { status: 图片反代响应.status, headers: 图片头 });
-      }
-      // 未知长度或无头部/≥2MB：直接流式（不缓冲、不缓存、不包装HTML）
-      const 图片头 = { 'Content-Type': 内容类型, 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'public, max-age=86400', ...hsts头 };
-      return new Response(图片反代响应.body, { status: 图片反代响应.status, headers: 图片头 });
-    } catch (e) {
-      console.error('伪装图片代理失败:', e.message);
-      // 图片处理失败，fallthrough 到普通伪装页逻辑
-    }
+  const 是图片目标 = /\.(jpg|jpeg|png|gif|webp|bmp|svg|ico)(\?|$)|[?&]f=(jpg|jpeg|png|gif|webp|bmp|svg|ico)\b|\/image\/|\/img\/|\/photo\/|\/thumb\/|\/photo-|[?&](auto|fm|format)=(jpg|jpeg|png|gif|webp|bmp|svg|ico)\b/i.test(伪装地址);
+  // 归一化前先留住完整地址：下面会把 伪装地址 截成 origin，
+  // 而图片取图与图片缓存键都需要完整 URL。
+  const 原始伪装地址 = 伪装地址;
+  // 图片缓存命中必须在扣熔断额度之前短路（廉价路径不消耗额度）。
+  // 未命中时不在这里取图 —— 取图要 arrayBuffer + base64 拼接，同样是重 CPU，
+  // 必须排到熔断检查之后，否则图片目标等于完全没有保护。
+  if (是图片目标) {
+    const 命中 = 窥探图片缓存(原始伪装地址, hsts头);
+    if (命中) return 命中;
   }
   // URL 归一化（剥离路径，仅保留host用于反向代理）
   try { const u = new URL(伪装地址); 伪装地址 = u.protocol + '//' + u.host; } catch (e) { return new Response(await nginx(), { status: 200, headers: { 'Content-Type': 'text/html; charset=UTF-8', ...hsts头 } }); }
@@ -999,16 +1173,35 @@ async function 处理伪装反代(请求, 网址, 环境变量) {
     const CH_HEADERS = ['Sec-CH-UA', 'Sec-CH-UA-Arch', 'Sec-CH-UA-Bitness', 'Sec-CH-UA-Full-Version',
                         'Sec-CH-UA-Mobile', 'Sec-CH-UA-Model', 'Sec-CH-UA-Platform', 'Sec-CH-UA-Platform-Version'];
   try {
-    const 缓存键 = 反代URL.origin + 网址.pathname + 网址.search;
+    // 缓存键 = 「实际转发给上游的 path + 归一化后的 query」：请求原样转发，只有键被归一化
+    const 缓存键 = 反代URL.origin + 网址.pathname + 归一化查询(网址.search);
     // 内存缓存查询
     const 缓存条目 = 伪装首页缓存.get(缓存键);
     if (缓存条目 && Date.now() - 缓存条目.time < 伪装首页缓存TTL) {
+      // 命中即提升为「最近使用」（Map 插入序 = 淘汰序）
+      写入伪装首页缓存(缓存键, 缓存条目);
       const 缓存响应头 = {
         'Content-Type': 缓存条目.contentType,
         'Cache-Control': 'no-store',
       };
       if (含HSTS(环境变量)) 缓存响应头['Strict-Transport-Security'] = HSTS值;
       return new Response(缓存条目.body, { status: 缓存条目.status, headers: 缓存响应头 });
+    }
+    清理伪装首页缓存();
+    // ★ 熔断必须在任何真实出站之前：一旦放行，后面就是 clone + text() + replaceAll 的
+    // 1MB 级字符串处理，事后再省已经晚了。位置刻意在**两个缓存查询之后**（命中不消耗额度），
+    // 又刻意在**图片取图之前**（取图同样重 CPU，此前跑在熔断之外等于图片目标无保护）。
+    // 不区分路径：根路径与节点随机路径共用同一份额度，否则随机路径等于没有保护。
+    if (熔断已耗尽()) {
+      console.warn('[伪装熔断] 本窗口真实反代额度已用尽，降级内建页');
+      return new Response(await html1101(网址.host, 请求.headers.get('CF-Connecting-IP') || ''), {
+        status: 200, headers: { 'Content-Type': 'text/html; charset=UTF-8', ...hsts头 }
+      });
+    }
+    // 图片伪装：上面已确认缓存未命中，这里的取图会真正出站
+    if (是图片目标) {
+      const 图片结果 = await 取图片伪装(原始伪装地址, hsts头);
+      if (图片结果) return 图片结果;
     }
     // 清除CF入站头 + 重写出站头（先克隆，避免修改不可变的原始请求头）
     const 新请求头 = new Headers(请求.headers);
@@ -1019,39 +1212,41 @@ async function 处理伪装反代(请求, 网址, 环境变量) {
      新请求头.set('User-Agent', 浏览器UA池[UA索引]);
      新请求头.set('Accept-Language', Accept语言池[Math.floor(Math.random() * Accept语言池.length)]);
      for (const h of CH_HEADERS) 新请求头.delete(h);
-    清理伪装首页缓存();
     // [隐私增强] 不向上游透传 request.cf 地理/连接信息
     const fetchOptions = { method: 请求.method, headers: 新请求头, cf: {} };
     if (请求.method !== 'GET' && 请求.body) fetchOptions.body = 请求.body;
     const 反代响应 = await fetchWithTimeout(反代URL.origin + 网址.pathname + 网址.search, fetchOptions, 39000);
     const 内容类型 = 反代响应.headers.get('content-type') || '';
     const 内容长度 = parseInt(反代响应.headers.get('content-length') || '0', 10);
-    // 文本类型且小于2MB才全量缓冲+替换，否则直接流式转发
-    if (/text|javascript|json|xml/.test(内容类型) && (内容长度 === 0 || 内容长度 < 2 * 1024 * 1024)) {
+    const 是文本类型 = /text|javascript|json|xml/.test(内容类型);
+    // 长度已知且 < 改写预算：缓冲 + 改写 + 缓存。
+    // 注意 内容长度 === 0（上游不报长度 / chunked）**不再**进入这条分支：
+    // 旧写法把「未知大小」当成「很小」，会把任意体积的 body 全部 clone + 解码 + replaceAll，
+    // 那正是单次请求打穿 CPU 预算的主因。未知长度一律交给下面的预算流式改写。
+    if (是文本类型 && 内容长度 > 0 && 内容长度 < 改写预算字节) {
       // 克隆响应以保护原始 body stream：超时后仍可流式降级，避免 body consumed 错误
       const 反代响应克隆 = 反代响应.clone();
       try {
         const 响应文本 = await withTimeout(反代响应克隆.text(), 5000);
         const 响应内容 = 响应文本.replaceAll(反代URL.host, 网址.host);
-    const 过滤后头 = {};
-    for (const [k, v] of 反代响应.headers) {
-      if (SAFE_PROXY_HEADERS.has(k.toLowerCase())) 过滤后头[k] = v;
+        // 已改写=true：剥掉 content-length / content-encoding / transfer-encoding
+        const 过滤后头 = 复制响应头(反代响应.headers, true);
+        过滤后头['Cache-Control'] = 'no-store';
+        if (含HSTS(环境变量)) 过滤后头['Strict-Transport-Security'] = HSTS值;
+        写入伪装首页缓存(缓存键, { body: 响应内容, contentType: 过滤后头['Content-Type'] || 内容类型, status: 反代响应.status, time: Date.now(), bytes: 响应内容.length });
+        return new Response(响应内容, { status: 反代响应.status, headers: 过滤后头 });
+      } catch (e) {
+        console.warn('伪装页缓冲超时，改为流式转发');
+      }
     }
-    过滤后头['Cache-Control'] = 'no-store';
-    if (含HSTS(环境变量)) 过滤后头['Strict-Transport-Security'] = HSTS值;
-    伪装首页缓存.set(缓存键, { body: 响应内容, contentType: 过滤后头['Content-Type'] || 内容类型, status: 反代响应.status, time: Date.now() });
-    return new Response(响应内容, { status: 反代响应.status, headers: 过滤后头 });
-  } catch (e) {
-    console.warn('伪装页缓冲超时，改为流式转发');
-  }
-}
-// 流式转发路径：也过滤上游头，防止服务器信息泄露
-const 过滤后头913 = {};
-for (const [k, v] of 反代响应.headers) {
-  if (SAFE_PROXY_HEADERS.has(k.toLowerCase())) 过滤后头913[k] = v;
-}
-if (含HSTS(环境变量)) 过滤后头913['Strict-Transport-Security'] = HSTS值;
-return new Response(反代响应.body, { status: 反代响应.status, statusText: 反代响应.statusText, headers: 过滤后头913 });
+    // 长度未知或 ≥ 改写预算的文本：边流边改写，超预算即停止改写、余下原样流出
+    if (是文本类型) {
+      return 预算流式改写(反代响应, 反代URL, 网址, 缓存键, 内容类型, 环境变量, hsts头);
+    }
+    // 流式转发路径（未改写，帧头保持原样）：也过滤上游头，防止服务器信息泄露
+    const 过滤后头913 = 复制响应头(反代响应.headers, false);
+    if (含HSTS(环境变量)) 过滤后头913['Strict-Transport-Security'] = HSTS值;
+    return new Response(反代响应.body, { status: 反代响应.status, statusText: 反代响应.statusText, headers: 过滤后头913 });
   } catch (error) {
     console.error('伪装页反代失败:', error.message);
     // 非根路径失败时降级到首页根目录重试
@@ -1202,6 +1397,24 @@ let 永久黑名单缓存 = null;
 let 永久黑名单缓存时间 = 0;
 const 永久黑名单缓存TTL = 60000;
 const 永久黑名单阈值 = 22;
+// ★ 名单条数上限：名单是整表 JSON，刷新 = JSON.parse(整个数组) + new Set(全部条目)，成本 O(条数)。
+// 实测 5 千条 ≈0.7ms、2 万条 ≈4.3ms、5 万条 ≈13.7ms、10 万条 ≈25ms，
+// 而单请求 CPU 预算只有 10ms。无上限时这个成本随运行时间无界增长 —— 会随时间恶化的定时炸弹。
+// 封顶后恒 ≈0.7ms；超限丢最旧（入列门槛 22 次违规，最老封禁对应的探测源大概率已换 IP）。
+const 永久黑名单最大条数 = 5000;
+// ★ 读取失败后的重试间隔：失败路径必须推进缓存时间戳，
+// 否则「缓存已过期」恒成立 —— KV 一旦不健康，每个经过守卫的请求都会再打一次 KV
+// 并等满 3s 超时，把一次读故障放大成请求级雪崩。
+const 永久黑名单重试毫秒 = 10000;
+
+/** 超限时丢弃最旧的封禁（Set 保持插入顺序，最旧的在最前） */
+function 裁剪永久黑名单(黑名单) {
+  while (黑名单.size > 永久黑名单最大条数) {
+    const 最旧 = 黑名单.values().next();
+    if (最旧.done) return;
+    黑名单.delete(最旧.value);
+  }
+}
 
 async function 加载永久黑名单() {
   if (!键值存储) return new Set();
@@ -1210,9 +1423,12 @@ async function 加载永久黑名单() {
   try {
     const raw = await withTimeout(键值存储.get('永久黑名单'), 3000);
     永久黑名单缓存 = raw ? new Set(JSON.parse(raw)) : new Set();
+    裁剪永久黑名单(永久黑名单缓存);
     永久黑名单缓存时间 = now;
   } catch (e) {
     永久黑名单缓存 = 永久黑名单缓存 || new Set();
+    // 关键：把时间戳挪到「距过期只差重试间隔」，使下次重试至少间隔 永久黑名单重试毫秒
+    永久黑名单缓存时间 = now - 永久黑名单缓存TTL + 永久黑名单重试毫秒;
   }
   return 永久黑名单缓存;
 }
@@ -1240,6 +1456,9 @@ async function 记录违规并检查拉黑(客户端IP, 上下文) {
     }
     if (当前计数 >= 永久黑名单阈值 && !已永久封禁) {
         黑名单.add(客户端IP);
+        // 入列后同样封顶：否则写回 KV 的会是一份无界增长的名单，
+        // 下次任何 isolate 载入它都要付 O(条数) 的解析成本
+        裁剪永久黑名单(黑名单);
         永久黑名单缓存时间 = Date.now();
         上下文.waitUntil(withTimeout(键值存储.put('永久黑名单', JSON.stringify([...黑名单])), 2000, 'KV 黑名单写入超时').catch(() => {}));
         console.warn(`[永久黑名单] IP ${客户端IP} 累计违规 ${当前计数} 次，已加入永久黑名单`);
@@ -1250,6 +1469,160 @@ async function 记录违规并检查拉黑(客户端IP, 上下文) {
 }
 // ★ 管理员登录失败速率限制：内存计数 + KV 持久锁（每 IP 15 分钟内最多 5 次失败）
 const 登录限流计数 = new Map(); // { count, time }，自动过期
+// === 终端页面 与 值页面 共用的界面片段 ===
+// 两个页面各自渲染一份 HTML，样式与几个客户端函数原本各存一份；这里抽成公共片段，
+// 页面中通过 ${公共界面片段.xxx} 引用。插值后的输出与原先的两份拷贝一致。
+const 公共界面片段 = {
+  矩阵雨样式: `            .matrix-rain { display: none; }
+            .matrix-code-rain {
+                position: fixed; inset: 0;
+                pointer-events: none; z-index: -1;
+                overflow: hidden;
+            }
+            .matrix-column {
+                position: absolute; top: -120%; left: 0;
+                color: var(--cp-cyan);
+                font-family: "JetBrains Mono", "Courier New", monospace;
+                font-size: 14px; line-height: 1.25;
+                text-shadow: 0 0 6px var(--cp-cyan), 0 0 12px rgba(0,240,255,0.5);
+                animation: cp-drop linear infinite;
+            }
+            @keyframes cp-drop {
+                0%   { top: -120%; opacity: 0; }
+                10%  { opacity: 0.85; }
+                90%  { opacity: 0.4; }
+                100% { top: 110vh; opacity: 0; }
+            }
+            .matrix-column:nth-child(odd)  { animation-duration: 12s; }
+            .matrix-column:nth-child(even) { animation-duration: 18s; color: var(--cp-pink); text-shadow: 0 0 6px var(--cp-pink), 0 0 14px rgba(255,43,214,0.5); }
+            .matrix-column:nth-child(3n)   { animation-duration: 20s; color: var(--cp-purple); text-shadow: 0 0 6px var(--cp-purple); }
+            .matrix-column:nth-child(5n)   { animation-duration: 9s; opacity: 0.6; }`,
+  终端工具栏样式: `            .cp-hud {
+                position: fixed; top: 18px; right: 22px;
+                color: var(--cp-cyan);
+                font-family: "JetBrains Mono", monospace;
+                font-size: 11px; letter-spacing: 0.2em;
+                text-transform: uppercase;
+                text-align: right;
+                opacity: 0.85;
+                z-index: 1000;
+            }
+            .cp-hud .cp-hud-label { color: var(--cp-pink); }
+            .cp-hud .cp-hud-line { display: block; }
+            .cp-lang-wrapper {
+                position: fixed; top: 18px; left: 22px; z-index: 1000;
+                display: flex; align-items: center; gap: 10px;
+            }
+            .cp-lang-tag {
+                color: var(--cp-pink); font-size: 11px;
+                letter-spacing: 0.25em; text-transform: uppercase;
+                text-shadow: 0 0 6px var(--cp-pink);
+            }
+            #languageSelector {
+                background: rgba(8,4,28,0.85);
+                border: 1px solid var(--cp-cyan);
+                color: var(--cp-cyan);
+                padding: 6px 12px;
+                font-family: inherit;
+                font-size: 12px;
+                cursor: pointer;
+                letter-spacing: 0.12em;
+                text-shadow: 0 0 6px var(--cp-cyan);
+                box-shadow: 0 0 12px rgba(0,240,255,0.35);
+                clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
+            }
+            #languageSelector option { background: var(--cp-bg-2); color: var(--cp-cyan); }
+            /* FX toggle - 页面特效图形化开关 */
+            .cp-fx-toggle {
+                position: fixed; top: 68px; left: 22px; z-index: 1001;
+                background: rgba(8,4,28,0.85);
+                border: 1px solid var(--cp-mint);
+                color: var(--cp-mint);
+                padding: 6px 12px;
+                font-family: inherit;
+                font-size: 11px;
+                letter-spacing: 0.18em;
+                text-transform: uppercase;
+                cursor: pointer;
+                text-shadow: 0 0 6px var(--cp-mint);
+                box-shadow: 0 0 10px rgba(0,255,157,0.35);
+                clip-path: polygon(7px 0, 100% 0, 100% calc(100% - 7px), calc(100% - 7px) 100%, 0 100%, 0 7px);
+                transition: all 0.2s ease;
+                display: inline-flex; align-items: center; gap: 6px;
+            }`,
+  特效关闭样式: `            body.fx-off .matrix-bg,
+            body.fx-off .matrix-code-rain,
+            body.fx-off .matrix-column { display: none !important; }
+            body.fx-off::before,
+            body.fx-off::after { display: none !important; content: none !important; }
+            body.fx-off { background: var(--cp-bg) !important; }
+            body.fx-off * {
+                animation: none !important;
+                transition: color 0.15s, background-color 0.15s, border-color 0.15s, box-shadow 0.15s !important;
+            }
+            body.fx-off .cp-glitch::before,
+            body.fx-off .cp-glitch::after { display: none !important; }`,
+  创建矩阵雨: `function 创建矩阵雨() {
+  if (document.body && document.body.classList.contains('fx-off')) return;
+  const 矩阵值 = document.getElementById('matrixCodeRain');
+  if (!矩阵值) return;
+  const 赛博字符列表 = '01アイウエオカキクケコサシスセソタチツテトナニヌネノ$%#@!?<>+=ABCDEF';
+  const 调色板 = ['#00f0ff', '#ff2bd6', '#a347ff', '#00ff9d'];
+  const 列数 = Math.floor(window.innerWidth / 20);
+  for (let 索引值 = 0; 索引值 < 列数; 索引值++) {
+    const 列10005 = document.createElement('div');
+    列10005.className = 'matrix-column';
+    列10005.style.left = 索引值 * 20 + 'px';
+    列10005.style.animationDelay = -Math.random() * 15 + 's';
+    列10005.style.animationDuration = Math.random() * 14 + 8 + 's';
+    列10005.style.fontSize = Math.random() * 4 + 12 + 'px';
+    列10005.style.opacity = (Math.random() * 0.7 + 0.3).toFixed(2);
+    let 文本 = '';
+    const 字符数量 = Math.floor(Math.random() * 30 + 18);
+    for (let 次索引值 = 0; 次索引值 < 字符数量; 次索引值++) {
+      const 字符 = 赛博字符列表[Math.floor(Math.random() * 赛博字符列表.length)];
+      const 值强调 = Math.random() > 0.85;
+      const 颜色 = 值强调 ? 调色板[Math.floor(Math.random() * 调色板.length)] : '';
+      文本 += 颜色 ? '<span style="color:' + 颜色 + ';text-shadow:0 0 8px ' + 颜色 + ';">' + 字符 + '</span><br>' : '<span>' + 字符 + '</span><br>';
+    }
+    列10005.innerHTML = 文本;
+    矩阵值.appendChild(列10005);
+  }
+  setInterval(function () {
+    const 列列表 = 矩阵值.querySelectorAll('.matrix-column');
+    列列表.forEach(function (列) {
+      if (Math.random() > 0.94) {
+        const 字符列表 = 列.querySelectorAll('span');
+        if (字符列表.length > 0) {
+          const 目标 = 字符列表[Math.floor(Math.random() * 字符列表.length)];
+          const 本地值10004 = 目标.style.color;
+          目标.style.color = '#ffffff';
+          目标.style.textShadow = '0 0 10px #ffffff, 0 0 18px #00f0ff';
+          setTimeout(function () {
+            目标.style.color = 本地值10004;
+            目标.style.textShadow = '';
+          }, 200);
+        }
+      }
+    });
+  }, 110);
+}`,
+  切换语言: `function 切换语言(语言) {
+  localStorage.setItem('preferredLanguage', 语言);
+  // 设置Cookie（有效期1年）
+  const 过期日期10002 = new Date();
+  过期日期10002.setFullYear(过期日期10002.getFullYear() + 1);
+  document.cookie = 'preferredLanguage=' + 语言 + '; path=/; expires=' + 过期日期10002.toUTCString() + '; SameSite=Lax';
+  // 刷新页面，不使用URL参数
+  window.location.reload();
+}`,
+  获取凭据: `  function 获取凭据(名称) {
+    const 值 = '; ' + document.cookie;
+    const 部分列表 = 值.split('; ' + 名称 + '=');
+    if (部分列表.length === 2) return 部分列表.pop().split(';').shift();
+    return null;
+  }`,
+};
 export default {
   async fetch(请求735, 本地值734, 本地值733) {
     // P0-2: 未配置 UUID 时直接拒绝
@@ -1715,30 +2088,7 @@ export default {
                 z-index: -2;
                 pointer-events: none;
             }
-            .matrix-rain { display: none; }
-            .matrix-code-rain {
-                position: fixed; inset: 0;
-                pointer-events: none; z-index: -1;
-                overflow: hidden;
-            }
-            .matrix-column {
-                position: absolute; top: -120%; left: 0;
-                color: var(--cp-cyan);
-                font-family: "JetBrains Mono", "Courier New", monospace;
-                font-size: 14px; line-height: 1.25;
-                text-shadow: 0 0 6px var(--cp-cyan), 0 0 12px rgba(0,240,255,0.5);
-                animation: cp-drop linear infinite;
-            }
-            @keyframes cp-drop {
-                0%   { top: -120%; opacity: 0; }
-                10%  { opacity: 0.85; }
-                90%  { opacity: 0.4; }
-                100% { top: 110vh; opacity: 0; }
-            }
-            .matrix-column:nth-child(odd)  { animation-duration: 12s; }
-            .matrix-column:nth-child(even) { animation-duration: 18s; color: var(--cp-pink); text-shadow: 0 0 6px var(--cp-pink), 0 0 14px rgba(255,43,214,0.5); }
-            .matrix-column:nth-child(3n)   { animation-duration: 20s; color: var(--cp-purple); text-shadow: 0 0 6px var(--cp-purple); }
-            .matrix-column:nth-child(5n)   { animation-duration: 9s; opacity: 0.6; }
+${公共界面片段.矩阵雨样式}
             .terminal {
                 width: 92%; max-width: 860px; height: 540px;
                 background:
@@ -1847,75 +2197,12 @@ export default {
             .terminal-output { color: var(--cp-cyan); margin: 4px 0; }
             .terminal-error  { color: var(--cp-red); margin: 4px 0; text-shadow: 0 0 6px var(--cp-red); }
             .terminal-success{ color: var(--cp-mint); margin: 4px 0; text-shadow: 0 0 6px var(--cp-mint); }
-            .cp-hud {
-                position: fixed; top: 18px; right: 22px;
-                color: var(--cp-cyan);
-                font-family: "JetBrains Mono", monospace;
-                font-size: 11px; letter-spacing: 0.2em;
-                text-transform: uppercase;
-                text-align: right;
-                opacity: 0.85;
-                z-index: 1000;
-            }
-            .cp-hud .cp-hud-label { color: var(--cp-pink); }
-            .cp-hud .cp-hud-line { display: block; }
-            .cp-lang-wrapper {
-                position: fixed; top: 18px; left: 22px; z-index: 1000;
-                display: flex; align-items: center; gap: 10px;
-            }
-            .cp-lang-tag {
-                color: var(--cp-pink); font-size: 11px;
-                letter-spacing: 0.25em; text-transform: uppercase;
-                text-shadow: 0 0 6px var(--cp-pink);
-            }
-            #languageSelector {
-                background: rgba(8,4,28,0.85);
-                border: 1px solid var(--cp-cyan);
-                color: var(--cp-cyan);
-                padding: 6px 12px;
-                font-family: inherit;
-                font-size: 12px;
-                cursor: pointer;
-                letter-spacing: 0.12em;
-                text-shadow: 0 0 6px var(--cp-cyan);
-                box-shadow: 0 0 12px rgba(0,240,255,0.35);
-                clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
-            }
-            #languageSelector option { background: var(--cp-bg-2); color: var(--cp-cyan); }
-            /* FX toggle - 页面特效图形化开关 */
-            .cp-fx-toggle {
-                position: fixed; top: 68px; left: 22px; z-index: 1001;
-                background: rgba(8,4,28,0.85);
-                border: 1px solid var(--cp-mint);
-                color: var(--cp-mint);
-                padding: 6px 12px;
-                font-family: inherit;
-                font-size: 11px;
-                letter-spacing: 0.18em;
-                text-transform: uppercase;
-                cursor: pointer;
-                text-shadow: 0 0 6px var(--cp-mint);
-                box-shadow: 0 0 10px rgba(0,255,157,0.35);
-                clip-path: polygon(7px 0, 100% 0, 100% calc(100% - 7px), calc(100% - 7px) 100%, 0 100%, 0 7px);
-                transition: all 0.2s ease;
-                display: inline-flex; align-items: center; gap: 6px;
-            }
+${公共界面片段.终端工具栏样式}
             .cp-fx-toggle:hover { color: var(--cp-pink); border-color: var(--cp-pink); text-shadow: 0 0 8px var(--cp-pink); box-shadow: 0 0 16px rgba(255,43,214,0.55); }
             .cp-fx-toggle .cp-fx-dot { width: 6px; height: 6px; background: var(--cp-mint); border-radius: 50%; box-shadow: 0 0 8px var(--cp-mint); transition: all 0.2s; }
             body.fx-off .cp-fx-toggle { color: var(--cp-text-dim); border-color: var(--cp-text-dim); text-shadow: none; box-shadow: none; }
             body.fx-off .cp-fx-toggle .cp-fx-dot { background: transparent; border: 1px solid var(--cp-text-dim); box-shadow: none; }
-            body.fx-off .matrix-bg,
-            body.fx-off .matrix-code-rain,
-            body.fx-off .matrix-column { display: none !important; }
-            body.fx-off::before,
-            body.fx-off::after { display: none !important; content: none !important; }
-            body.fx-off { background: var(--cp-bg) !important; }
-            body.fx-off * {
-                animation: none !important;
-                transition: color 0.15s, background-color 0.15s, border-color 0.15s, box-shadow 0.15s !important;
-            }
-            body.fx-off .cp-glitch::before,
-            body.fx-off .cp-glitch::after { display: none !important; }
+${公共界面片段.特效关闭样式}
             body.fx-off .terminal-cursor::after { animation: none !important; }
             .cp-glitch {
                 font-family: "JetBrains Mono", monospace;
@@ -2034,51 +2321,7 @@ window.切换页面特效 = function () {
     });
   }
 })();
-function 创建矩阵雨() {
-  if (document.body && document.body.classList.contains('fx-off')) return;
-  const 矩阵值 = document.getElementById('matrixCodeRain');
-  if (!矩阵值) return;
-  const 赛博字符列表 = '01アイウエオカキクケコサシスセソタチツテトナニヌネノ$%#@!?<>+=ABCDEF';
-  const 调色板 = ['#00f0ff', '#ff2bd6', '#a347ff', '#00ff9d'];
-  const 列数 = Math.floor(window.innerWidth / 20);
-  for (let 索引值 = 0; 索引值 < 列数; 索引值++) {
-    const 列10005 = document.createElement('div');
-    列10005.className = 'matrix-column';
-    列10005.style.left = 索引值 * 20 + 'px';
-    列10005.style.animationDelay = -Math.random() * 15 + 's';
-    列10005.style.animationDuration = Math.random() * 14 + 8 + 's';
-    列10005.style.fontSize = Math.random() * 4 + 12 + 'px';
-    列10005.style.opacity = (Math.random() * 0.7 + 0.3).toFixed(2);
-    let 文本 = '';
-    const 字符数量 = Math.floor(Math.random() * 30 + 18);
-    for (let 次索引值 = 0; 次索引值 < 字符数量; 次索引值++) {
-      const 字符 = 赛博字符列表[Math.floor(Math.random() * 赛博字符列表.length)];
-      const 值强调 = Math.random() > 0.85;
-      const 颜色 = 值强调 ? 调色板[Math.floor(Math.random() * 调色板.length)] : '';
-      文本 += 颜色 ? '<span style="color:' + 颜色 + ';text-shadow:0 0 8px ' + 颜色 + ';">' + 字符 + '</span><br>' : '<span>' + 字符 + '</span><br>';
-    }
-    列10005.innerHTML = 文本;
-    矩阵值.appendChild(列10005);
-  }
-  setInterval(function () {
-    const 列列表 = 矩阵值.querySelectorAll('.matrix-column');
-    列列表.forEach(function (列) {
-      if (Math.random() > 0.94) {
-        const 字符列表 = 列.querySelectorAll('span');
-        if (字符列表.length > 0) {
-          const 目标 = 字符列表[Math.floor(Math.random() * 字符列表.length)];
-          const 本地值10004 = 目标.style.color;
-          目标.style.color = '#ffffff';
-          目标.style.textShadow = '0 0 10px #ffffff, 0 0 18px #00f0ff';
-          setTimeout(function () {
-            目标.style.color = 本地值10004;
-            目标.style.textShadow = '';
-          }, 200);
-        }
-      }
-    });
-  }, 110);
-}
+${公共界面片段.创建矩阵雨}
 function 是否有效唯一标识(唯一标识) {
   const 唯一标识正则 = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   return 唯一标识正则.test(唯一标识);
@@ -2187,23 +2430,10 @@ function handleAdminLogin() {
     input.disabled = false;
   });
 }
-function 切换语言(语言) {
-  localStorage.setItem('preferredLanguage', 语言);
-  // 设置Cookie（有效期1年）
-  const 过期日期10002 = new Date();
-  过期日期10002.setFullYear(过期日期10002.getFullYear() + 1);
-  document.cookie = 'preferredLanguage=' + 语言 + '; path=/; expires=' + 过期日期10002.toUTCString() + '; SameSite=Lax';
-  // 刷新页面，不使用URL参数
-  window.location.reload();
-}
+${公共界面片段.切换语言}
 // 页面加载时检查 localStorage 和 Cookie，并清理URL参数
 window.addEventListener('DOMContentLoaded', function () {
-  function 获取凭据(名称) {
-    const 值 = '; ' + document.cookie;
-    const 部分列表 = 值.split('; ' + 名称 + '=');
-    if (部分列表.length === 2) return 部分列表.pop().split(';').shift();
-    return null;
-  }
+${公共界面片段.获取凭据}
   const 已保存语言 = localStorage.getItem('preferredLanguage') || 获取凭据('preferredLanguage');
   const 网址参数 = new URLSearchParams(window.location.search);
   const 网址语言 = 网址参数.get('lang');
@@ -3764,6 +3994,23 @@ async function 计算回退目标(回退文本, 地区, 地区匹配, 默认主�
   const 备用 = await 获取值备用地址(地区, 地区匹配);
   return 备用 ? { address: 备用.domain, port: 备用.port } : { address: 默认主机, port: 默认端口 };
 }
+/**
+ * 每 isolate 的活动 WS 连接上限。
+ *
+ * 为什么按「连接数」而不是「请求数」：一条 WS 是长连接、可承载几个 GB，
+ * 用请求数计量没有意义。真正的约束是 isolate 的内存 —— 每条连接固定占
+ * 下载 BYOB 缓冲 64KiB + 下载合批缓冲 24~40KiB + 上行合批缓冲 32KiB ≈ 130KiB，
+ * 512 条满载 ≈ 66MiB，相对 128MiB 上限属于「贴着上限走」，
+ * 再叠加伪装缓存、面板资源与 GC 峰值离 exceededMemory 已经不远。
+ * 这是**可调上界而非安全值**：需要更多并发可以继续调高，但要同步观察 Memory 指标
+ * （exceededMemory 不像 CPU 那样有日志预警）。
+ *
+ * 超限时直接 429，不 accept 服务端 socket、不分配任何缓冲 —— 成本几乎为零。
+ * 批量开 WS 是常见探测手法，上限把它的内存占用钉死（与 XHTTP 的上限值 同一思路）。
+ */
+const 网页套接字连接上限 = 512;
+let 活动网页套接字连接 = 0;
+
 async function 处理网页套接字请求(请求417) {
   // 从请求URL的path query中读取客户端自定义参数，p=ProxyIP, wk=Worker地区, rm=地区匹配(no关闭), s=socks5代理
   const 请求网址 = new URL(请求417.url);
@@ -3794,6 +4041,21 @@ async function 处理网页套接字请求(请求417) {
   }
   const 网页套接字值 = new WebSocketPair();
   const [客户端值, 值值410] = Object.values(网页套接字值);
+  // 名额检查在 accept 之前：超限时连 socket 都不接，直接 429（与 XHTTP 的同名响应一致）
+  if (活动网页套接字连接 >= 网页套接字连接上限) {
+    console.warn(`[WS 连接上限] 已达 ${网页套接字连接上限} 条，拒绝新连接`);
+    return new Response('Too many connections', { status: 429 });
+  }
+  活动网页套接字连接++;
+  // 名额随连接生命周期释放；close 与 error 都可能触发，用标志位保证只释放一次
+  let 名额已释放 = false;
+  const 释放名额 = () => {
+    if (名额已释放) return;
+    名额已释放 = true;
+    if (活动网页套接字连接 > 0) 活动网页套接字连接--;
+  };
+  值值410.addEventListener('close', 释放名额);
+  值值410.addEventListener('error', 释放名额);
   值值410.accept();
   值值410.binaryType = 'arraybuffer';
   let 远程连接值409 = {
@@ -5120,30 +5382,7 @@ async function 处理订阅值(请求241, 用户240 = null) {
                 z-index: -2;
                 pointer-events: none;
             }
-            .matrix-rain { display: none; }
-            .matrix-code-rain {
-                position: fixed; inset: 0;
-                pointer-events: none; z-index: -1;
-                overflow: hidden;
-            }
-            .matrix-column {
-                position: absolute; top: -120%; left: 0;
-                color: var(--cp-cyan);
-                font-family: "JetBrains Mono", "Courier New", monospace;
-                font-size: 14px; line-height: 1.25;
-                text-shadow: 0 0 6px var(--cp-cyan), 0 0 12px rgba(0,240,255,0.5);
-                animation: cp-drop linear infinite;
-            }
-            @keyframes cp-drop {
-                0%   { top: -120%; opacity: 0; }
-                10%  { opacity: 0.85; }
-                90%  { opacity: 0.4; }
-                100% { top: 110vh; opacity: 0; }
-            }
-            .matrix-column:nth-child(odd)  { animation-duration: 12s; }
-            .matrix-column:nth-child(even) { animation-duration: 18s; color: var(--cp-pink); text-shadow: 0 0 6px var(--cp-pink), 0 0 14px rgba(255,43,214,0.5); }
-            .matrix-column:nth-child(3n)   { animation-duration: 20s; color: var(--cp-purple); text-shadow: 0 0 6px var(--cp-purple); }
-            .matrix-column:nth-child(5n)   { animation-duration: 9s; opacity: 0.6; }
+${公共界面片段.矩阵雨样式}
             ::selection { background: var(--cp-pink); color: var(--cp-bg); }
             .container {
                 max-width: 1180px;
@@ -5326,59 +5565,7 @@ async function 处理订阅值(请求241, 用户240 = null) {
                 text-shadow: 0 0 6px var(--cp-mint);
             }
             #clientSubscriptionUrl:empty { display: none !important; }
-            .cp-hud {
-                position: fixed; top: 18px; right: 22px;
-                color: var(--cp-cyan);
-                font-family: "JetBrains Mono", monospace;
-                font-size: 11px; letter-spacing: 0.2em;
-                text-transform: uppercase;
-                text-align: right;
-                opacity: 0.85;
-                z-index: 1000;
-            }
-            .cp-hud .cp-hud-label { color: var(--cp-pink); }
-            .cp-hud .cp-hud-line { display: block; }
-            .cp-lang-wrapper {
-                position: fixed; top: 18px; left: 22px; z-index: 1000;
-                display: flex; align-items: center; gap: 10px;
-            }
-            .cp-lang-tag {
-                color: var(--cp-pink); font-size: 11px;
-                letter-spacing: 0.25em; text-transform: uppercase;
-                text-shadow: 0 0 6px var(--cp-pink);
-            }
-            #languageSelector {
-                background: rgba(8,4,28,0.85);
-                border: 1px solid var(--cp-cyan);
-                color: var(--cp-cyan);
-                padding: 6px 12px;
-                font-family: inherit;
-                font-size: 12px;
-                cursor: pointer;
-                letter-spacing: 0.12em;
-                text-shadow: 0 0 6px var(--cp-cyan);
-                box-shadow: 0 0 12px rgba(0,240,255,0.35);
-                clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
-            }
-            #languageSelector option { background: var(--cp-bg-2); color: var(--cp-cyan); }
-            /* FX toggle - 页面特效图形化开关 */
-            .cp-fx-toggle {
-                position: fixed; top: 68px; left: 22px; z-index: 1001;
-                background: rgba(8,4,28,0.85);
-                border: 1px solid var(--cp-mint);
-                color: var(--cp-mint);
-                padding: 6px 12px;
-                font-family: inherit;
-                font-size: 11px;
-                letter-spacing: 0.18em;
-                text-transform: uppercase;
-                cursor: pointer;
-                text-shadow: 0 0 6px var(--cp-mint);
-                box-shadow: 0 0 10px rgba(0,255,157,0.35);
-                clip-path: polygon(7px 0, 100% 0, 100% calc(100% - 7px), calc(100% - 7px) 100%, 0 100%, 0 7px);
-                transition: all 0.2s ease;
-                display: inline-flex; align-items: center; gap: 6px;
-            }
+${公共界面片段.终端工具栏样式}
             .cp-fx-toggle:hover {
                 color: var(--cp-pink);
                 border-color: var(--cp-pink);
@@ -5404,18 +5591,7 @@ async function 处理订阅值(请求241, 用户240 = null) {
                 box-shadow: none;
             }
             /* FX OFF: 关闭所有装饰性特效，保留布局和配色 */
-            body.fx-off .matrix-bg,
-            body.fx-off .matrix-code-rain,
-            body.fx-off .matrix-column { display: none !important; }
-            body.fx-off::before,
-            body.fx-off::after { display: none !important; content: none !important; }
-            body.fx-off { background: var(--cp-bg) !important; }
-            body.fx-off * {
-                animation: none !important;
-                transition: color 0.15s, background-color 0.15s, border-color 0.15s, box-shadow 0.15s !important;
-            }
-            body.fx-off .cp-glitch::before,
-            body.fx-off .cp-glitch::after { display: none !important; }
+${公共界面片段.特效关闭样式}
             body.fx-off .terminal-cursor::after,
             body.fx-off .cp-fab-save .cp-fab-dot { animation: none !important; }
             body.fx-off .cp-fab-save:hover { transform: none !important; }
@@ -6338,7 +6514,7 @@ const 本地值20215 = {
     autoSubscriptionCopied: 'لینک اشتراک تشخیص خودکار کپی شد، کلاینت هنگام دسترسی بر اساس User-Agent به طور خودکار تشخیص داده و قالب مربوطه را برمی‌گرداند'
   }
 };
-function 获取凭据(名称) { const 值 = '; ' + document.cookie; const 列表 = 值.split('; ' + 名称 + '='); if (列表.length === 2) return 列表.pop().split(';').shift(); return null; }
+${公共界面片段.获取凭据}
   function 是否波斯语界面(严格中文) {
     const 浏览器 = navigator.language || navigator.userLanguage || '';
     const 已保存 = localStorage.getItem('preferredLanguage') || 获取凭据('preferredLanguage');
@@ -6348,22 +6524,14 @@ function 获取凭据(名称) { const 值 = '; ' + document.cookie; const 列表
   }
 const 是否值20208 = 是否波斯语界面(true);
 const 翻译值20207 = 本地值20215[是否值20208 ? 'fa' : 'zh'];
-function 切换语言(语言) {
-  localStorage.setItem('preferredLanguage', 语言);
-  // 设置Cookie（有效期1年）
-  const 过期日期20206 = new Date();
-  过期日期20206.setFullYear(过期日期20206.getFullYear() + 1);
-  document.cookie = 'preferredLanguage=' + 语言 + '; path=/; expires=' + 过期日期20206.toUTCString() + '; SameSite=Lax';
-  // 刷新页面，不使用URL参数
-  window.location.reload();
-}
+${公共界面片段.切换语言}
 function handleLogout() {
   fetch('/api/logout', { method: 'POST', keepalive: true }).catch(function(e) { console.warn('[Logout] failed:', e?.message || e); });
   window.location.href = '/';
 }
 // 页面加载时检查 localStorage 和 Cookie，并清理URL参数
 window.addEventListener('DOMContentLoaded', function () {
-  const 已保存语言20205 = localStorage.getItem('preferredLanguage') || 获取凭据20214('preferredLanguage');
+  const 已保存语言20205 = localStorage.getItem('preferredLanguage') || 获取凭据('preferredLanguage');
   const 网址参数 = new URLSearchParams(window.location.search);
   const 网址语言 = 网址参数.get('lang');
   // 如果URL中有语言参数，移除它并设置Cookie
@@ -6492,6 +6660,16 @@ function 尝试打开应用(方案网址20197, 回退回调, 超时20196) {
     }
   }, 超时20196);
 }
+function 刷新订阅网址显示(链接) {
+  var 元素 = document.getElementById("clientSubscriptionUrl");
+  元素.textContent = 链接;
+  元素.style.display = "block";
+  元素.style.overflowWrap = "break-word";
+  元素.style.wordBreak = "break-all";
+  元素.style.overflowX = "auto";
+  元素.style.maxWidth = "100%";
+  元素.style.boxSizing = "border-box";
+}
 function 生成客户端链接(客户端类型, 客户端名称) {
   var 当前网址20192 = window.location.href;
   var 订阅网址20191 = 当前网址20192 + "/sub";
@@ -6500,14 +6678,7 @@ function 生成客户端链接(客户端类型, 客户端名称) {
   var 最终网址 = 订阅网址20191;
   if (客户端类型 === 'v2ray') {
     最终网址 = 订阅网址20191;
-    var 网址值20190 = document.getElementById("clientSubscriptionUrl");
-    网址值20190.textContent = 最终网址;
-    网址值20190.style.display = "block";
-    网址值20190.style.overflowWrap = "break-word";
-    网址值20190.style.wordBreak = "break-all";
-    网址值20190.style.overflowX = "auto";
-    网址值20190.style.maxWidth = "100%";
-    网址值20190.style.boxSizing = "border-box";
+    刷新订阅网址显示(最终网址);
     if (客户端名称 === 'V2RAY') {
       navigator.clipboard.writeText(最终网址).then(function () {
         显示提示(显示名称 + " " + 翻译值20207.subscriptionCopied, 'success');
@@ -6537,14 +6708,7 @@ function 生成客户端链接(客户端类型, 客户端名称) {
   } else {
     // 统一走内部订阅转换 (?target=xxx)，不再依赖外部 sub-converter
     最终网址 = 订阅网址20191 + (订阅网址20191.includes('?') ? '&' : '?') + "target=" + 客户端类型;
-    var 网址值20190 = document.getElementById("clientSubscriptionUrl");
-    网址值20190.textContent = 最终网址;
-    网址值20190.style.display = "block";
-    网址值20190.style.overflowWrap = "break-word";
-    网址值20190.style.wordBreak = "break-all";
-    网址值20190.style.overflowX = "auto";
-    网址值20190.style.maxWidth = "100%";
-    网址值20190.style.boxSizing = "border-box";
+    刷新订阅网址显示(最终网址);
     if (客户端类型 === 'clash') {
       if (客户端名称 === 'STASH') {
         方案网址 = 'stash://install?url=' + encodeURIComponent(最终网址);
@@ -6607,51 +6771,7 @@ window.切换页面特效 = function () {
     });
   }
 })();
-function 创建矩阵雨() {
-  if (document.body && document.body.classList.contains('fx-off')) return;
-  const 矩阵值 = document.getElementById('matrixCodeRain');
-  if (!矩阵值) return;
-  const 赛博字符列表 = '01アイウエオカキクケコサシスセソタチツテトナニヌネノ$%#@!?<>+=ABCDEF';
-  const 调色板 = ['#00f0ff', '#ff2bd6', '#a347ff', '#00ff9d'];
-  const 列数 = Math.floor(window.innerWidth / 20);
-  for (let 索引值20184 = 0; 索引值20184 < 列数; 索引值20184++) {
-    const 列20183 = document.createElement('div');
-    列20183.className = 'matrix-column';
-    列20183.style.left = 索引值20184 * 20 + 'px';
-    列20183.style.animationDelay = -Math.random() * 15 + 's';
-    列20183.style.animationDuration = Math.random() * 14 + 8 + 's';
-    列20183.style.fontSize = Math.random() * 4 + 12 + 'px';
-    列20183.style.opacity = (Math.random() * 0.7 + 0.3).toFixed(2);
-    let 文本20182 = '';
-    const 字符数量 = Math.floor(Math.random() * 30 + 18);
-    for (let 次索引值 = 0; 次索引值 < 字符数量; 次索引值++) {
-      const 字符 = 赛博字符列表[Math.floor(Math.random() * 赛博字符列表.length)];
-      const 值强调 = Math.random() > 0.85;
-      const 颜色 = 值强调 ? 调色板[Math.floor(Math.random() * 调色板.length)] : '';
-      文本20182 += 颜色 ? '<span style="color:' + 颜色 + ';text-shadow:0 0 8px ' + 颜色 + ';">' + 字符 + '</span><br>' : '<span>' + 字符 + '</span><br>';
-    }
-    列20183.innerHTML = 文本20182;
-    矩阵值.appendChild(列20183);
-  }
-  setInterval(function () {
-    const 列列表 = 矩阵值.querySelectorAll('.matrix-column');
-    列列表.forEach(function (列) {
-      if (Math.random() > 0.94) {
-        const 字符列表 = 列.querySelectorAll('span');
-        if (字符列表.length > 0) {
-          const 目标20181 = 字符列表[Math.floor(Math.random() * 字符列表.length)];
-          const 本地值20180 = 目标20181.style.color;
-          目标20181.style.color = '#ffffff';
-          目标20181.style.textShadow = '0 0 10px #ffffff, 0 0 18px #00f0ff';
-          setTimeout(function () {
-            目标20181.style.color = 本地值20180;
-            目标20181.style.textShadow = '';
-          }, 200);
-        }
-      }
-    });
-  }, 110);
-}
+${公共界面片段.创建矩阵雨}
 async function 检查系统状态() {
   try {
     const 云墙状态 = document.getElementById('cfStatus');
